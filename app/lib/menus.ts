@@ -84,21 +84,19 @@ export const operationManagerMenu: MenuItem[] = [
 ];
 
 // ==========================================
-// 8. SALES COORDINATOR
+// 8. SALES COORDINATOR (STRICTLY FROM IMAGE)
 // ==========================================
 export const salesCoordinatorMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-coordinator' },
-  { name: 'Orders', icon: Box, href: '/sales-coordinator/orders' },
-  { name: 'Clients', icon: Users, href: '/sales-coordinator/clients' },
-  { name: 'Performance', icon: TrendingUp, href: '/sales-coordinator/performance' },
+  { name: 'Products', icon: Box, href: '/sales-coordinator/products' },
 ];
 
 // ==========================================
-// 9. MARKETING MANAGER
+// 9. MARKETING MANAGER (UPDATED FROM FIGMA IMAGE)
 // ==========================================
 export const marketingManagerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
-  { name: 'Campaigns', icon: Megaphone, href: '/marketing-manager/campaigns' },
-  { name: 'Social Media', icon: Users, href: '/marketing-manager/social' },
-  { name: 'Analytics', icon: PieChart, href: '/marketing-manager/analytics' },
+  { name: 'Products', icon: Box, href: '/marketing-manager/products' },
+  { name: 'Reports', icon: FileText, href: '/marketing-manager/reports' },
+  { name: 'Business Analytics', icon: TrendingUp, href: '/marketing-manager/analytics' },
 ];
