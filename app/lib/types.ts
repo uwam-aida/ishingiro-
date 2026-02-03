@@ -11,3 +11,13 @@ export interface UserConfig {
   initial: string;
   menu: MenuItem[];
 }
+
+// Added to fix the error in mockData.ts
+export interface ProductItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  addedBy: string;
+  status: string;
+}

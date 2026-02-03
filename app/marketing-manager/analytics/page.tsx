@@ -8,23 +8,32 @@ import {
   ShoppingCart, 
   ArrowUpRight, 
   Minus,
-  RefreshCcw // Reset Icon
+  RefreshCcw 
 } from 'lucide-react';
 
 export default function MarketingAnalyticsPage() {
   // State for interactivity
-  const [activeFilter, setActiveFilter] = useState<'all' | 'production' | 'stock' | 'orders'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'growth' | 'production' | 'stock' | 'orders'>('all');
 
-  // 1. Top Cards Data
+  // 1. Top Cards Data (Restored to 4 Items)
   const stats = [
     { 
-      id: 'production',
-      label: 'Weekly Production', 
-      value: '250', 
-      sub: 'Items produced', 
+      id: 'growth',
+      label: 'Weekly Growth', 
+      value: '+15%', // Quantity/Volume based
+      sub: 'Volume increase', 
       icon: TrendingUp, 
       color: 'text-green-600', 
       bg: 'bg-green-50' 
+    },
+    { 
+      id: 'production',
+      label: 'Products in production', 
+      value: '2', 
+      sub: 'Active products', 
+      icon: Package, 
+      color: 'text-gray-900', 
+      bg: 'bg-gray-50' 
     },
     { 
       id: 'stock',
@@ -51,6 +60,7 @@ export default function MarketingAnalyticsPage() {
     { id: 1, product: 'Bread', sold: 150, stock: '10', popularity: 80, trend: 'Increasing', rec: 'Increase production', category: 'production' },
     { id: 2, product: 'Birthday Cake', sold: 1, stock: '1', popularity: 70, trend: 'Stable', rec: 'Maintain current level', category: 'orders' },
     { id: 3, product: 'Biscuits', sold: 50, stock: '20', popularity: 40, trend: 'Decreasing', rec: 'Reduce stock', category: 'stock' },
+    { id: 4, product: 'New Pastry', sold: 200, stock: '5', popularity: 90, trend: 'Increasing', rec: 'High Priority', category: 'growth' },
   ];
 
   // 3. Activity Log Data
@@ -65,7 +75,7 @@ export default function MarketingAnalyticsPage() {
   // --- FILTER LOGIC ---
   const filteredPerformance = activeFilter === 'all' 
     ? allPerformance 
-    : allPerformance.filter(item => item.category === activeFilter || activeFilter === 'production'); // Show mostly everything for production view as it relates
+    : allPerformance.filter(item => item.category === activeFilter || (activeFilter === 'production' && item.trend === 'Increasing'));
 
   const filteredActivities = activeFilter === 'all'
     ? allActivities
@@ -90,8 +100,8 @@ export default function MarketingAnalyticsPage() {
         )}
       </div>
 
-      {/* --- INTERACTIVE STATS GRID --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* --- INTERACTIVE STATS GRID (4 COLUMNS) --- */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {stats.map((stat) => (
           <div 
             key={stat.id} 

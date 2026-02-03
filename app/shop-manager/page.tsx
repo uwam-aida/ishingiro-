@@ -1,68 +1,216 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link'; // Ensure Link is imported
-import { Package, Clock, ShoppingBag, AlertCircle, ArrowRight, Search, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { Package, Clock, ShoppingBag, AlertCircle, ArrowRight, Search, CheckCircle } from 'lucide-react';
 
 export default function DashboardHome() {
-  
-  // Stats Data
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'stock' | 'damaged'>('baked');
+
+  // --- MOCK DATA ---
+  const [bakedItems, setBakedItems] = useState([
+    { id: 1, item: 'Fresh Bread', quantity: 100, unit: 'pieces', from: 'Baker Assistant', status: 'Sent' },
+    { id: 2, item: 'Donuts', quantity: 50, unit: 'pieces', from: 'Head Baker', status: 'Sent' },
+  ]);
+
+  const orders = [
+    { id: 1, item: 'Wedding Cake', quantity: '1', unit: 'piece', time: '10:30 PM', status: 'Pending' },
+    { id: 2, item: 'Chocolate Cookies', quantity: '20', unit: 'packets', time: '12:00 PM', status: 'Baking' },
+  ];
+
+  const [shopStock, setShopStock] = useState([
+    { id: 1, item: 'White Loaf', quantity: 45, unit: 'pieces', status: 'Available' },
+    { id: 2, item: 'Milk (1L)', quantity: 2, unit: 'bottles', status: 'Low Stock' },
+  ]);
+
+  const damagedItems = [
+    { id: 1, item: 'Burnt Toast', quantity: 5, unit: 'pieces', reason: 'Burnt', status: 'Reported' },
+  ];
+
+  // --- RECEIVE LOGIC ---
+  const handleReceive = (id: number) => {
+    const itemToReceive = bakedItems.find(item => item.id === id);
+    if (!itemToReceive) return;
+
+    setShopStock(prevStock => {
+      const existingItemIndex = prevStock.findIndex(stock => stock.item === itemToReceive.item);
+      if (existingItemIndex >= 0) {
+        const newStock = [...prevStock];
+        newStock[existingItemIndex] = {
+          ...newStock[existingItemIndex],
+          quantity: newStock[existingItemIndex].quantity + itemToReceive.quantity,
+          status: 'Available'
+        };
+        return newStock;
+      } else {
+        return [...prevStock, {
+          id: Date.now(),
+          item: itemToReceive.item,
+          quantity: itemToReceive.quantity,
+          unit: itemToReceive.unit,
+          status: 'Available'
+        }];
+      }
+    });
+    setBakedItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const totalStockCount = shopStock.reduce((acc, item) => acc + item.quantity, 0);
+
   const stats = [
-    { 
-      label: 'Shop Stock', 
-      value: '0', 
-      sub: 'Items available', 
-      icon: Package, 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-50',
-      href: '/shop-manager/products'
-    },
-    { 
-      label: 'Pending Order', 
-      value: '1', 
-      sub: 'Waiting for baker', 
-      icon: Clock, 
-      color: 'text-orange-600', 
-      bg: 'bg-orange-50',
-      href: '/shop-manager/notifications'
-    },
-    { 
-      label: 'Baked Items', 
-      value: '1', 
-      sub: 'From baker', 
-      icon: ShoppingBag, 
-      color: 'text-green-600', 
-      bg: 'bg-green-50',
-      href: '/shop-manager/products' 
-    },
-    { 
-      label: 'Damaged Items', 
-      value: '0', 
-      sub: 'Reported today', 
-      icon: AlertCircle, 
-      color: 'text-red-600', 
-      bg: 'bg-red-50',
-      href: '/shop-manager/products'
-    },
+    { id: 'baked', label: 'Baked Items', value: bakedItems.length.toString(), sub: 'Ready to receive', icon: ShoppingBag },
+    { id: 'orders', label: 'Orders', value: orders.length.toString(), sub: 'My requests', icon: Clock },
+    { id: 'stock', label: 'Rest Product', value: totalStockCount.toString(), sub: 'In shop', icon: Package },
+    { id: 'damaged', label: 'Damaged', value: damagedItems.length.toString(), sub: 'Reported', icon: AlertCircle },
   ];
 
-  const myOrders = [
-    { item: 'Bread', quantity: '50 pieces', time: '10:30 PM', status: 'pending' },
-    { item: 'Birthday Cake', quantity: '1 piece', time: '12:00 PM', status: 'pending' },
-  ];
+  // --- HELPER: GET VIEW ALL LINK ---
+  const getViewAllLink = () => {
+    switch (activeFilter) {
+      case 'orders': return '/shop-manager/notifications';
+      case 'damaged': return '/shop-manager/products';
+      default: return '/shop-manager/products';
+    }
+  };
 
-  const availableItems = [
-    { item: 'Fresh Bread', quantity: '100 pieces', addedBy: 'Baker Assistant', status: 'Available' },
-  ];
+  // --- DYNAMIC CONTENT RENDERER ---
+  const renderTableContent = () => {
+    switch (activeFilter) {
+      case 'baked': 
+        return (
+          <>
+             <thead>
+              <tr className="bg-[#A67C37] text-white text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Item Name</th>
+                <th className="px-6 py-4">Quantity</th>
+                <th className="px-6 py-4">From</th>
+                <th className="px-6 py-4 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {bakedItems.length > 0 ? bakedItems.map((item) => (
+                <tr key={item.id} className="hover:bg-[#EBE0CC]/20 transition-colors">
+                  <td className="px-6 py-5 font-semibold text-[#5D4037]">{item.item}</td>
+                  <td className="px-6 py-5 text-gray-600 font-medium">{item.quantity} {item.unit}</td>
+                  <td className="px-6 py-5 text-gray-500">{item.from}</td>
+                  <td className="px-6 py-5 text-right">
+                    <button 
+                      onClick={() => handleReceive(item.id)}
+                      className="bg-[#5D4037] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wide hover:bg-[#4a332a] transition-colors flex items-center gap-2 ml-auto"
+                    >
+                      <CheckCircle size={14} /> Receive
+                    </button>
+                  </td>
+                </tr>
+              )) : (
+                <tr><td colSpan={4} className="text-center py-8 text-gray-400">No new baked items.</td></tr>
+              )}
+            </tbody>
+          </>
+        );
+
+      case 'orders': 
+        return (
+          <>
+            <thead>
+              <tr className="bg-[#5D4037] text-white text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Item Name</th>
+                <th className="px-6 py-4">Quantity</th>
+                <th className="px-6 py-4">Due Time</th>
+                <th className="px-6 py-4 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {orders.map((item) => (
+                <tr key={item.id} className="hover:bg-[#EBE0CC]/20 transition-colors">
+                  <td className="px-6 py-5 font-semibold text-[#5D4037]">{item.item}</td>
+                  <td className="px-6 py-5 text-gray-600 font-medium">{item.quantity} {item.unit}</td>
+                  <td className="px-6 py-5 text-gray-500">{item.time}</td>
+                  <td className="px-6 py-5 text-right">
+                    <span className="bg-[#EBE0CC] text-[#5D4037] px-3 py-1.5 rounded-lg text-xs font-bold uppercase border border-[#d4c5ad]">
+                      {item.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </>
+        );
+
+      case 'stock': 
+        return (
+          <>
+            <thead>
+              <tr className="bg-[#A67C37] text-white text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Item Name</th>
+                <th className="px-6 py-4">Quantity</th>
+                <th className="px-6 py-4 text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {shopStock.map((item) => (
+                <tr key={item.id} className="hover:bg-[#EBE0CC]/20 transition-colors">
+                  <td className="px-6 py-5 font-semibold text-[#5D4037]">{item.item}</td>
+                  <td className="px-6 py-5 text-gray-600 font-medium">{item.quantity} {item.unit}</td>
+                  <td className="px-6 py-5 text-right">
+                    <span className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase border ${
+                      item.status === 'Low Stock' 
+                      ? 'bg-[#5D4037] text-white border-[#5D4037]' 
+                      : 'bg-white text-[#5D4037] border-[#A67C37]'
+                    }`}>
+                      {item.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </>
+        );
+
+      case 'damaged': 
+        return (
+          <>
+            <thead>
+              <tr className="bg-[#5D4037] text-white text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Item Name</th>
+                <th className="px-6 py-4">Quantity</th>
+                <th className="px-6 py-4 text-right">Reason</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {damagedItems.map((item) => (
+                <tr key={item.id} className="hover:bg-[#EBE0CC]/20 transition-colors">
+                  <td className="px-6 py-5 font-semibold text-[#5D4037]">{item.item}</td>
+                  <td className="px-6 py-5 text-gray-600 font-medium">{item.quantity} {item.unit}</td>
+                  <td className="px-6 py-5 text-right text-gray-500 italic">
+                    {item.reason}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </>
+        );
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
       
+      {/* --- MOBILE LOGO (VISIBLE ONLY ON PHONE) --- */}
+      <div className="md:hidden flex items-center justify-center mb-6">
+         {/* 🔴 PUT YOUR LOGO IMAGE LINK BELOW 🔴 */}
+         <img 
+           src="/logo.png" 
+           alt="Shop Logo" 
+           className="h-16 w-auto object-contain" // Change h-16 to adjust size
+         />
+      </div>
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Shop Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">Welcome back, here is what's happening today.</p>
+          <h1 className="text-2xl font-bold text-[#5D4037] tracking-tight">Shop Overview</h1>
+          <p className="text-gray-500 text-sm mt-1">Daily operations and stock management.</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -71,103 +219,57 @@ export default function DashboardHome() {
             <input 
               type="text" 
               placeholder="Search items..." 
-              className="bg-white border border-gray-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5D4037]/10 focus:border-[#5D4037] w-64 transition-all shadow-sm"
+              className="bg-white border border-gray-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5D4037]/20 focus:border-[#5D4037] w-64 transition-all shadow-sm"
             />
           </div>
-
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards (Interactive Grids) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <Link 
-            key={index} 
-            href={stat.href} 
-            className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer group"
+        {stats.map((stat) => (
+          <div 
+            key={stat.id} 
+            onClick={() => setActiveFilter(stat.id as any)}
+            className={`p-6 rounded-2xl shadow-sm border flex flex-col items-center text-center transition-all cursor-pointer group ${
+              activeFilter === stat.id 
+              ? 'bg-[#5D4037] text-white border-[#5D4037] scale-[1.03] shadow-lg' 
+              : 'bg-white border-gray-100 hover:border-[#A67C37] hover:shadow-md'
+            }`}
           >
-             <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
+             <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${
+               activeFilter === stat.id ? 'bg-[#A67C37] text-white' : 'bg-[#EBE0CC]/40 text-[#5D4037]'
+             }`}>
                <stat.icon size={26} strokeWidth={2} />
              </div>
-             <h3 className="font-semibold text-gray-600 text-sm uppercase tracking-wide">{stat.label}</h3>
-             <p className="text-3xl font-extrabold text-gray-900 mt-1">{stat.value}</p>
-             <p className="text-xs font-medium text-gray-400 mt-1">{stat.sub}</p>
-          </Link>
+             <h3 className={`font-semibold text-sm uppercase tracking-wide ${activeFilter === stat.id ? 'text-[#EBE0CC]' : 'text-gray-600'}`}>{stat.label}</h3>
+             <p className={`text-3xl font-extrabold mt-1 ${activeFilter === stat.id ? 'text-white' : 'text-[#5D4037]'}`}>{stat.value}</p>
+             <p className={`text-xs font-medium mt-1 ${activeFilter === stat.id ? 'text-gray-300' : 'text-gray-400'}`}>{stat.sub}</p>
+          </div>
         ))}
       </div>
 
-      {/* My Orders Section */}
+      {/* Interactive List Section */}
       <div className="space-y-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900">My Orders</h2>
+          <h2 className="text-xl font-bold text-[#5D4037] capitalize">
+            {activeFilter === 'baked' ? 'Incoming Baked Items' : 
+             activeFilter === 'orders' ? 'My Order History' : 
+             activeFilter === 'stock' ? 'Current Shop Inventory' : 'Damaged Reports'}
+          </h2>
           
-          {/* --- FIXED VIEW ALL BUTTON --- */}
           <Link 
-            href="/shop-manager/products" 
-            className="text-sm font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-1 transition-colors hover:underline"
+            href={getViewAllLink()}
+            className="text-sm font-semibold text-[#A67C37] hover:text-[#5D4037] flex items-center gap-1 transition-colors hover:underline"
           >
             View All <ArrowRight size={16} />
           </Link>
-          {/* ----------------------------- */}
-
+          
         </div>
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+        
+        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 min-h-[300px]">
           <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#EBE0CC] text-gray-800 text-xs font-bold uppercase tracking-wider">
-                <th className="px-6 py-4">Item Name</th>
-                <th className="px-6 py-4">Quantity</th>
-                <th className="px-6 py-4">Due Time</th>
-                <th className="px-6 py-4 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {myOrders.map((order, i) => (
-                <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="px-6 py-5 font-semibold text-gray-900">{order.item}</td>
-                  <td className="px-6 py-5 text-gray-600 font-medium">{order.quantity}</td>
-                  <td className="px-6 py-5 text-gray-500 flex items-center gap-2">
-                    <Clock size={16} className="text-gray-400" /> {order.time}
-                  </td>
-                  <td className="px-6 py-5 text-right">
-                    <span className="bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border border-gray-200">
-                      {order.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Available Baked Items Section */}
-      <div className="space-y-5">
-        <h2 className="text-xl font-bold text-gray-900">Available Baked Items</h2>
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-[#A67C37] text-white text-xs font-bold uppercase tracking-wider">
-                <th className="px-6 py-4">Item Name</th>
-                <th className="px-6 py-4">Quantity</th>
-                <th className="px-6 py-4">Added By</th>
-                <th className="px-6 py-4 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {availableItems.map((item, i) => (
-                <tr key={i} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="px-6 py-5 font-semibold text-gray-900">{item.item}</td>
-                  <td className="px-6 py-5 text-gray-600 font-medium">{item.quantity}</td>
-                  <td className="px-6 py-5 text-gray-600 text-sm">{item.addedBy}</td>
-                  <td className="px-6 py-5 text-right">
-                    <span className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border border-green-100">
-                      {item.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+            {renderTableContent()}
           </table>
         </div>
       </div>

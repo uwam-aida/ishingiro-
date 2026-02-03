@@ -15,12 +15,12 @@ import {
 import { MenuItem } from './types';
 
 // ==========================================
-// 1. SHOP MANAGER
+// 1. SHOP MANAGER (UPDATED)
 // ==========================================
 export const shopManagerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/shop-manager' },
   { name: 'Products', icon: Box, href: '/shop-manager/products' },
-  { name: 'Add products', icon: PlusCircle, href: '/shop-manager/add-product' },
+  { name: 'Add', icon: PlusCircle, href: '/shop-manager/add' }, // RENAMED
   { name: 'Notification', icon: Bell, href: '/shop-manager/notifications' },
 ];
 
