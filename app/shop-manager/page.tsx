@@ -2,10 +2,14 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Package, Clock, ShoppingBag, AlertCircle, ArrowRight, Search, CheckCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // 1. Added Router Import
+import { Package, Clock, ShoppingBag, AlertCircle, ArrowRight, Search, CheckCircle, Archive, ArrowLeft } from 'lucide-react'; // 2. Added ArrowLeft
 
 export default function DashboardHome() {
-  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'stock' | 'damaged'>('baked');
+  const router = useRouter(); // 3. Initialize Router
+  
+  // 1. Added 'received' to the filter type
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged'>('baked');
 
   // --- MOCK DATA ---
   const [bakedItems, setBakedItems] = useState([
@@ -18,6 +22,11 @@ export default function DashboardHome() {
     { id: 2, item: 'Chocolate Cookies', quantity: '20', unit: 'packets', time: '12:00 PM', status: 'Baking' },
   ];
 
+  // 2. New State for Received History
+  const [receivedLog, setReceivedLog] = useState([
+    { id: 101, item: 'Samosa', quantity: 30, unit: 'pieces', time: '08:00 AM', from: 'Kitchen' }
+  ]);
+
   const [shopStock, setShopStock] = useState([
     { id: 1, item: 'White Loaf', quantity: 45, unit: 'pieces', status: 'Available' },
     { id: 2, item: 'Milk (1L)', quantity: 2, unit: 'bottles', status: 'Low Stock' },
@@ -27,11 +36,12 @@ export default function DashboardHome() {
     { id: 1, item: 'Burnt Toast', quantity: 5, unit: 'pieces', reason: 'Burnt', status: 'Reported' },
   ];
 
-  // --- RECEIVE LOGIC ---
+  // --- RECEIVE LOGIC (Updated to track history) ---
   const handleReceive = (id: number) => {
     const itemToReceive = bakedItems.find(item => item.id === id);
     if (!itemToReceive) return;
 
+    // A. Update Stock
     setShopStock(prevStock => {
       const existingItemIndex = prevStock.findIndex(stock => stock.item === itemToReceive.item);
       if (existingItemIndex >= 0) {
@@ -52,19 +62,32 @@ export default function DashboardHome() {
         }];
       }
     });
+
+    // B. Add to Received Log (History)
+    setReceivedLog(prev => [{
+      id: Date.now(),
+      item: itemToReceive.item,
+      quantity: itemToReceive.quantity,
+      unit: itemToReceive.unit,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      from: itemToReceive.from
+    }, ...prev]);
+
+    // C. Remove from Incoming
     setBakedItems(prev => prev.filter(item => item.id !== id));
   };
 
   const totalStockCount = shopStock.reduce((acc, item) => acc + item.quantity, 0);
 
+  // --- UPDATED STATS GRID (Added Received Product) ---
   const stats = [
     { id: 'baked', label: 'Baked Items', value: bakedItems.length.toString(), sub: 'Ready to receive', icon: ShoppingBag },
     { id: 'orders', label: 'Orders', value: orders.length.toString(), sub: 'My requests', icon: Clock },
+    { id: 'received', label: 'Received Product', value: receivedLog.length.toString(), sub: 'History log', icon: Archive }, // NEW GRID
     { id: 'stock', label: 'Rest Product', value: totalStockCount.toString(), sub: 'In shop', icon: Package },
     { id: 'damaged', label: 'Damaged', value: damagedItems.length.toString(), sub: 'Reported', icon: AlertCircle },
   ];
 
-  // --- HELPER: GET VIEW ALL LINK ---
   const getViewAllLink = () => {
     switch (activeFilter) {
       case 'orders': return '/shop-manager/notifications';
@@ -73,7 +96,6 @@ export default function DashboardHome() {
     }
   };
 
-  // --- DYNAMIC CONTENT RENDERER ---
   const renderTableContent = () => {
     switch (activeFilter) {
       case 'baked': 
@@ -130,6 +152,32 @@ export default function DashboardHome() {
                     <span className="bg-[#EBE0CC] text-[#5D4037] px-3 py-1.5 rounded-lg text-xs font-bold uppercase border border-[#d4c5ad]">
                       {item.status}
                     </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </>
+        );
+
+      case 'received': 
+        return (
+          <>
+            <thead>
+              <tr className="bg-[#5D4037] text-white text-xs font-bold uppercase tracking-wider">
+                <th className="px-6 py-4">Item Name</th>
+                <th className="px-6 py-4">Quantity Received</th>
+                <th className="px-6 py-4">Time</th>
+                <th className="px-6 py-4 text-right">From</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {receivedLog.map((item) => (
+                <tr key={item.id} className="hover:bg-[#EBE0CC]/20 transition-colors">
+                  <td className="px-6 py-5 font-semibold text-[#5D4037]">{item.item}</td>
+                  <td className="px-6 py-5 text-gray-600 font-medium">{item.quantity} {item.unit}</td>
+                  <td className="px-6 py-5 text-gray-500 font-mono text-xs">{item.time}</td>
+                  <td className="px-6 py-5 text-right text-sm text-[#A67C37] font-bold">
+                    {item.from}
                   </td>
                 </tr>
               ))}
@@ -196,37 +244,40 @@ export default function DashboardHome() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
       
-      {/* --- MOBILE LOGO (VISIBLE ONLY ON PHONE) --- */}
+      {/* --- MOBILE LOGO --- */}
       <div className="md:hidden flex items-center justify-center mb-6">
-         {/* 🔴 PUT YOUR LOGO IMAGE LINK BELOW 🔴 */}
-         <img 
-           src="/logo.png" 
-           alt="Shop Logo" 
-           className="h-16 w-auto object-contain" // Change h-16 to adjust size
-         />
+         <img src="/logo.png" alt="Shop Logo" className="h-16 w-auto object-contain" />
       </div>
 
-      {/* Page Header */}
+      {/* Page Header (Updated with Back Arrow) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[#5D4037] tracking-tight">Shop Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">Daily operations and stock management.</p>
+        
+        {/* --- ADDED BACK BUTTON SECTION --- */}
+        <div className="flex items-center gap-4">
+           <button 
+             onClick={() => router.back()} 
+             className="p-2 rounded-xl bg-white border border-gray-200 text-[#5D4037] hover:bg-[#EBE0CC]/30 transition-all shadow-sm"
+           >
+             <ArrowLeft size={24} />
+           </button>
+           
+           <div>
+             <h1 className="text-2xl font-bold text-[#5D4037] tracking-tight">Shop Overview</h1>
+             <p className="text-gray-500 text-sm mt-1">Daily operations and stock management.</p>
+           </div>
         </div>
+        {/* -------------------------------- */}
 
         <div className="flex items-center gap-3">
           <div className="relative group hidden sm:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#5D4037] transition-colors" size={18} />
-            <input 
-              type="text" 
-              placeholder="Search items..." 
-              className="bg-white border border-gray-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5D4037]/20 focus:border-[#5D4037] w-64 transition-all shadow-sm"
-            />
+            <input type="text" placeholder="Search items..." className="bg-white border border-gray-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#5D4037]/20 focus:border-[#5D4037] w-64 transition-all shadow-sm" />
           </div>
         </div>
       </div>
 
-      {/* Stats Cards (Interactive Grids) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Stats Cards (Now 5 items) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         {stats.map((stat) => (
           <div 
             key={stat.id} 
@@ -242,9 +293,9 @@ export default function DashboardHome() {
              }`}>
                <stat.icon size={26} strokeWidth={2} />
              </div>
-             <h3 className={`font-semibold text-sm uppercase tracking-wide ${activeFilter === stat.id ? 'text-[#EBE0CC]' : 'text-gray-600'}`}>{stat.label}</h3>
-             <p className={`text-3xl font-extrabold mt-1 ${activeFilter === stat.id ? 'text-white' : 'text-[#5D4037]'}`}>{stat.value}</p>
-             <p className={`text-xs font-medium mt-1 ${activeFilter === stat.id ? 'text-gray-300' : 'text-gray-400'}`}>{stat.sub}</p>
+             <h3 className={`font-semibold text-xs uppercase tracking-wide ${activeFilter === stat.id ? 'text-[#EBE0CC]' : 'text-gray-600'}`}>{stat.label}</h3>
+             <p className={`text-2xl font-extrabold mt-1 ${activeFilter === stat.id ? 'text-white' : 'text-[#5D4037]'}`}>{stat.value}</p>
+             <p className={`text-[10px] font-medium mt-1 ${activeFilter === stat.id ? 'text-gray-300' : 'text-gray-400'}`}>{stat.sub}</p>
           </div>
         ))}
       </div>
@@ -255,6 +306,7 @@ export default function DashboardHome() {
           <h2 className="text-xl font-bold text-[#5D4037] capitalize">
             {activeFilter === 'baked' ? 'Incoming Baked Items' : 
              activeFilter === 'orders' ? 'My Order History' : 
+             activeFilter === 'received' ? 'Received History' : 
              activeFilter === 'stock' ? 'Current Shop Inventory' : 'Damaged Reports'}
           </h2>
           

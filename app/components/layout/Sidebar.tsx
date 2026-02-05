@@ -43,8 +43,8 @@ export default function Sidebar({ menuItems, footerTitle, footerInitial }: Sideb
       {/* 2. DYNAMIC NAVIGATION */}
       <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
-          // Check if active (Exact match OR sub-path match)
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          // --- UPDATED LOGIC: Strict check ensures Dashboard doesn't stay active on sub-pages ---
+          const isActive = pathname === item.href;
           
           return (
             <Link
@@ -52,7 +52,7 @@ export default function Sidebar({ menuItems, footerTitle, footerInitial }: Sideb
               href={item.href}
               className={`flex items-center gap-3 px-5 py-4 rounded-xl transition-all duration-300 font-bold text-sm group
                 ${isActive 
-                  ? 'bg-[#5D4037] text-white shadow-lg shadow-[#5D4037]/20 translate-x-1' // ACTIVE STYLE (Logo Color)
+                  ? 'bg-[#5D4037] text-white shadow-lg shadow-[#5D4037]/20 translate-x-1' // ACTIVE STYLE
                   : 'text-gray-400 hover:bg-[#EBE0CC]/30 hover:text-[#5D4037] hover:pl-6' // HOVER STYLE
                 }`}
             >
