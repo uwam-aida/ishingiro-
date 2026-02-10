@@ -1,26 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
-import Sidebar from '../components/layout/Sidebar';
-import Header from '../components/layout/Header';
-import { shopManagerMenu } from '../lib/menus'; // <--- 1. Import the menu data
+import Sidebar from '../../components/layout/Sidebar';
+import Header from '../../components/layout/Header';
+import { shopManagerMenu } from '../../lib/menus';
 
-export default function ShopManagerLayout({
+export default function ShopBranchLayout({
   children,
+  params, 
 }: {
   children: React.ReactNode;
+  params: { branchId: string };
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const rawBranchId = params?.branchId || 'shop';
+  const branchName = rawBranchId.charAt(0).toUpperCase() + rawBranchId.slice(1);
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex">
       
-      {/* 2. Desktop Sidebar: Pass the props! */}
+      {/* Desktop Sidebar (No changes needed here) */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 bg-white">
         <Sidebar 
           menuItems={shopManagerMenu} 
-          footerTitle="Shop Manager" 
-          footerInitial="M" 
+          footerTitle={`${branchName} Manager`} 
+          footerInitial={branchName.charAt(0)} 
+          branchId={rawBranchId} 
         />
       </aside>
 
@@ -32,24 +38,24 @@ export default function ShopManagerLayout({
         />
       )}
       
-      {/* 3. Mobile Sidebar: Pass the props here too! */}
+      {/* Mobile Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${
         isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <Sidebar 
           menuItems={shopManagerMenu} 
-          footerTitle="Shop Manager" 
-          footerInitial="M" 
+          footerTitle={`${branchName} Manager`} 
+          footerInitial={branchName.charAt(0)} 
+          branchId={rawBranchId}
+          onLinkClick={() => setIsMobileMenuOpen(false)} // <--- ADD THIS LINE!
         />
       </div>
 
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
-        
-        {/* 4. Update Header as well (it also expects props now) */}
         <Header 
           onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-          title="Shop Manager"
-          notificationHref="/shop-manager/notifications"
+          title={`${branchName} Branch`} 
+          notificationHref={`/shop-manager/${rawBranchId}/notifications`}
         />
 
         <main className="flex-1 p-6 md:p-10 overflow-y-auto">

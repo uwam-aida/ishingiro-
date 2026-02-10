@@ -10,18 +10,27 @@ import {
   TrendingUp, 
   Megaphone,
   PieChart,
-  BarChart3 // Added for Analytics
+  BarChart3,
+  ClipboardList, 
+  Settings,
+  Tag 
 } from 'lucide-react';
-import { MenuItem } from './types';
+
+export interface MenuItem {
+  name: string;
+  icon: any;
+  href: string;
+}
 
 // ==========================================
-// 1. SHOP MANAGER (UPDATED)
+// 1. SHOP MANAGER
 // ==========================================
 export const shopManagerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/shop-manager' },
-  { name: 'Products', icon: Box, href: '/shop-manager/products' },
-  { name: 'Add', icon: PlusCircle, href: '/shop-manager/add' }, // RENAMED
-  { name: 'Notification', icon: Bell, href: '/shop-manager/notifications' },
+  { name: 'Orders', icon: ClipboardList, href: '/shop-manager/orders' },
+  { name: 'Notifications', icon: Bell, href: '/shop-manager/notifications' },
+  { name: 'Reports', icon: FileText, href: '/shop-manager/reports' },
+  { name: 'Settings', icon: Settings, href: '/shop-manager/settings' },
 ];
 
 // ==========================================
@@ -65,16 +74,25 @@ export const cicmMenu: MenuItem[] = [
 ];
 
 // ==========================================
-// 6. CHIEF OF FINANCE (UPDATED)
+// 6. CHIEF OF FINANCE (UPDATED LINK SPELLING)
 // ==========================================
-export const financeMenu: MenuItem[] = [
-  { name: 'Dashboard', icon: LayoutDashboard, href: '/cheif-finance' },
-  { name: 'Products', icon: Box, href: '/cheif-finance/products' },
-  { name: 'Business Analytics', icon: BarChart3, href: '/cheif-finance/analytics' },
+export const cheifFinanceMenu: MenuItem[] = [
+  { 
+    name: 'Dashboard', 
+    icon: LayoutDashboard, 
+    // Matches your folder 'cheif-finance'
+    href: '/cheif-finance' 
+  },
+  { 
+    name: 'Report', 
+    icon: FileText, 
+    // Matches your folder 'cheif-finance/report'
+    href: '/cheif-finance/report' 
+  },
 ];
 
 // ==========================================
-// 7. OPERATION MANAGER (UPDATED)
+// 7. OPERATION MANAGER
 // ==========================================
 export const operationManagerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/operation-manager' },
@@ -84,7 +102,7 @@ export const operationManagerMenu: MenuItem[] = [
 ];
 
 // ==========================================
-// 8. SALES COORDINATOR (STRICTLY FROM IMAGE)
+// 8. SALES COORDINATOR
 // ==========================================
 export const salesCoordinatorMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-coordinator' },
@@ -92,11 +110,11 @@ export const salesCoordinatorMenu: MenuItem[] = [
 ];
 
 // ==========================================
-// 9. MARKETING MANAGER (UPDATED FROM FIGMA IMAGE)
+// 9. MARKETING MANAGER
 // ==========================================
 export const marketingManagerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
-  { name: 'Products', icon: Box, href: '/marketing-manager/products' },
+  { name: 'Pricing', icon: Tag, href: '/marketing-manager/pricing' },
   { name: 'Reports', icon: FileText, href: '/marketing-manager/reports' },
   { name: 'Business Analytics', icon: TrendingUp, href: '/marketing-manager/analytics' },
 ];

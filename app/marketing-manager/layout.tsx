@@ -2,50 +2,59 @@
 
 import React, { useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
-import Header from '../components/layout/Header';
-import { marketingManagerMenu } from '../lib/menus';
+import { marketingManagerMenu } from '../lib/menus'; // Ensure this matches your export
+import { Menu } from 'lucide-react';
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const CONFIG = {
-    menu: marketingManagerMenu, // Connects to the 4 items: Dashboard, Products, Reports, Analytics
-    title: "Marketing Manager",
-    initial: "MM",
-    notifLink: "/marketing-manager/notifications"
-  };
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 bg-white">
+    <div className="flex min-h-screen bg-[#FDFDFD]">
+      
+      {/* Desktop Sidebar (Hidden on mobile) */}
+      <aside className="hidden md:block w-64 fixed inset-y-0 z-50">
         <Sidebar 
-          menuItems={CONFIG.menu} 
-          footerTitle={CONFIG.title} 
-          footerInitial={CONFIG.initial} 
+          menuItems={marketingManagerMenu}
+          footerTitle="Marketing Manager"
+          footerInitial="MM"
         />
       </aside>
 
-      {/* Mobile Drawer (Hamburger) */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/20 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
-      )}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Mobile Sidebar (Drawer) */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar 
-          menuItems={CONFIG.menu} 
-          footerTitle={CONFIG.title} 
-          footerInitial={CONFIG.initial} 
+          isOpen={isSidebarOpen} 
+          onClose={() => setIsSidebarOpen(false)} 
+          menuItems={marketingManagerMenu}
+          footerTitle="Marketing Manager"
+          footerInitial="MM"
         />
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
-        <Header 
-          onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-          title={CONFIG.title} 
-          notificationHref={CONFIG.notifLink}
+      {/* Mobile Overlay */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 md:hidden backdrop-blur-sm"
+          onClick={() => setIsSidebarOpen(false)}
         />
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+        
+        {/* Mobile Header */}
+        <div className="md:hidden bg-white p-4 flex items-center justify-between shadow-sm sticky top-0 z-30">
+           <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-[#5D4037]">
+             <Menu size={24} />
+           </button>
+           <div className="flex items-center gap-2">
+             <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover" />
+             <span className="font-black text-[#5D4037] text-sm tracking-widest uppercase">Ishingiro</span>
+           </div>
+           <div className="w-10"></div>
+        </div>
+
+        <main className="p-4 md:p-8 w-full max-w-7xl mx-auto">
           {children}
         </main>
       </div>
