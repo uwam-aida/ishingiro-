@@ -2,11 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Scale, ChefHat, AlertTriangle, ArrowRight } from 'lucide-react'; // Changed ShoppingCart to AlertTriangle
+import { Scale, ChefHat, AlertTriangle, ArrowRight } from 'lucide-react';
 
 export default function BakerDashboard() {
   
-  // 1. UPDATED STATS (Removed Orders, Added Damaged)
+  // 1. UPDATED STATS
   const stats = [
     { 
       label: 'Measured items', 
@@ -30,22 +30,31 @@ export default function BakerDashboard() {
       label: 'Damaged Items', 
       value: '5', 
       sub: 'From Store Keeper', 
-      icon: AlertTriangle, // Icon for Damaged
+      icon: AlertTriangle,
       href: '/baker-assistant/products?tab=damaged',
       color: 'text-red-600', 
       bg: 'bg-red-50'
     },
   ];
 
-  // 2. DAMAGED ITEMS DATA (Replaced Orders)
+  // 2. DAMAGED ITEMS DATA
   const damagedItems = [
     { item: 'Burnt Bread', quantity: '20 pieces', reason: 'Oven Heat', status: 'Returned' },
     { item: 'Smashed Cake', quantity: '1 piece', reason: 'Transport', status: 'Returned' },
   ];
 
   return (
-    <div className="space-y-10 max-w-7xl mx-auto pb-10">
+    // FIXED: min-h-screen and padding for mobile layout consistency
+    <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 pb-20 space-y-10 max-w-7xl mx-auto">
       
+      {/* --- MOBILE LOGO HEADER (New) --- */}
+      <div className="md:hidden flex flex-col items-center justify-center mb-6 pt-2">
+        <div className="w-16 h-16 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-2">
+           <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
+        </div>
+        <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">Ishingiro</h2>
+      </div>
+
       {/* Page Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Baker Assistant</h1>
@@ -60,14 +69,14 @@ export default function BakerDashboard() {
             href={stat.href}
             className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center transition-all hover:scale-[1.02] hover:shadow-md cursor-pointer group"
           >
-             {/* The Icon Container */}
-             <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
-               <stat.icon size={26} strokeWidth={2} />
-             </div>
-             
-             <h3 className="font-semibold text-gray-600 text-sm uppercase tracking-wide">{stat.label}</h3>
-             <p className="text-3xl font-extrabold text-gray-900 mt-2">{stat.value}</p>
-             <p className="text-xs font-medium text-gray-400 mt-1">{stat.sub}</p>
+              {/* The Icon Container */}
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
+                <stat.icon size={26} strokeWidth={2} />
+              </div>
+              
+              <h3 className="font-semibold text-gray-600 text-sm uppercase tracking-wide">{stat.label}</h3>
+              <p className="text-3xl font-extrabold text-gray-900 mt-2">{stat.value}</p>
+              <p className="text-xs font-medium text-gray-400 mt-1">{stat.sub}</p>
           </Link>
         ))}
       </div>
@@ -91,7 +100,7 @@ export default function BakerDashboard() {
                 <th className="px-6 py-4 text-right">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-gray-5">
               {damagedItems.map((item, i) => (
                 <tr key={i} className="hover:bg-gray-50/80 transition-colors">
                   <td className="px-6 py-5 font-bold text-gray-900">{item.item}</td>

@@ -40,7 +40,6 @@ export const bakerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/baker-assistant' },
   { name: 'Products', icon: Package, href: '/baker-assistant/products' },
   { name: 'Add products', icon: PlusCircle, href: '/baker-assistant/add-product' },
-  { name: 'Notification', icon: Bell, href: '/baker-assistant/notifications' },
 ];
 
 // ==========================================
@@ -50,6 +49,7 @@ export const storeKeeperMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/store-keeper' },
   { name: 'Products', icon: Box, href: '/store-keeper/products' },       
   { name: 'Add products', icon: PlusCircle, href: '/store-keeper/add-product' }, 
+  { name: 'Add Other', icon: PlusCircle, href: '/store-keeper/add-other' },
   { name: 'Notification', icon: Bell, href: '/store-keeper/notifications' },
 ];
 
@@ -58,8 +58,7 @@ export const storeKeeperMenu: MenuItem[] = [
 // ==========================================
 export const productionManagerMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/production-manager' },
-  { name: 'Products', icon: Box, href: '/production-manager/products' },
-  { name: 'Add products', icon: PlusCircle, href: '/production-manager/add-product' }, 
+
   { name: 'Notification', icon: Bell, href: '/production-manager/notifications' },
 ];
 
@@ -68,9 +67,9 @@ export const productionManagerMenu: MenuItem[] = [
 // ==========================================
 export const cicmMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/cicm' },
-  { name: 'Products', icon: Box, href: '/cicm/products' },
+
   { name: 'Report', icon: FileText, href: '/cicm/report' },
-  { name: 'Notification', icon: Bell, href: '/cicm/notifications' },
+
 ];
 
 // ==========================================
@@ -91,22 +90,14 @@ export const cheifFinanceMenu: MenuItem[] = [
   },
 ];
 
-// ==========================================
-// 7. OPERATION MANAGER
-// ==========================================
-export const operationManagerMenu: MenuItem[] = [
-  { name: 'Dashboard', icon: LayoutDashboard, href: '/operation-manager' },
-  { name: 'Products', icon: Box, href: '/operation-manager/products' },
-  { name: 'Add products', icon: PlusCircle, href: '/operation-manager/add-product' },
-  { name: 'Notification', icon: Bell, href: '/operation-manager/notifications' },
-];
+
 
 // ==========================================
 // 8. SALES COORDINATOR
 // ==========================================
 export const salesCoordinatorMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-coordinator' },
-  { name: 'Products', icon: Box, href: '/sales-coordinator/products' },
+  { name: 'Notifications', icon: Bell, href: '/sales-coordinator/notifications' },
 ];
 
 // ==========================================

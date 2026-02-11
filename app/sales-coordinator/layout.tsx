@@ -9,15 +9,16 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const CONFIG = {
-    menu: salesCoordinatorMenu,  // Now uses only Dashboard & Products
-    title: "Sale Coordinator",   // Matching the singular 'Sale' from your image
+    menu: salesCoordinatorMenu,  
+    title: "Sales Coordinator", 
     initial: "SC",
     notifLink: "/sales-coordinator/notifications"
   };
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex">
-      {/* Desktop Sidebar */}
+      
+      {/* 1. DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 bg-white">
         <Sidebar 
           menuItems={CONFIG.menu} 
@@ -26,22 +27,24 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
         />
       </aside>
 
-      {/* Mobile Drawer */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/20 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
-      )}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* 2. MOBILE SIDEBAR 
+          We pass 'isOpen' directly to the Sidebar so it handles the sliding animation 
+      */}
+      <div className="md:hidden">
         <Sidebar 
           menuItems={CONFIG.menu} 
           footerTitle={CONFIG.title} 
-          footerInitial={CONFIG.initial} 
+          footerInitial={CONFIG.initial}
+          // IMPORTANT: Pass these props for mobile to work
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
         />
       </div>
 
-      {/* Main Content */}
+      {/* 3. MAIN CONTENT */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
         <Header 
-          onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+          onMenuClick={() => setIsMobileMenuOpen(true)} 
           title={CONFIG.title} 
           notificationHref={CONFIG.notifLink}
         />

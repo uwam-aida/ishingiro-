@@ -10,7 +10,7 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
 
   const CONFIG = {
     menu: cicmMenu,
-    title: "CICM",
+    title: "Internal Control (CICM)",
     initial: "C",
     notifLink: "/cicm/notifications"
   };
@@ -18,7 +18,7 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex">
       
-      {/* Desktop Sidebar */}
+      {/* 1. DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 bg-white">
         <Sidebar 
           menuItems={CONFIG.menu} 
@@ -27,22 +27,29 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
         />
       </aside>
 
-      {/* Mobile Drawer */}
+      {/* 2. MOBILE OVERLAY */}
       {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/20 md:hidden backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)} />
+        <div 
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)} 
+        />
       )}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+
+      {/* 3. MOBILE SIDEBAR DRAWER (Fixes the empty sidebar issue) */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar 
           menuItems={CONFIG.menu} 
           footerTitle={CONFIG.title} 
-          footerInitial={CONFIG.initial} 
+          footerInitial={CONFIG.initial}
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
         />
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+      {/* 4. MAIN CONTENT */}
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
         <Header 
-          onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+          onMenuClick={() => setIsMobileMenuOpen(true)} 
           title={CONFIG.title}
           notificationHref={CONFIG.notifLink}
         />
@@ -50,6 +57,7 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
       </div>
+
     </div>
   );
 }

@@ -85,8 +85,7 @@ export default function ChiefFinanceDashboard() {
         {/* Revenue */}
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            {/* Replaced DollarSign with Banknote */}
-            <Banknote size={80} className="text-[#5D4037]" />
+            
           </div>
           <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Total Revenue</p>
           <h2 className="text-3xl font-black text-[#5D4037] mt-2">{formatMoney(totalRevenue)}</h2>
