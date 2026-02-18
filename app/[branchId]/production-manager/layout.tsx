@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Sidebar from '../components/layout/Sidebar'; // Ensure path uses @
-import Header from '../components/layout/Header';   // Ensure path uses @
-import { productionManagerMenu } from '../lib/menus';
+import Sidebar from '../../components/layout/Sidebar'; // Ensure path uses @
+import Header from '../../components/layout/Header';   // Ensure path uses @
+import { productionManagerMenu } from '../../lib/menus';
 
 export default function ProductionManagerLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

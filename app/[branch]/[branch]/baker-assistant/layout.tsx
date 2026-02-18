@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Sidebar from '../components/layout/Sidebar'; // Check your path (usually @/components...)
-import Header from '../components/layout/Header';  // Check your path
-import { bakerMenu } from '../lib/menus';
+import Sidebar from '../../../components/layout/Sidebar'; // Check your path (usually @/components...)
+import Header from '../../../components/layout/Header';  // Check your path
+import { bakerMenu } from '../../../lib/menus';
 
 export default function BakerLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
