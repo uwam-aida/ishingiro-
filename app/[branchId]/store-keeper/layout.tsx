@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import Sidebar from '../../../components/layout/Sidebar';
-import Header from '../../../components/layout/Header';
-import { storeKeeperMenu } from '../../../lib/menus'; // Using the Master Menu
+import Sidebar from '../../components/layout/Sidebar';
+import Header from '../../components/layout/Header';
+import { storeKeeperMenu } from '../../lib/menus'; // Using the Master Menu
 
 export default function StoreKeeperLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
