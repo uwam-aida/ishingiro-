@@ -27,26 +27,24 @@ export default function Sidebar({
   isOpen = false, 
   onClose = () => {}, 
   menuItems = [], 
-  footerTitle = "Manager", 
-  footerInitial = "M",
+  footerTitle = "Store Keeper", 
+  footerInitial = "S",
   branchId,
   onLinkClick
 }: SidebarProps) {
   
   const pathname = usePathname();
 
-  // --- THE FIX: AUTO-CLOSE ON NAVIGATION ---
-  // This detects when you navigate to a new page and forces the sidebar to close.
+  // --- AUTO-CLOSE ON NAVIGATION ---
   useEffect(() => {
     if (isOpen && onClose) {
       onClose();
     }
-  }, [pathname]); // Runs every time 'pathname' changes
+  }, [pathname, isOpen, onClose]); 
 
   return (
     <>
       {/* --- MOBILE OVERLAY (Grey Background) --- */}
-      {/* Clicking this background will also close the sidebar now */}
       <div 
         className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -63,7 +61,6 @@ export default function Sidebar({
         
         {/* --- HEADER --- */}
         <div className="p-6 flex flex-col items-center border-b border-gray-100 relative shrink-0">
-          {/* Mobile Close Button (X) */}
           <button 
             onClick={onClose} 
             className="absolute top-4 right-4 md:hidden text-gray-400 hover:text-red-500"
@@ -71,7 +68,7 @@ export default function Sidebar({
             <X size={24} />
           </button>
 
-          {/* Logo */}
+          {/* Logo Container */}
           <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-3">
              <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
           </div>
@@ -92,8 +89,10 @@ export default function Sidebar({
               <Link 
                 key={item.href} 
                 href={item.href}
-                // We also keep onClick here as a backup
-                onClick={onClose}
+                onClick={() => {
+                  if (onLinkClick) onLinkClick();
+                  onClose();
+                }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold ${
                   isActive 
                     ? 'bg-[#5D4037] text-white shadow-lg shadow-[#5D4037]/30' 

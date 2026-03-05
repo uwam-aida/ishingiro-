@@ -6,34 +6,33 @@ import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, S
 
 export default function DynamicShopDashboard() {
   const router = useRouter(); 
-  const params = useParams(); // Gets 'kabuga', 'masaka', 'rwamagana', etc., from the URL
+  const params = useParams(); 
 
-  // Format the name (e.g., "kabuga" -> "Kabuga")
-  const rawBranchId = params?.branchId;
+const rawBranchId = params?.branchId;
+
+  // --- EXACT ERROR FIX: Safety Guard ---
+  if (!rawBranchId) return null; 
+  // -------------------------------------
+
   const branchName = typeof rawBranchId === 'string'
     ? rawBranchId.charAt(0).toUpperCase() + rawBranchId.slice(1)
     : 'Shop';
 
-  // --- AUTOMATIC TIME HELPER ---
-  const getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // 1. FILTER STATE
-  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged'>('baked');
+const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged'>('baked');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // --- MOCK DATA ---
-  const [shopStock, setShopStock] = useState([
+const [shopStock, setShopStock] = useState([
     { id: 1, item: 'White Loaf', quantity: 45, unit: 'Pieces', from: 'Inventory', time: 'Updated Now', status: 'Available', action: 'sell' },
   ]);
 
-  // (Mock data placeholders)
-  const [bakedItems] = useState([]); 
+const [bakedItems] = useState([]); 
   const [orders] = useState([]); 
   const [receivedLog] = useState([]); 
   const [damagedItems] = useState([]); 
 
-  // --- STATS CONFIG ---
-  const stats = [
+ const stats = [
     { id: 'baked', label: 'Baked Items', value: bakedItems.length.toString(), sub: 'Incoming', icon: ShoppingBag },
     { id: 'orders', label: 'Orders', value: orders.length.toString(), sub: 'My Requests', icon: Clock },
     { id: 'received', label: 'Received', value: receivedLog.length.toString(), sub: 'History', icon: Archive },
@@ -45,16 +44,15 @@ export default function DynamicShopDashboard() {
     <div className="min-h-screen bg-gray-50 pb-12">
       <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 px-4 md:px-8 pt-6">
         
-        {/* --- MOBILE LOGO --- */}
+
         <div className="md:hidden flex items-center justify-center mb-6">
-           <img src="/logo.png" alt="Shop Logo" className="h-14 w-auto object-contain" />
+            <img src="/logo.png" alt="Shop Logo" className="h-14 w-auto object-contain" />
         </div>
 
-        {/* --- HEADER --- */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
              <button 
-               onClick={() => router.push('/')} // Go back home
+               onClick={() => router.push('/')} 
                className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#5D4037] hover:bg-[#EBE0CC]/30 transition-all shadow-sm"
              >
                <ArrowLeft size={20} />
@@ -81,8 +79,7 @@ export default function DynamicShopDashboard() {
           </div>
         </div>
 
-        {/* --- STATS GRID --- */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {stats.map((stat) => (
             <div 
               key={stat.id} 
@@ -104,15 +101,11 @@ export default function DynamicShopDashboard() {
           ))}
         </div>
 
-        {/* --- CONTENT SECTION --- */}
-        <div className="space-y-4">
-          
+      <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
              <h2 className="text-lg font-bold text-[#5D4037] capitalize flex items-center gap-2">
                {activeFilter === 'stock' ? 'Rest Products' : activeFilter} List
-             </h2>
-
-             {/* DYNAMIC ADD BUTTON */}
+            </h2>
              {activeFilter === 'stock' && (
                <button 
                  onClick={() => router.push(`/shop-manager/${rawBranchId}/add`)} 
@@ -122,8 +115,7 @@ export default function DynamicShopDashboard() {
                </button>
              )}
           </div>
-          
-          {/* Table Container */}
+         
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 min-h-[300px]">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[700px]">
@@ -150,8 +142,8 @@ export default function DynamicShopDashboard() {
               </table>
             </div>
           </div>
-        </div>
-
+        
+      </div>
       </div>
     </div>
   );

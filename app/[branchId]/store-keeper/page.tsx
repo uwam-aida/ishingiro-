@@ -2,356 +2,246 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Package, Bell, ArrowRight, ShoppingBag, AlertCircle, Eye, FileText, Search, X, ArrowLeft, CheckCheck, ClipboardList } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { Package, Bell, ArrowRight, ShoppingBag, AlertCircle, Eye, FileText, Search, X, ArrowLeft, CheckCheck, ClipboardList, PenLine, Printer } from 'lucide-react';
 
 export default function StoreKeeperDashboard() {
   const router = useRouter(); 
+  const params = useParams();
+  const branchId = params?.branchId as string;
 
-  // --- AUTOMATIC TIME HELPER ---
-  // Returns current time like "10:30 AM"
-  const getCurrentTime = () => {
+  // --- SAFETY GUARD ---
+  if (!branchId) return null;
+
+const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // --- 1. FILTER STATE ---
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes'>('requests');
-  
-  // --- 2. DELIVERY NOTE STATE ---
+  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'sales_log'>('requests');
   const [deliveryNote, setDeliveryNote] = useState<any>(null);
+  const [mushikiriNote, setMushikiriNote] = useState('');
 
-  // --- MOCK DATA (Now using dynamic time) ---
-  
-  // A. Baked Items
-  const [bakedLog, setBakedLog] = useState([
-    { id: 1, item: 'Bread', quantity: 600, unit: 'pieces', date: `Today, ${getCurrentTime()}`, from: 'Production' },
-    { id: 2, item: 'Donuts', quantity: 300, unit: 'pieces', date: `Today, ${getCurrentTime()}`, from: 'Production' }
-  ]);
+  // --- PARTIAL DELIVERY & SEARCH STATE ---
+  const [partialDeliveryItem, setPartialDeliveryItem] = useState<any>(null);
+  const [deliveryQty, setDeliveryQty] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
 
-  // B. My Stock (Renamed from My Ready Stock)
+  // --- STOCK ---
   const [myStock, setMyStock] = useState([
     { id: 1, item: 'Bread', quantity: 500, unit: 'pieces', status: 'In Stock' },
     { id: 2, item: 'Donuts', quantity: 200, unit: 'pieces', status: 'In Stock' },
     { id: 3, item: 'Milk', quantity: 50, unit: 'liters', status: 'In Stock' },
   ]);
 
-  // C. Shop Requests
+  // --- REQUESTS ---
   const [shopRequests, setShopRequests] = useState([
-    { id: 101, item: 'Bread', quantity: 100, unit: 'pieces', date: getCurrentTime(), urgency: 'High' },
-    { id: 102, item: 'Milk', quantity: 10, unit: 'liters', date: getCurrentTime(), urgency: 'Normal' },
+    { id: 101, item: 'Bread', quantity: 100, unit: 'pieces', date: getCurrentTime(), branch: 'kabuga' },
+    { id: 102, item: 'Milk', quantity: 10, unit: 'liters', date: getCurrentTime(), branch: 'masaka' },
+    { id: 103, item: 'Bread', quantity: 50, unit: 'pieces', date: getCurrentTime(), branch: 'rwamagana' },
+    { id: 104, item: 'Donuts', quantity: 20, unit: 'pieces', date: getCurrentTime(), branch: 'kayonza' },
+    { id: 105, item: 'Milk', quantity: 5, unit: 'liters', date: getCurrentTime(), branch: 'nyakarambi' },
   ]);
 
-  // D. Delivered History
+  const visibleRequests = shopRequests.filter(req => {
+    if (branchId === 'kabuga') return req.branch === 'kabuga' || req.branch === 'masaka';
+    if (branchId === 'rwamagana') return req.branch === 'rwamagana' || req.branch === 'kayonza';
+    if (branchId === 'nyakarambi') return req.branch === 'nyakarambi';
+    return false;
+  });
+
   const [deliveryHistory, setDeliveryHistory] = useState([
-    { id: 55, noteId: 'DN-001', item: 'Donuts', quantity: 50, date: 'Yesterday', receiver: 'Shop Manager' }
+    { id: 55, noteId: 'DN-001', item: 'Donuts', quantity: 50, date: 'Yesterday', receiver: 'MASAKA' }
   ]);
 
-  // E. Damaged
-  const damagedItems = [
-    { id: 1, item: 'Broken Cookies', quantity: 20, unit: 'packs', reason: 'Crushed', status: 'Reported' },
-  ];
+  // --- SEARCH LOGIC FOR HISTORY ---
+  const filteredHistory = deliveryHistory.filter(h => 
+    h.receiver.toLowerCase().includes(historySearch.toLowerCase()) || 
+    h.item.toLowerCase().includes(historySearch.toLowerCase())
+  );
 
-  // --- DELIVER LOGIC ---
-  const handleDeliver = (reqId: number) => {
-    const request = shopRequests.find(r => r.id === reqId);
-    if (!request) return;
-
-    const stockItem = myStock.find(i => i.item === request.item);
-    if (!stockItem || stockItem.quantity < request.quantity) {
-      alert("Insufficient stock to fulfill this request!");
+  const handlePartialSubmit = () => {
+    const qty = parseInt(deliveryQty);
+    if (isNaN(qty) || qty <= 0) return;
+    const stockItem = myStock.find(i => i.item === partialDeliveryItem.item);
+    if (!stockItem || stockItem.quantity < qty) {
+      alert("Insufficient stock!");
       return;
     }
 
-    setMyStock(prev => prev.map(item => 
-      item.item === request.item 
-      ? { ...item, quantity: item.quantity - request.quantity }
-      : item
-    ));
+    setMyStock(prev => prev.map(item => item.item === partialDeliveryItem.item ? { ...item, quantity: item.quantity - qty } : item));
 
-    setShopRequests(prev => prev.filter(r => r.id !== reqId));
+    setShopRequests(prev => {
+      const existing = prev.find(r => r.id === partialDeliveryItem.id);
+      if (existing && existing.quantity > qty) {
+        return prev.map(r => r.id === partialDeliveryItem.id ? { ...r, quantity: r.quantity - qty } : r);
+      }
+      return prev.filter(r => r.id !== partialDeliveryItem.id);
+    });
 
-    const newNote = {
-      id: `DN-${Math.floor(Math.random() * 10000)}`,
+    const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
+    setDeliveryHistory(prev => [{
+      id: Date.now(),
+      noteId: newNoteId,
+      item: partialDeliveryItem.item,
+      quantity: qty,
+      date: getCurrentTime(),
+      receiver: partialDeliveryItem.branch.toUpperCase()
+    }, ...prev]);
+
+    setDeliveryNote({
+      id: newNoteId,
       date: new Date().toLocaleString(),
-      items: [
-        { name: request.item, quantity: request.quantity, unit: request.unit }
-      ],
-      receiver: "Shop Manager",
-      sender: "Store Keeper"
-    };
+      items: [{ name: partialDeliveryItem.item, quantity: qty, unit: partialDeliveryItem.unit }],
+      receiver: `${partialDeliveryItem.branch.toUpperCase()} Manager`
+    });
 
-    setDeliveryHistory(prev => [{ id: Date.now(), noteId: newNote.id, item: request.item, quantity: request.quantity, date: 'Just now', receiver: 'Shop Manager' }, ...prev]);
-    setDeliveryNote(newNote);
+    setPartialDeliveryItem(null);
+    setDeliveryQty('');
   };
 
-  // --- STATS GRID ---
-  const stats = [
-    { id: 'baked_log', label: 'Baked Items', value: bakedLog.reduce((a,b)=>a+b.quantity,0).toString(), sub: 'From Production', icon: Package },
-    { id: 'requests', label: 'Shop Requests', value: shopRequests.length.toString(), sub: 'Pending', icon: Bell },
-    { id: 'my_stock', label: 'My Stock', value: myStock.reduce((a,b)=>a+b.quantity,0).toString(), sub: 'Available', icon: ShoppingBag }, // Renamed Label
-    { id: 'delivered', label: 'Delivered', value: deliveryHistory.length.toString(), sub: 'Products', icon: CheckCheck },
-    { id: 'damaged', label: 'Damaged', value: damagedItems.length.toString(), sub: 'Issues', icon: AlertCircle },
-    { id: 'notes', label: 'Delivery Notes', value: 'View', sub: 'Records', icon: ClipboardList },
+const stats = [
+    { id: 'requests', label: 'Requests', value: visibleRequests.length.toString(), icon: Bell },
+    { id: 'my_stock', label: 'Stock', value: myStock.reduce((a,b)=>a+b.quantity,0).toString(), icon: ShoppingBag },
+    { id: 'delivered', label: 'History', value: deliveryHistory.length.toString(), icon: CheckCheck },
+    branchId === 'mushikiri' 
+      ? { id: 'sales_log', label: 'Log', value: 'Write', icon: PenLine }
+      : { id: 'notes', label: 'Notes', value: 'View', icon: ClipboardList },
   ];
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-10 relative">
-      
-      {/* --- MOBILE LOGO --- */}
-      <div className="md:hidden flex items-center justify-center mb-6">
-         <img src="/logo.png" alt="Shop Logo" className="h-16 w-auto object-contain" />
-      </div>
-
-      {/* --- DELIVERY NOTE MODAL --- */}
-      {deliveryNote && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-            {/* Header */}
-            <div className="bg-[#5D4037] p-6 text-center relative">
-              <h2 className="text-white text-xl font-bold tracking-widest uppercase">Delivery Note</h2>
-              <p className="text-[#A67C37] text-xs font-mono mt-1">#{deliveryNote.id}</p>
-              <button onClick={() => setDeliveryNote(null)} className="absolute top-4 right-4 text-white/80 hover:text-white">
-                <X size={24} />
-              </button>
-            </div>
-            {/* Body */}
-            <div className="p-8 space-y-6">
-              <div className="flex justify-between text-sm text-gray-500 border-b border-dashed border-gray-200 pb-4">
-                <span>Date: {deliveryNote.date}</span>
-                <span>To: Shop</span>
-              </div>
-              
-              <div className="space-y-3">
-                {deliveryNote.items.map((item: any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center font-bold text-gray-800 text-lg">
-                    <span>{item.name}</span>
-                    <span>{item.quantity} {item.unit}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-6 border-t border-gray-100 flex justify-between items-center">
-                <div className="text-xs text-gray-400">
-                  Authorized by:<br/>
-                  <span className="font-bold text-gray-600">Store Keeper</span>
-                </div>
-                <button 
-                  onClick={() => { alert("Printing..."); setDeliveryNote(null); }}
-                  className="bg-[#5D4037] text-white px-6 py-2 rounded-lg text-sm font-bold uppercase hover:bg-[#4a332a]"
-                >
-                  Print / Save
-                </button>
-              </div>
+    <div className="space-y-8 max-w-7xl mx-auto pb-10 relative px-4">
+      {/* --- POPUPS --- */}
+      {partialDeliveryItem && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-8 space-y-6">
+            <h2 className="text-[#5D4037] font-black uppercase text-xs">Set Quantity</h2>
+            <input type="number" value={deliveryQty} onChange={(e) => setDeliveryQty(e.target.value)} className="w-full border p-4 rounded-2xl outline-none font-bold" placeholder="Amount to send" />
+            <div className="flex gap-3">
+              <button onClick={() => setPartialDeliveryItem(null)} className="flex-1 font-bold text-gray-400">Cancel</button>
+              <button onClick={handlePartialSubmit} className="flex-1 bg-[#5D4037] text-white py-3 rounded-xl font-bold uppercase text-xs">Confirm</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- HEADER WITH BACK ARROW --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-           <button 
-             onClick={() => router.back()} 
-             className="p-2 rounded-xl bg-white border border-gray-200 text-[#5D4037] hover:bg-[#EBE0CC]/30 transition-all shadow-sm"
-           >
-             <ArrowLeft size={24} />
-           </button>
-           <div>
-             <h1 className="text-2xl font-bold text-[#5D4037] tracking-tight">Store Keeper</h1>
-             <p className="text-[#A67C37] text-sm mt-1">Manage delivery requests & inventory flow.</p>
-           </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative group hidden sm:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input type="text" placeholder="Search..." className="bg-white border border-gray-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:border-[#5D4037] w-64 shadow-sm" />
+    {deliveryNote && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div className="bg-[#5D4037] p-6 text-center relative text-white">
+              <h2 className="font-bold uppercase">Delivery Note</h2>
+              <button onClick={() => setDeliveryNote(null)} className="absolute top-4 right-4"><X size={24} /></button>
+            </div>
+            <div className="p-8 space-y-4">
+              <p className="text-sm font-bold">To: {deliveryNote.receiver}</p>
+              {deliveryNote.items.map((item: any, idx: number) => (
+                <div key={idx} className="flex justify-between font-bold text-lg"><span>{item.name}</span><span>{item.quantity}</span></div>
+              ))}
+              <button onClick={() => setDeliveryNote(null)} className="w-full bg-[#5D4037] text-white py-3 rounded-xl font-bold uppercase">Close</button>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* --- HEADER --- */}
+      <div className="flex items-center gap-4 pt-6">
+        <button onClick={() => router.back()} className="p-2 rounded-xl bg-white border border-gray-200 text-[#5D4037]"><ArrowLeft size={24} /></button>
+        <div>
+          <h1 className="text-2xl font-bold text-[#5D4037] uppercase tracking-tight">{branchId} Store Keeper</h1>
+          <p className="text-[#A67C37] text-sm">Inventory & Fulfillment Control</p>
         </div>
       </div>
 
-      {/* --- STATS GRID --- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      {/* --- STATS --- */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((stat) => (
-          <div 
-            key={stat.id} 
-            onClick={() => setActiveFilter(stat.id as any)}
-            className={`p-5 rounded-2xl shadow-sm border flex flex-col items-center text-center transition-all cursor-pointer group ${
-              activeFilter === stat.id 
-              ? 'bg-[#5D4037] text-white border-[#5D4037] scale-[1.03] shadow-lg' 
-              : 'bg-white border-gray-100 hover:border-[#A67C37] hover:shadow-md'
-            }`}
-          >
-             <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-3 transition-transform group-hover:scale-110 ${
-               activeFilter === stat.id ? 'bg-[#A67C37] text-white' : 'bg-[#EBE0CC]/40 text-[#5D4037]'
-             }`}>
-               <stat.icon size={20} strokeWidth={2} />
-             </div>
-             <h3 className={`font-semibold text-xs uppercase tracking-wide truncate w-full ${activeFilter === stat.id ? 'text-[#EBE0CC]' : 'text-gray-600'}`}>{stat.label}</h3>
-             <p className={`text-xl font-extrabold mt-1 ${activeFilter === stat.id ? 'text-white' : 'text-[#5D4037]'}`}>{stat.value}</p>
+          <div key={stat.id} onClick={() => setActiveFilter(stat.id as any)} className={`p-5 rounded-2xl border text-center cursor-pointer transition-all ${activeFilter === stat.id ? 'bg-[#5D4037] text-white scale-105 shadow-lg' : 'bg-white'}`}>
+             <stat.icon size={20} className="mx-auto mb-2" />
+             <h3 className="font-semibold text-[10px] uppercase">{stat.label}</h3>
+             <p className="text-xl font-extrabold">{stat.value}</p>
           </div>
         ))}
       </div>
 
-      {/* --- CONTENT TABLES --- */}
-      <div className="space-y-5">
-        <h2 className="text-xl font-bold text-[#5D4037] capitalize pl-1">
-            {activeFilter === 'my_stock' ? 'My Stock' : activeFilter.replace('_', ' ')}
-        </h2>
-        
-        <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 min-h-[300px]">
+      {/* --- CONTENT --- */}
+      <div className="bg-white rounded-2xl shadow-sm border min-h-[400px]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between p-6 gap-4 border-b">
+           <h2 className="text-xl font-bold text-[#5D4037] capitalize">{activeFilter.replace('_', ' ')}</h2>
+           
+           {activeFilter === 'delivered' && (
+             <div className="flex flex-1 md:justify-end gap-3">
+               <div className="relative w-full md:w-64">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                 <input 
+                   type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)}
+                   placeholder="Search branch or item..."
+                   className="w-full bg-gray-50 border pl-10 pr-4 py-2 rounded-xl text-xs focus:border-[#5D4037] outline-none"
+                 />
+               </div>
+               <button onClick={() => window.print()} className="bg-[#5D4037] text-white px-4 py-2 rounded-xl text-[10px] font-bold uppercase flex items-center gap-2"><Printer size={14} /> Print</button>
+             </div>
+           )}
+        </div>
+
+        {activeFilter === 'requests' && (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              
-              {/* 1. BAKED LOG */}
-              {activeFilter === 'baked_log' && (
-                <>
-                  <thead>
-                    <tr className="bg-[#A67C37] text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="px-6 py-4">Item Name</th>
-                      <th className="px-6 py-4">Quantity In</th>
-                      <th className="px-6 py-4">Time</th>
-                      <th className="px-6 py-4 text-right">Source</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EBE0CC]/30">
-                    {bakedLog.map((item) => (
-                      <tr key={item.id} className="hover:bg-[#EBE0CC]/20">
-                        <td className="px-6 py-5 font-bold text-[#5D4037]">{item.item}</td>
-                        <td className="px-6 py-5 text-gray-700">{item.quantity} {item.unit}</td>
-                        <td className="px-6 py-5 text-gray-500 text-xs">{item.date}</td>
-                        <td className="px-6 py-5 text-right font-bold text-[#A67C37]">{item.from}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </>
-              )}
-
-              {/* 2. REQUESTS */}
-              {activeFilter === 'requests' && (
-                <>
-                  <thead>
-                    <tr className="bg-[#5D4037] text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="px-6 py-4">Item</th>
-                      <th className="px-6 py-4">Qty Needed</th>
-                      <th className="px-6 py-4">Time</th>
-                      <th className="px-6 py-4 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EBE0CC]/30">
-                    {shopRequests.length > 0 ? shopRequests.map((req) => (
-                      <tr key={req.id} className="hover:bg-[#EBE0CC]/20">
-                        <td className="px-6 py-5 font-bold text-[#5D4037]">{req.item}</td>
-                        <td className="px-6 py-5 text-gray-600">{req.quantity} {req.unit}</td>
-                        <td className="px-6 py-5 text-gray-500 text-xs">{req.date}</td>
-                        <td className="px-6 py-5 text-right">
-                          <button onClick={() => handleDeliver(req.id)} className="bg-[#A67C37] text-white px-4 py-2 rounded-lg text-xs font-bold uppercase hover:bg-[#5D4037] flex items-center gap-2 ml-auto">
-                            <FileText size={14} /> Deliver & Note
-                          </button>
-                        </td>
-                      </tr>
-                    )) : <tr><td colSpan={4} className="text-center py-8 text-gray-400">No pending requests.</td></tr>}
-                  </tbody>
-                </>
-              )}
-
-              {/* 3. MY STOCK */}
-              {activeFilter === 'my_stock' && (
-                <>
-                  <thead>
-                    <tr className="bg-[#5D4037] text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="px-6 py-4">Item Name</th>
-                      <th className="px-6 py-4">Ready Qty</th>
-                      <th className="px-6 py-4 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EBE0CC]/30">
-                    {myStock.map((item) => (
-                      <tr key={item.id} className="hover:bg-[#EBE0CC]/20">
-                        <td className="px-6 py-5 font-bold text-[#5D4037]">{item.item}</td>
-                        <td className="px-6 py-5 text-gray-800 font-bold">{item.quantity} {item.unit}</td>
-                        <td className="px-6 py-5 text-right"><span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">{item.status}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </>
-              )}
-
-              {/* 4. DELIVERED PRODUCTS */}
-              {activeFilter === 'delivered' && (
-                <>
-                  <thead>
-                    <tr className="bg-[#A67C37] text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="px-6 py-4">Item Delivered</th>
-                      <th className="px-6 py-4">Quantity</th>
-                      <th className="px-6 py-4">Receiver</th>
-                      <th className="px-6 py-4 text-right">Verified</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EBE0CC]/30">
-                    {deliveryHistory.map((h) => (
-                      <tr key={h.id} className="hover:bg-[#EBE0CC]/20">
-                        <td className="px-6 py-5 font-bold text-[#5D4037]">{h.item}</td>
-                        <td className="px-6 py-5">{h.quantity} units</td>
-                        <td className="px-6 py-5 text-gray-500">{h.receiver}</td>
-                        <td className="px-6 py-5 text-right text-green-600"><CheckCheck size={18} className="ml-auto" /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </>
-              )}
-
-              {/* 5. DAMAGED */}
-              {activeFilter === 'damaged' && (
-                <>
-                  <thead>
-                    <tr className="bg-red-500 text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="px-6 py-4">Item</th>
-                      <th className="px-6 py-4">Quantity</th>
-                      <th className="px-6 py-4 text-right">Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-red-50">
-                    {damagedItems.map((item) => (
-                      <tr key={item.id} className="hover:bg-red-50">
-                        <td className="px-6 py-5 font-bold text-[#5D4037]">{item.item}</td>
-                        <td className="px-6 py-5">{item.quantity} {item.unit}</td>
-                        <td className="px-6 py-5 text-right text-gray-500 italic">{item.reason}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </>
-              )}
-
-              {/* 6. DELIVERY NOTES */}
-              {activeFilter === 'notes' && (
-                 <>
-                  <thead>
-                    <tr className="bg-[#5D4037] text-white text-xs font-bold uppercase tracking-wider">
-                      <th className="px-6 py-4">Note ID</th>
-                      <th className="px-6 py-4">Date Generated</th>
-                      <th className="px-6 py-4">Items Count</th>
-                      <th className="px-6 py-4 text-right">View</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#EBE0CC]/30">
-                    {deliveryHistory.map((h) => (
-                      <tr key={h.id} className="hover:bg-[#EBE0CC]/20">
-                        <td className="px-6 py-5 font-mono font-bold text-[#A67C37]">{h.noteId}</td>
-                        <td className="px-6 py-5 text-gray-600 text-sm">{h.date}</td>
-                        <td className="px-6 py-5 text-gray-800">1 Item</td>
-                        <td className="px-6 py-5 text-right">
-                           <button className="text-[#5D4037] font-bold hover:underline text-xs uppercase">Open PDF</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </>
-              )}
-
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 text-[10px] font-bold uppercase text-gray-400">
+                  <th className="px-6 py-4">Item</th>
+                  <th className="px-6 py-4">Destination</th>
+                  <th className="px-6 py-4">Qty Needed</th>
+                  <th className="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleRequests.map((req) => (
+                  <tr key={req.id} className="border-b hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-5 font-bold text-[#5D4037]">{req.item}</td>
+                    <td className="px-6 py-5 text-[10px] font-black text-[#A67C37] uppercase">{req.branch}</td>
+                    <td className="px-6 py-5 font-bold">{req.quantity}</td>
+                    <td className="px-6 py-5 text-right"><button onClick={() => setPartialDeliveryItem(req)} className="bg-[#A67C37] text-white px-4 py-2 rounded-lg text-[10px] font-bold uppercase">Deliver</button></td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
-        </div>
+        )}
+
+        {activeFilter === 'delivered' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50 text-[10px] font-bold uppercase text-gray-400">
+                  <th className="px-6 py-4">Item</th>
+                  <th className="px-6 py-4">Qty</th>
+                  <th className="px-6 py-4">Receiver</th>
+                  <th className="px-6 py-4 text-right">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredHistory.map((h) => (
+                  <tr key={h.id} className="border-b">
+                    <td className="px-6 py-5 font-bold text-[#5D4037]">{h.item}</td>
+                    <td className="px-6 py-5 font-bold">{h.quantity}</td>
+                    <td className="px-6 py-5 text-[10px] font-black text-[#A67C37] uppercase">{h.receiver}</td>
+                    <td className="px-6 py-5 text-right text-xs text-gray-400">{h.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {activeFilter === 'my_stock' && (
+          <div className="p-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {myStock.map((item) => (
+              <div key={item.id} className="p-5 bg-gray-50 rounded-2xl flex justify-between items-center">
+                <span className="font-bold text-[#5D4037]">{item.item}</span>
+                <span className="font-black text-[#A67C37]">{item.quantity} {item.unit}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
