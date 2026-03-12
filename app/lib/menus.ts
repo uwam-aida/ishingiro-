@@ -18,8 +18,7 @@ export interface MenuItem {
 }
 
 // ==========================================
-// DYNAMIC GETTER FUNCTIONS
-// These functions inject the branchId into the URLs
+// DYNAMIC GETTER FUNCTIONS (Branch Dependent)
 // ==========================================
 
 export const getShopManagerMenu = (branchId: string): MenuItem[] => [
@@ -33,7 +32,7 @@ export const getShopManagerMenu = (branchId: string): MenuItem[] => [
 export const getBakerMenu = (branchId: string): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/${branchId}/baker-assistant` },
   { name: 'Products', icon: Package, href: `/${branchId}/baker-assistant/products` },
-  { name: 'Add products', icon: PlusCircle, href: `/${branchId}/baker-assistant/add-product' `},
+  { name: 'Add products', icon: PlusCircle, href: `/${branchId}/baker-assistant/add-product` },
 ];
 
 export const getStoreKeeperMenu = (branchId: string): MenuItem[] => [
@@ -63,9 +62,8 @@ export const cheifFinanceMenu: MenuItem[] = [
   { name: 'Report', icon: FileText, href: '/cheif-finance/report' },
 ];
 
-export const marketingManagerMenu: MenuItem[] = [
-  { name: 'Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
-  { name: 'Pricing', icon: Tag, href: '/marketing-manager/pricing' },
-  { name: 'Reports', icon: FileText, href: '/marketing-manager/reports' },
-  { name: 'Business Analytics', icon: TrendingUp, href: '/marketing-manager/analytics' },
+// CORRECTED: Added all sub-folders and removed branchId requirement
+export const getMarketingManagerMenu = (): MenuItem[] => [
+  { name: 'Admin Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
+  { name: 'Pricing Strategy', icon: Tag, href: '/marketing-manager/pricing' },
 ];

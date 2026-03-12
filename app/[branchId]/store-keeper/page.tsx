@@ -42,11 +42,18 @@ const getCurrentTime = () => {
     { id: 105, item: 'Milk', quantity: 5, unit: 'liters', date: getCurrentTime(), branch: 'nyakarambi' },
   ]);
 
+  // --- CORRECTED VISIBILITY LOGIC ---
   const visibleRequests = shopRequests.filter(req => {
-    if (branchId === 'kabuga') return req.branch === 'kabuga' || req.branch === 'masaka';
-    if (branchId === 'rwamagana') return req.branch === 'rwamagana' || req.branch === 'kayonza';
-    if (branchId === 'nyakarambi') return req.branch === 'nyakarambi';
-    return false;
+    // Kabuga Store Keeper sees Kabuga and Masaka requests
+    if (branchId === 'kabuga') {
+      return req.branch === 'kabuga' || req.branch === 'masaka';
+    }
+    // Rwamagana Store Keeper sees Rwamagana and Kayonza requests
+    if (branchId === 'rwamagana') {
+      return req.branch === 'rwamagana' || req.branch === 'kayonza';
+    }
+    // Other store keepers only see their specific branch
+    return req.branch === branchId;
   });
 
   const [deliveryHistory, setDeliveryHistory] = useState([

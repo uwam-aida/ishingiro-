@@ -1,162 +1,133 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Sidebar from '../components/layout/Sidebar';
 import { 
-  Factory, 
-  Store, 
-  AlertTriangle, 
-  TrendingUp, 
-  RefreshCcw // Reset icon
+  Users, TrendingUp, ShieldCheck, Activity, 
+  Search, ArrowLeft, MapPin, Circle,
+  CheckCircle2, Clock, ChevronDown, ChevronUp,
+  LayoutDashboard, Tag, Menu
 } from 'lucide-react';
 
-export default function MarketingDashboard() {
-  const [activeFilter, setActiveFilter] = useState<'all' | 'production' | 'stock' | 'damaged' | 'growth'>('all');
 
-  // 1. Stats Data
-  const stats = [
-    { 
-      id: 'production',
-      label: 'Production', 
-      value: '2', 
-      sub: 'Total items', 
-      icon: Factory, 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-50' 
-    },
-    { 
-      id: 'stock',
-      label: 'Shop Stock', 
-      value: '2', 
-      sub: 'Available', 
-      icon: Store, 
-      color: 'text-gray-900', 
-      bg: 'bg-white border border-gray-200' 
-    },
-    { 
-      id: 'damaged',
-      label: 'Damaged', 
-      value: '1', 
-      sub: 'Total loss', 
-      icon: AlertTriangle, 
-      color: 'text-red-600', 
-      bg: 'bg-red-50' 
-    },
-    { 
-      id: 'growth',
-      label: 'Growth', 
-      value: '20%', 
-      sub: 'This week', 
-      icon: TrendingUp, 
-      color: 'text-green-600', 
-      bg: 'bg-green-50' 
-    },
+export default function MarketingManagerAdmin() {
+  const router = useRouter();
+  const [view, setView] = useState<'dashboard' | 'userList' | 'userDetails'>('dashboard');
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  
+  // Sidebar State
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const menuItems = [
+    { name: 'Admin Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
+    { name: 'Pricing Strategy', icon: Tag, href: '/marketing-manager/pricing' },
   ];
 
-  // 2. Market Data
-  const marketData = [
-    { id: 1, product: 'Bread', production: '1', stock: '1', performance: 'Normal', status: 'stock' },
-    { id: 2, product: 'Birthday Cake', production: '0', stock: '1', performance: 'High demand', status: 'growth' },
-    { id: 3, product: 'Biscuits', production: '50', stock: '20', performance: 'Low demand', status: 'stock' },
-    { id: 4, product: 'Burnt Bread', production: '0', stock: '0', performance: 'Damaged', status: 'damaged' },
-    { id: 5, product: 'Dough', production: '20', stock: '0', performance: 'In Production', status: 'production' },
-  ];
+  // --- TEAM STRUCTURE LOGIC (PRESERVED) ---
+  const productionBranches = ['Kabuga', 'Masaka', 'Rwamagana', 'Nyakarambi', 'Mushikiri'];
+  const allUsers = [...productionBranches, 'Kayonza'].flatMap(branch => {
+    const isProd = productionBranches.includes(branch);
+    const roles = isProd ? ['Shop Manager', 'Store Keeper', 'Production Manager', 'Baker Assistant'] : ['Shop Manager', 'Store Keeper'];
+    return roles.map(role => ({
+      name: `${branch} ${role}`,
+      branch,
+      role,
+      status: 'Active Now',
+      icon: Users,
+      history: [{ day: 'today-thursday', summary: 'Audit Active', movements: [] }]
+    }));
+  });
 
-  // 3. Filter Logic
-  const filteredData = activeFilter === 'all' 
-    ? marketData 
-    : marketData.filter(item => item.status === activeFilter || (activeFilter === 'growth' && item.performance === 'High demand'));
+  const filteredUsers = allUsers.filter(u => 
+    u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    u.branch.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-12">
+    <div className="bg-[#FAFAFB] min-h-screen relative">
       
-      {/* Header */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Marketing Manager</h1>
-          <p className="text-gray-500 mt-2 font-medium">Analyze market trends and product performance.</p>
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+        menuItems={menuItems}
+        footerTitle="Marketing Manager"
+        footerInitial="M"
+      />
+
+      {/* --- STICKY PROFESSIONAL VERTICAL MOBILE HEADER --- */}
+      <div className="md:hidden w-full bg-white border-b border-gray-100 px-6 py-8 flex flex-col items-center shadow-md sticky top-0 z-40 backdrop-blur-md bg-white/95">
+        {/* 1. LOGO AT THE TOP */}
+        <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-xl mb-4">
+          <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
         </div>
-        {activeFilter !== 'all' && (
-          <button 
-            onClick={() => setActiveFilter('all')}
-            className="text-sm font-bold text-gray-400 hover:text-gray-900 flex items-center gap-2 transition-colors"
-          >
-            <RefreshCcw size={14} /> Reset View
-          </button>
-        )}
+
+        {/* 2. TEXT IN THE MIDDLE */}
+        <div className="text-center mb-6">
+          <h2 className="text-[#5D4037] font-black uppercase tracking-[0.25em] text-sm">Ishingiro</h2>
+          <p className="text-[#A67C37] text-[10px] font-black uppercase tracking-widest mt-1">Marketing Management Admin</p>
+        </div>
+        
+        {/* 3. MENU BUTTON AT THE BOTTOM */}
+        <button 
+          onClick={() => setIsSidebarOpen(true)}
+          className="flex items-center justify-center gap-3 w-full max-w-[200px] py-4 bg-[#5D4037] text-white rounded-2xl shadow-lg active:scale-95 transition-all text-[11px] font-black uppercase tracking-widest"
+        >
+          <Menu size={18} /> Menu
+        </button>
       </div>
 
-      {/* --- INTERACTIVE STATS GRID --- */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <div 
-            key={stat.id} 
-            onClick={() => setActiveFilter(stat.id as any)}
-            className={`p-6 rounded-[24px] shadow-sm flex flex-col justify-between h-32 relative overflow-hidden group cursor-pointer transition-all duration-300 ${
-              activeFilter === stat.id 
-              ? 'bg-gray-900 text-white transform -translate-y-1 shadow-md' 
-              : `${stat.bg} ${stat.color} hover:shadow-md hover:-translate-y-1`
-            } ${activeFilter !== 'all' && activeFilter !== stat.id ? 'opacity-50 grayscale' : 'opacity-100'}`}
-          >
-             <div className="flex justify-between items-start">
-               <div>
-                 <p className={`text-xs font-bold uppercase tracking-wide ${activeFilter === stat.id ? 'opacity-70' : 'opacity-70'}`}>{stat.label}</p>
-                 <h3 className="text-3xl font-extrabold mt-1">{stat.value}</h3>
-               </div>
-               <stat.icon size={20} className="opacity-80" />
-             </div>
-             <p className="text-[10px] font-bold opacity-60 uppercase tracking-wider">{stat.sub}</p>
+      {/* --- MAIN CONTENT --- */}
+      <div className="p-6 md:p-10 space-y-10 max-w-6xl mx-auto">
+        {view === 'dashboard' && (
+          <div className="space-y-10">
+            <div className="flex flex-col gap-2">
+              <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight uppercase">Executive Command</h1>
+              <div className="h-1.5 w-24 bg-[#A67C37]/30 rounded-full"></div>
+            </div>
+            
+            <div onClick={() => setView('userList')} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm hover:shadow-2xl cursor-pointer max-w-sm transition-all group">
+                <div className="p-5 w-fit rounded-2xl bg-[#5D4037] text-white mb-6 group-hover:scale-110 transition-transform shadow-lg shadow-[#5D4037]/20">
+                  <Users size={24} />
+                </div>
+                <p className="text-slate-400 text-[10px] font-black uppercase mb-1 tracking-widest">Total System Team</p>
+                <h3 className="text-3xl font-black text-slate-900">{allUsers.length} People</h3>
+            </div>
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* --- "WHAT CUSTOMERS LIKE" SECTION --- */}
-      <div className="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 min-h-[400px]">
-        <div className="mb-8">
-           <h2 className="text-xl font-bold text-gray-900">What customers like</h2>
-           <p className="text-gray-400 text-xs font-bold uppercase tracking-wide mt-1">
-             {activeFilter === 'all' ? 'Which products are selling best' : `Filtered by: ${activeFilter}`}
-           </p>
-        </div>
+        {view === 'userList' && (
+          <div className="space-y-8">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setView('dashboard')} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-slate-50 transition-colors">
+                <ArrowLeft size={20} />
+              </button>
+              <h2 className="text-xl font-black text-slate-900 uppercase">Team Directory</h2>
+            </div>
 
-        {/* --- TABLE --- */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b-2 border-gray-100 text-xs font-extrabold text-gray-900 uppercase tracking-wider">
-                <th className="pb-4 pl-4">Products</th>
-                <th className="pb-4">Production</th>
-                <th className="pb-4">Shop Stock</th>
-                <th className="pb-4 text-right pr-4">Performance</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredData.length > 0 ? (
-                filteredData.map((item) => (
-                  <tr key={item.id} className="group hover:bg-gray-50/80 transition-colors animate-in slide-in-from-bottom-2 duration-300">
-                    <td className="py-5 pl-4 font-bold text-gray-900">{item.product}</td>
-                    <td className="py-5 font-medium text-gray-500">{item.production}</td>
-                    <td className="py-5 font-medium text-gray-500">{item.stock}</td>
-                    <td className="py-5 text-right pr-4">
-                      <span className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-wide shadow-sm ${
-                        item.performance === 'High demand' ? 'bg-black text-white' : 
-                        item.performance === 'Low demand' ? 'bg-red-50 text-red-600' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {item.performance}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                   <td colSpan={4} className="py-12 text-center text-gray-400">
-                     <p className="text-sm font-medium">No products match this category.</p>
-                   </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            <div className="relative w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search teammate..." 
+                className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl text-sm font-bold outline-none focus:ring-4 focus:ring-[#5D4037]/5"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredUsers.map((user, i) => (
+                <button key={i} onClick={() => { setSelectedUser(user); setView('userDetails'); }} className="flex items-center gap-5 p-6 rounded-[2.5rem] bg-white border border-slate-100 hover:border-[#A67C37] transition-all text-left">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-[#5D4037]"><Circle size={20} /></div>
+                  <h4 className="font-bold text-slate-800 text-sm uppercase">{user.name}</h4>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
