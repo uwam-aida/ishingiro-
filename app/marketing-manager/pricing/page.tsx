@@ -46,10 +46,10 @@ export default function MarketingPricingPage() {
     { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS' },
     { name: 'ikinyuranyo 3kg', price: 4500, category: 'OTHERS' },
     { name: 'ikinyuranyo 5kg', price: 7500, category: 'OTHERS' },
-    { name: 'ikinyuranyo kg (0.5)', price: 1200, category: 'OTHERS' },
+    { name: 'ikinyuranyo (0.5)kg', price: 1200, category: 'OTHERS' },
     { name: 'ubunyobwa', price: 1800, category: 'OTHERS' },
-    { name: 'yellow e flour 1kg', price: 1700, category: 'OTHERS' },
-    { name: 'yellow e flour 3kg', price: 4800, category: 'OTHERS' },
+    { name: 'yellow c flour 1kg', price: 1700, category: 'OTHERS' },
+    { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS' },
     { name: 'cashnewnuts', price: 5500, category: 'OTHERS' },
     { name: 'cornfresh cream', price: 500, category: 'OTHERS' },
 
@@ -58,18 +58,18 @@ export default function MarketingPricingPage() {
     { name: 'cake 20000', price: 20000, category: 'BIG CAKES' },
     { name: 'cakes 24000', price: 24000, category: 'BIG CAKES' },
     { name: 'cake 19000', price: 19000, category: 'BIG CAKES' },
-    { name: 'CAKE18000', price: 18000, category: 'BIG CAKES' },
+    { name: 'cake18000', price: 18000, category: 'BIG CAKES' },
     { name: 'cakes 15000', price: 15000, category: 'BIG CAKES' },
     { name: 'cakes 14000', price: 14000, category: 'BIG CAKES' },
     { name: 'cakes 13000', price: 13000, category: 'BIG CAKES' },
-    { name: 'CAKE 12000', price: 12000, category: 'BIG CAKES' },
+    { name: 'cake 12000', price: 12000, category: 'BIG CAKES' },
     { name: 'cakes 10000', price: 10000, category: 'BIG CAKES' },
     { name: 'cakes 9000', price: 9000, category: 'BIG CAKES' },
     { name: 'cakes 8000', price: 8000, category: 'BIG CAKES' },
     { name: 'cakes 7000', price: 7000, category: 'BIG CAKES' },
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES' },
-    { name: 'CAKE 5000', price: 5000, category: 'BIG CAKES' },
-    { name: 'ADDCAKE', price: 5000, category: 'BIG CAKES' },
+    { name: 'cake 5000', price: 5000, category: 'BIG CAKES' },
+    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES' },
   ];
 
   const categories = ['BREAD', 'CAKES', 'AMANDAZI', 'OTHERS', 'BIG CAKES'];
@@ -172,24 +172,18 @@ export default function MarketingPricingPage() {
     <div className="space-y-8 pb-10">
       
       {/* --- MOBILE RESPONSIVE LOGO HEADER --- */}
-      <div className="md:hidden flex items-center gap-3 pb-4 border-b border-gray-100 mb-4 bg-white sticky top-0 z-50 p-4 shadow-sm -mx-6 -mt-6">
-         {/* REPLACE '/logo.png' WITH YOUR ACTUAL IMAGE FILE 
-            Example: src="/images/my-logo.jpg"
-         */}
-         <img 
-           src="/logo.png" 
-           alt="Logo" 
-           className="w-10 h-10 rounded-full object-cover border border-gray-200" 
-           onError={(e) => {
-             // Fallback if image not found
-             (e.target as any).style.display = 'none'; 
-           }}
-         />
-         {/* Fallback Text if Image fails or loads */}
-         <div>
-            <h1 className="text-lg font-black text-[#5D4037] leading-tight">ISHINGIRO</h1>
-            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Pricing Manager</p>
-         </div>
+      
+<div className="md:hidden w-full bg-white border-b border-gray-100 px-6 py-6 flex flex-col items-center bg-white/95">
+        
+        <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-xl mb-4">
+          <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
+        </div>
+
+        <div className="text-center mb-2">
+          <h2 className="text-[#5D4037] font-black uppercase tracking-[0.25em] text-sm">Ishingiro</h2>
+        </div>
+
+      
       </div>
 
       {/* Desktop Header */}

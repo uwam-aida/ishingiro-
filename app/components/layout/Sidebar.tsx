@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect } from 'react';
@@ -8,7 +9,7 @@ import { X, LogOut } from 'lucide-react';
 // Define the Menu Item structure
 interface MenuItem {
   name: string;
-  icon: any;
+  icon: React.ElementType; // ✅ FIXED (was causing your error)
   href: string;
 }
 
@@ -40,11 +41,12 @@ export default function Sidebar({
     if (isOpen && onClose) {
       onClose();
     }
-  }, [pathname, isOpen, onClose]); 
+  }, [pathname]);
 
   return (
-    <>
-      {/* --- MOBILE OVERLAY (Grey Background) --- */}
+    <div>
+      
+      {/* --- MOBILE OVERLAY --- */}
       <div 
         className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -52,15 +54,15 @@ export default function Sidebar({
         onClick={onClose}
       />
 
-      {/* --- SIDEBAR CONTAINER --- */}
+      {/* --- SIDEBAR --- */}
       <div 
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:shadow-none border-r border-gray-100 flex flex-col h-full ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-gray-100 flex flex-col h-full
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:translate-x-0 md:static md:shadow-none`}
       >
         
         {/* --- HEADER --- */}
-        <div className="p-6 flex flex-col items-center border-b border-gray-100 relative shrink-0">
+        <div className="p-6 flex flex-col items-center border-b border-gray-100 relative shrink-0 bg-gray-100">
           <button 
             onClick={onClose} 
             className="absolute top-4 right-4 md:hidden text-gray-400 hover:text-red-500"
@@ -68,11 +70,13 @@ export default function Sidebar({
             <X size={24} />
           </button>
 
-          {/* Logo Container */}
           <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-3">
              <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
           </div>
-          <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">Ishingiro</h2>
+
+          <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">
+            Ishingiro
+          </h2>
           
           {branchId && (
             <span className="mt-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold rounded-full uppercase">
@@ -81,10 +85,12 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* --- MENU LINKS --- */}
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto">
+        {/* --- MENU --- */}
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto bg-gray-100">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
+            const Icon = item.icon; // ✅ FIXED
+
             return (
               <Link 
                 key={item.href} 
@@ -99,7 +105,7 @@ export default function Sidebar({
                     : 'text-gray-500 hover:bg-gray-50 hover:text-[#5D4037]'
                 }`}
               >
-                <item.icon size={20} />
+                <Icon size={20} /> {/* ✅ FIXED */}
                 <span>{item.name}</span>
               </Link>
             );
@@ -122,6 +128,7 @@ export default function Sidebar({
         </div>
 
       </div>
-    </>
+    </div>
   ); 
 }
+
