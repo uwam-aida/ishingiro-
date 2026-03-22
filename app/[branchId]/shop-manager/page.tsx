@@ -8,31 +8,50 @@ export default function DynamicShopDashboard() {
   const router = useRouter(); 
   const params = useParams(); 
 
-const rawBranchId = params?.branchId;
+  const rawBranchId = params?.branchId;
 
-  // --- EXACT ERROR FIX: Safety Guard ---
-  if (!rawBranchId) return null; 
-  // -------------------------------------
+  // --- STRICT BRANCH LIMITATION ---
+  const allowedBranches = ['kabuga', 'masaka'];
+  const isBranchValid = typeof rawBranchId === 'string' && allowedBranches.includes(rawBranchId.toLowerCase());
 
-  const branchName = typeof rawBranchId === 'string'
-    ? rawBranchId.charAt(0).toUpperCase() + rawBranchId.slice(1)
-    : 'Shop';
+  // Safety Guard: If no ID or invalid branch, show error
+  if (!rawBranchId || !isBranchValid) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 text-center">
+        <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 max-w-sm">
+          <AlertCircle className="mx-auto text-red-500 mb-4" size={48} />
+          <h2 className="text-xl font-black text-[#5D4037]">Branch Not Found</h2>
+          <p className="text-gray-500 text-sm mt-2">Access restricted. Only Kabuga and Masaka branches are active.</p>
+          
+          {/* UPDATED BUTTON: Says "Back" and uses router.back() */}
+          <button 
+            onClick={() => router.back()}
+            className="mt-6 w-full py-3 bg-[#5D4037] text-white rounded-xl font-bold uppercase text-xs tracking-widest transition-transform active:scale-95 shadow-md shadow-[#5D4037]/20 flex items-center justify-center gap-2"
+          >
+            <ArrowLeft size={16} /> Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-const getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const branchName = rawBranchId.charAt(0).toUpperCase() + rawBranchId.slice(1);
 
-const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged'>('baked');
+  const getCurrentTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged'>('baked');
   const [searchQuery, setSearchQuery] = useState('');
 
-const [shopStock, setShopStock] = useState([
+  const [shopStock, setShopStock] = useState([
     { id: 1, item: 'White Loaf', quantity: 45, unit: 'Pieces', from: 'Inventory', time: 'Updated Now', status: 'Available', action: 'sell' },
   ]);
 
-const [bakedItems] = useState([]); 
+  const [bakedItems] = useState([]); 
   const [orders] = useState([]); 
   const [receivedLog] = useState([]); 
   const [damagedItems] = useState([]); 
 
- const stats = [
+  const stats = [
     { id: 'baked', label: 'Baked Items', value: bakedItems.length.toString(), sub: 'Incoming', icon: ShoppingBag },
     { id: 'orders', label: 'Orders', value: orders.length.toString(), sub: 'My Requests', icon: Clock },
     { id: 'received', label: 'Received', value: receivedLog.length.toString(), sub: 'History', icon: Archive },
@@ -44,15 +63,14 @@ const [bakedItems] = useState([]);
     <div className="min-h-screen bg-gray-50 pb-12">
       <div className="max-w-7xl mx-auto space-y-6 md:space-y-8 px-4 md:px-8 pt-6">
         
-
         <div className="md:hidden flex items-center justify-center mb-6">
             <img src="/logo.png" alt="Shop Logo" className="h-14 w-auto object-contain" />
         </div>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
              <button 
-               onClick={() => router.push('/')} 
+               onClick={() => router.back()} 
                className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#5D4037] hover:bg-[#EBE0CC]/30 transition-all shadow-sm"
              >
                <ArrowLeft size={20} />
@@ -79,7 +97,7 @@ const [bakedItems] = useState([]);
           </div>
         </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {stats.map((stat) => (
             <div 
               key={stat.id} 
@@ -101,7 +119,7 @@ const [bakedItems] = useState([]);
           ))}
         </div>
 
-      <div className="space-y-4">
+        <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
              <h2 className="text-lg font-bold text-[#5D4037] capitalize flex items-center gap-2">
                {activeFilter === 'stock' ? 'Rest Products' : activeFilter} List
@@ -115,7 +133,7 @@ const [bakedItems] = useState([]);
                </button>
              )}
           </div>
-         
+          
           <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 min-h-[300px]">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[700px]">
@@ -142,8 +160,7 @@ const [bakedItems] = useState([]);
               </table>
             </div>
           </div>
-        
-      </div>
+        </div>
       </div>
     </div>
   );

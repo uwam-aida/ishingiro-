@@ -21,7 +21,7 @@ export default function MarketingPricingPage() {
     { name: 'mult graine', price: 1300, category: 'BREAD' },
     { name: 'milk mult graine', price: 1000, category: 'BREAD' },
     { name: 'brown bread', price: 800, category: 'BREAD' },
-
+ 
     // CAKES
     { name: 'tea cake', price: 1000, category: 'CAKES' },
     { name: 'marble cake', price: 1200, category: 'CAKES' },

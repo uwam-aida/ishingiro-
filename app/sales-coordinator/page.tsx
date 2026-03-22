@@ -248,7 +248,7 @@ export default function SalesCoordinatorDashboard() {
                 </div>
               )}
             </div>
-          </div>
+          </div> 
         </div>
       )}
 

@@ -23,10 +23,9 @@ export interface MenuItem {
 
 export const getShopManagerMenu = (branchId: string): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/${branchId}/shop-manager` },
-  { name: 'Orders', icon: ClipboardList, href: `/${branchId}/shop-manager/orders` },
+  
   { name: 'Notifications', icon: Bell, href: `/${branchId}/shop-manager/notifications` },
-  { name: 'Reports', icon: FileText, href: `/${branchId}/shop-manager/reports` },
-  { name: 'Settings', icon: Settings, href: `/${branchId}/shop-manager/settings` },
+
 ];
 
 export const getBakerMenu = (branchId: string): MenuItem[] => [
