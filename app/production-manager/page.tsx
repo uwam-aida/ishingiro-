@@ -112,7 +112,7 @@ export default function ProductionManagerDashboard() {
   const pageInfo = getDataForView(currentView);
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
+    <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10 px-10 py-10">
       
       {/* --- MOBILE LOGO HEADER --- */}
       <div className="md:hidden flex flex-col items-center justify-center mb-6 pt-2">

@@ -1,4 +1,8 @@
-export default function BranchLayout({ children }: { children: React.ReactNode }) {
-  // This removes the extra divs that are blocking your shop-manager layout
-  return <>{children}</>;
+// app/[branchId]/layout.tsx (The simple one)
+export default function RootBranchLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen w-full bg-gray-50">
+      {children}
+    </div>
+  );
 }

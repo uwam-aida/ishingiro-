@@ -8,12 +8,11 @@ import { Package, Bell, ArrowRight, ShoppingBag, AlertCircle, Eye, FileText, Sea
 export default function StoreKeeperDashboard() {
   const router = useRouter(); 
   const params = useParams();
-  const branchId = params?.branchId as string;
+  
+  // --- FIX: The Store Keeper is now global, so we don't block the page if branchId is missing ---
+  const branchId = params?.branchId as string || "Global";
 
-  // --- SAFETY GUARD ---
-  if (!branchId) return null;
-
-const getCurrentTime = () => {
+  const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
@@ -42,19 +41,8 @@ const getCurrentTime = () => {
     { id: 105, item: 'Milk', quantity: 5, unit: 'liters', date: getCurrentTime(), branch: 'nyakarambi' },
   ]);
 
-  // --- CORRECTED VISIBILITY LOGIC ---
-  const visibleRequests = shopRequests.filter(req => {
-    // Kabuga Store Keeper sees Kabuga and Masaka requests
-    if (branchId === 'kabuga') {
-      return req.branch === 'kabuga' || req.branch === 'masaka';
-    }
-    // Rwamagana Store Keeper sees Rwamagana and Kayonza requests
-    if (branchId === 'rwamagana') {
-      return req.branch === 'rwamagana' || req.branch === 'kayonza';
-    }
-    // Other store keepers only see their specific branch
-    return req.branch === branchId;
-  });
+  // --- CORRECTED VISIBILITY LOGIC (Now shows all since Store Keeper is global) ---
+  const visibleRequests = shopRequests;
 
   const [deliveryHistory, setDeliveryHistory] = useState([
     { id: 55, noteId: 'DN-001', item: 'Donuts', quantity: 50, date: 'Yesterday', receiver: 'MASAKA' }
@@ -106,13 +94,11 @@ const getCurrentTime = () => {
     setDeliveryQty('');
   };
 
-const stats = [
+  const stats = [
     { id: 'requests', label: 'Requests', value: visibleRequests.length.toString(), icon: Bell },
     { id: 'my_stock', label: 'Stock', value: myStock.reduce((a,b)=>a+b.quantity,0).toString(), icon: ShoppingBag },
     { id: 'delivered', label: 'History', value: deliveryHistory.length.toString(), icon: CheckCheck },
-    branchId === 'mushikiri' 
-      ? { id: 'sales_log', label: 'Log', value: 'Write', icon: PenLine }
-      : { id: 'notes', label: 'Notes', value: 'View', icon: ClipboardList },
+    { id: 'notes', label: 'Notes', value: 'View', icon: ClipboardList },
   ];
 
   return (
@@ -131,7 +117,7 @@ const stats = [
         </div>
       )}
 
-    {deliveryNote && (
+      {deliveryNote && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
             <div className="bg-[#5D4037] p-6 text-center relative text-white">
@@ -153,7 +139,7 @@ const stats = [
       <div className="flex items-center gap-4 pt-6">
         <button onClick={() => router.back()} className="p-2 rounded-xl bg-white border border-gray-200 text-[#5D4037]"><ArrowLeft size={24} /></button>
         <div>
-          <h1 className="text-2xl font-bold text-[#5D4037] uppercase tracking-tight">{branchId} Store Keeper</h1>
+          <h1 className="text-2xl font-bold text-[#5D4037] uppercase tracking-tight">Store Keeper</h1>
           <p className="text-[#A67C37] text-sm">Inventory & Fulfillment Control</p>
         </div>
       </div>
