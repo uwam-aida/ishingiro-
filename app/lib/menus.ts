@@ -23,6 +23,7 @@ export interface MenuItem {
 
 export const getShopManagerMenu = (branchId: string): MenuItem[] => [
    { name: 'Dashboard', icon: LayoutDashboard, href: `/${branchId}/shop-manager` },
+   { name: 'Cake Orders', icon: ClipboardList, href: `/${branchId}/shop-manager/cake-orders` }, // Added this line
    { name: 'Notifications', icon: Bell, href: `/${branchId}/shop-manager/notifications` },
 ];
 
@@ -33,12 +34,13 @@ export const getBakerMenu =  (): MenuItem[] => [
   { name: 'Add products', icon: PlusCircle, href: `/baker-assistant/add-product` },
 ];
 
-export const getStoreKeeperMenu = (branchId: string): MenuItem[] => [
-  { name: 'Dashboard', icon: LayoutDashboard, href: `/${branchId}/store-keeper` },
-  { name: 'Products', icon: Box, href: `/${branchId}/store-keeper/products` },       
-  { name: 'Add products', icon: PlusCircle, href: `/${branchId}/store-keeper/add-product` }, 
-  { name: 'Add Other', icon: PlusCircle, href: `/${branchId}/store-keeper/add-other` },
-  { name: 'Notification', icon: Bell, href: `/${branchId}/store-keeper/notifications` },
+export const getStoreKeeperMenu = (): MenuItem[] => [
+  { name: 'Dashboard', icon: LayoutDashboard, href: `/store-keeper` },
+  { name: 'Products', icon: Box, href: `/store-keeper/products` },       
+  { name: 'Add products', icon: PlusCircle, href: `/store-keeper/add-product` }, 
+  { name: 'Add Other', icon: PlusCircle, href: `/store-keeper/add-other` },
+  { name: 'Cake Orders', icon: ClipboardList, href: `/store-keeper/cake-orders` },
+  { name: 'Notification', icon: Bell, href: `/store-keeper/notifications` },
 ];
 
 export const getProductionManagerMenu = (): MenuItem[] => [

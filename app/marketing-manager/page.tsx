@@ -26,51 +26,66 @@ export default function MarketingManagerAdmin() {
     { name: 'Pricing Strategy', icon: Tag, href: '/marketing-manager/pricing' },
   ];
 
-  // --- TEAM STRUCTURE LOGIC (CORRECTED HUB & SPOKE) ---
-  const productionBranches = ['Kabuga', 'Masaka', 'Rwamagana', 'Nyakarambi', 'Mushikiri'];
-  const allUsers = [...productionBranches, 'Kayonza'].flatMap(branch => {
-    const isProd = productionBranches.includes(branch);
+  // --- TEAM STRUCTURE LOGIC (STRICTLY KABUGA & MASAKA) ---
+  const allUsers = (() => {
+    const users: any[] = [];
     
-    // Initial roles based on branch type
-    let roles = isProd 
-      ? ['Shop Manager', 'Store Keeper', 'Production Manager', 'Baker Assistant'] 
-      : ['Shop Manager'];
+    // 1. Unique Global Roles (No branch prefix)
+    users.push({
+      name: "Production Manager",
+      branch: "Global",
+      role: "Production Manager",
+      status: 'Active Now',
+      icon: Users,
+      history: [{ day: 'Today - Thursday', summary: 'Overseeing all batches', movements: [] }]
+    });
 
-    // REMOVAL: Masaka and Kayonza do not have Store Keepers
-    if (branch === 'Masaka' || branch === 'Kayonza') {
-      roles = roles.filter(role => role !== 'Store Keeper');
-    }
+    users.push({
+      name: "Baker Assistant",
+      branch: "Global",
+      role: "Baker Assistant",
+      status: 'Active Now',
+      icon: Users,
+      history: [{ day: 'Today - Thursday', summary: 'Production Support', movements: [] }]
+    });
 
-    return roles.map(role => {
-      // Logic for Hub vs Local Store Keepers
-      let hubSummary = 'Audit Active';
-      let movements = [
-        { type: 'entered', item: 'Morning Stock Count', qty: 'Standard', time: '08:00 AM', status: 'Verified' },
-        { type: 'received', item: 'Daily Batch', qty: '120 Units', time: '09:30 AM', source: 'Production' }
-      ];
+    // 2. Specific Store Keeper (Kabuga based)
+    users.push({
+      name: "Store Keeper",
+      branch: "Kabuga",
+      role: "Store Keeper",
+      status: 'Active Now',
+      icon: Users,
+      history: [{ 
+        day: 'Today - Thursday', 
+        summary: 'Managing Kabuga & Masaka requests', 
+        movements: [
+          { type: 'entered', item: 'Morning Stock Count', qty: 'Standard', time: '08:00 AM', status: 'Verified' },
+          { type: 'sent', item: 'Support Stock', qty: '50 Units', time: '11:00 AM', destination: 'Masaka' }
+        ] 
+      }]
+    });
 
-      if (role === 'Store Keeper' && branch === 'Kabuga') {
-        hubSummary = 'Managing Kabuga & Masaka requests';
-        movements.push({ type: 'sent', item: 'Support Stock', qty: '50 Units', time: '11:00 AM', destination: 'Masaka' } as any);
-      } else if (role === 'Store Keeper' && branch === 'Rwamagana') {
-        hubSummary = 'Managing Rwamagana & Kayonza requests';
-        movements.push({ type: 'sent', item: 'Support Stock', qty: '50 Units', time: '11:15 AM', destination: 'Kayonza' } as any);
-      }
-
-      return {
-        name: `${branch} ${role}`,
-        branch,
-        role,
+    // 3. Shop Managers (Branch specific)
+    ['Kabuga', 'Masaka'].forEach(branch => {
+      users.push({
+        name: `${branch} Shop Manager`,
+        branch: branch,
+        role: "Shop Manager",
         status: 'Active Now',
         icon: Users,
         history: [{ 
           day: 'Today - Thursday', 
-          summary: hubSummary, 
-          movements: movements 
+          summary: 'Sales & Inventory Audit', 
+          movements: [
+            { type: 'received', item: 'Daily Batch', qty: '120 Units', time: '09:30 AM', source: 'Production' }
+          ] 
         }]
-      };
+      });
     });
-  });
+
+    return users;
+  })();
 
   const filteredUsers = allUsers.filter(u => 
     u.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -82,19 +97,16 @@ export default function MarketingManagerAdmin() {
   
       {/* --- MOBILE HEADER (LOGO ONLY) --- */}
       <div className="md:hidden w-full bg-white border-b border-gray-100 px-6 py-6 flex flex-col items-center bg-white/95">
-        
         <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-xl mb-4">
           <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
         </div>
         <div className="text-center mb-2">
           <h2 className="text-[#5D4037] font-black uppercase tracking-[0.25em] text-sm">Ishingiro</h2>
-          
         </div>
-      
       </div>
 
       {/* --- MAIN CONTENT --- */}
-      <div className="p-6 md:p-10 space-y-10 max-w-6xl mx-auto">
+      <div className="p-6 md:p-10 space-y-10 max-w-6xl mx-auto font-sans">
         {view === 'dashboard' && (
           <div className="space-y-10">
             <div className="flex flex-col gap-2">
@@ -180,7 +192,7 @@ export default function MarketingManagerAdmin() {
                   {expandedDay === dayLog.day && (
                     <div className="px-6 pb-6 space-y-3 animate-in fade-in duration-300">
                       <div className="h-px bg-slate-100 mb-4" />
-                      {dayLog.movements.map((move: any, mIdx: number) => (
+                      {dayLog.movements.length > 0 ? dayLog.movements.map((move: any, mIdx: number) => (
                         <div key={mIdx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
                           <div className="flex items-center gap-4">
                             <div className={`p-2 rounded-xl ${
@@ -200,7 +212,7 @@ export default function MarketingManagerAdmin() {
                           </div>
                           <span className="text-xs font-black text-slate-700">{move.qty}</span>
                         </div>
-                      ))}
+                      )) : <p className="text-xs text-center py-4 text-slate-400">No activity recorded today.</p>}
                     </div>
                   )}
                 </div>

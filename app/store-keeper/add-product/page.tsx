@@ -66,7 +66,7 @@ export default function StoreKeeperAddProduct() {
                      onClick={() => setCategory('baked')}
                      className={`py-3.5 rounded-xl text-sm font-bold transition-all ${
                        category === 'baked' 
-                       ? 'bg-[#2979FF] text-white shadow-md' 
+                       ? 'bg-[#CC5500] text-white shadow-md' 
                        : 'text-gray-400 hover:text-white'
                      }`}
                    >
@@ -77,7 +77,7 @@ export default function StoreKeeperAddProduct() {
                      onClick={() => setCategory('damaged')}
                      className={`py-3.5 rounded-xl text-sm font-bold transition-all ${
                        category === 'damaged' 
-                       ? 'bg-[#2979FF] text-white shadow-md' 
+                       ? 'bg-[#CC5500] text-white shadow-md' 
                        : 'text-gray-400 hover:text-white'
                      }`}
                    >
@@ -95,7 +95,7 @@ export default function StoreKeeperAddProduct() {
                      onClick={() => setUnit('piece')}
                      className={`py-3.5 rounded-xl text-sm font-bold transition-all ${
                        unit === 'piece' 
-                       ? 'bg-[#2979FF] text-white shadow-md' 
+                       ? 'bg-[#CC5500] text-white shadow-md' 
                        : 'text-gray-400 hover:text-white'
                      }`}
                    >
@@ -106,7 +106,7 @@ export default function StoreKeeperAddProduct() {
                      onClick={() => setUnit('kg')}
                      className={`py-3.5 rounded-xl text-sm font-bold transition-all ${
                        unit === 'kg' 
-                       ? 'bg-[#2979FF] text-white shadow-md' 
+                       ? 'bg-[#CC5500] text-white shadow-md' 
                        : 'text-gray-400 hover:text-white'
                      }`}
                    >

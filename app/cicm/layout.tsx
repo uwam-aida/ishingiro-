@@ -8,9 +8,10 @@ import { cicmMenu } from '../lib/menus';
 export default function CICMLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Strictly configured for CICM overseeing Kabuga and Masaka only
   const CONFIG = {
     menu: cicmMenu,
-    title: "Internal Control (CICM)",
+    title: "(CICM)",
     initial: "C",
     notifLink: "/cicm/notifications"
   };
@@ -35,7 +36,7 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
         />
       )}
 
-      {/* 3. MOBILE SIDEBAR DRAWER (Fixes the empty sidebar issue) */}
+      {/* 3. MOBILE SIDEBAR DRAWER */}
       <div className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <Sidebar 
           menuItems={CONFIG.menu} 
