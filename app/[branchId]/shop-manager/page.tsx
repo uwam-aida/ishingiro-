@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, Store, Plus, MapPin, Bell, X, ShieldAlert, CheckCircle2, Trash2, Edit2, Check } from 'lucide-react';
+import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, Store, Plus, MapPin, Bell, X, ShieldAlert, CheckCircle2, Trash2, Edit2, Check, History, Cake } from 'lucide-react';
 
 // --- OFFICIAL PRODUCT LIST (COMPLETE LIST) ---
 const MARKETING_PRODUCTS = [
@@ -111,6 +111,11 @@ export default function DynamicShopDashboard() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
+  // NEW: State for Cake Orders
+  const [cakeOrders, setCakeOrders] = useState<any[]>([
+    { id: 501, item: 'Chocolate Cake', code: 'KS-01', customer: 'Jean Paul', time: '10:00 AM' }
+  ]);
+
   // --- 2. LOGIC CALCULATIONS ---
   const filteredProducts = factoryStock.filter(p => p.item.toLowerCase().includes(productSearch.toLowerCase()));
   const damagedFiltered = MARKETING_PRODUCTS.filter(p => p.name.toLowerCase().includes(damagedItem.toLowerCase()));
@@ -169,7 +174,7 @@ export default function DynamicShopDashboard() {
 
   // --- UPDATED BRANCH NAME LOGIC ---
   const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged'>('orders');
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
 
   const stats = [
     { id: 'baked', label: 'Baked Items', icon: ShoppingBag },
@@ -177,7 +182,15 @@ export default function DynamicShopDashboard() {
     { id: 'received', label: 'Received', icon: Archive },
     { id: 'stock', label: 'My Stock', icon: Store },
     { id: 'damaged', label: 'Damaged', icon: AlertCircle },
+    { id: 'history', label: 'Full History', icon: History }, // NEW STAT
   ];
+
+  // COMBINED DATA LOGIC FOR "FULL ADDED PRODUCTS"
+  const fullHistory = [
+      ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
+      ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
+      ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#5D4037]' }))
+  ].sort((a, b) => b.time.localeCompare(a.time));
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans">
@@ -189,25 +202,25 @@ export default function DynamicShopDashboard() {
             </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           {stats.map((stat) => (
             <div 
                 key={stat.id} 
                 onClick={() => setActiveFilter(stat.id as any)} 
                 className={`p-5 rounded-[2rem] border transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
                     activeFilter === stat.id 
-                    ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') 
+                    ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : stat.id === 'history' ? 'bg-gray-800 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') 
                     : (stat.id === 'damaged' ? 'bg-white hover:border-red-600' : 'bg-white hover:border-[#F57C00]')
                 }`}
             >
-               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-3 ${
-                   activeFilter === stat.id 
-                   ? (stat.id === 'damaged' ? 'bg-red-800' : 'bg-[#E65100]') 
-                   : (stat.id === 'damaged' ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-[#F57C00]')
-               }`}>
-                 <stat.icon size={20} />
-               </div>
-               <h3 className="font-black text-[10px] uppercase tracking-widest opacity-80">{stat.label}</h3>
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-3 ${
+                    activeFilter === stat.id 
+                    ? 'bg-white/20' 
+                    : (stat.id === 'damaged' ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-[#F57C00]')
+                }`}>
+                  <stat.icon size={20} />
+                </div>
+                <h3 className="font-black text-[10px] uppercase tracking-widest opacity-80">{stat.label}</h3>
             </div>
           ))}
         </div>
@@ -223,6 +236,25 @@ export default function DynamicShopDashboard() {
                       <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
                       <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
                       <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase">{s.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {activeFilter === 'history' && (
+            <div className="overflow-x-auto animate-in fade-in p-8">
+               <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
+               <table className="w-full text-left border-collapse">
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Type</th><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Quantity</th><th className="px-8 py-4 text-right">Time Added</th></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {fullHistory.map((log, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50 transition-colors font-bold">
+                      <td className={`px-8 py-6 uppercase text-[10px] font-black ${log.color}`}>{log.category}</td>
+                      <td className="px-8 py-6 uppercase text-sm text-gray-900">{log.item}</td>
+                      <td className="px-8 py-6 text-center text-lg text-gray-800">{log.qty}</td>
+                      <td className="px-8 py-6 text-right text-xs text-gray-400">{log.time}</td>
                     </tr>
                   ))}
                 </tbody>

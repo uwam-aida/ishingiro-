@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, User, Phone, Calendar, PlusCircle, MapPin } from 'lucide-react';
+import { AlertCircle, User, Phone, Calendar, PlusCircle, MapPin, Store } from 'lucide-react';
 
 export default function Step4Contact({ formData, setFormData, handleNext, handlePrev }: any) {
   const [localError, setLocalError] = useState(false);
+  const [dateError, setDateError] = useState(false);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
 
   // SAFEGUARD: Prevent white screen if formData is missing
   if (!formData) return null;
@@ -11,7 +13,6 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
   useEffect(() => {
     if (!formData.orderDate) {
       const now = new Date();
-      // Formatting to YYYY-MM-DDThh:mm for datetime-local input
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
@@ -24,16 +25,37 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
   }, []);
 
   const validateAndNext = () => {
-    // Required fields: Name, Primary Phone (exactly 10), Date, and Shop Location
-    const isPhoneValid = formData.customerPhoneNumber?.length === 10;
-    const isShopValid = formData.receptionLocation && formData.receptionLocation !== "";
+    const errors = [];
     
-    if (!formData.customerFullName || !isPhoneValid || !formData.orderDate || !isShopValid) {
+    // Check individual fields
+    if (!formData.customerFullName) errors.push("Full Name");
+    if (formData.customerPhoneNumber?.length !== 10) errors.push("10-digit Phone");
+    if (!formData.orderPlace) errors.push("Order Place");
+    if (!formData.receptionLocation) errors.push("Reception Location");
+    if (!formData.orderDate) errors.push("Date");
+    if (!formData.orderReceiverName) errors.push("Receiver Name");
+
+    // Date Validation: Check if the selected date is in the past
+    const selectedDate = new Date(formData.orderDate);
+    const today = new Date();
+    today.setSeconds(0, 0);
+    const isDateExpired = selectedDate < today;
+
+    if (errors.length > 0 || isDateExpired) {
+      setMissingFields(errors);
       setLocalError(true);
-      setTimeout(() => setLocalError(false), 3000);
+      if (isDateExpired) setDateError(true);
+      
+      setTimeout(() => {
+        setLocalError(false);
+        setDateError(false);
+        setMissingFields([]);
+      }, 5000);
       return;
     }
+
     setLocalError(false);
+    setDateError(false);
     handleNext();
   };
 
@@ -58,10 +80,10 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
             />
           </div>
 
-          {/* Primary Phone Number (Must be 10) */}
+          {/* Primary Phone Number */}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
-              <Phone size={12} /> Phone Number 
+              <Phone size={12} /> Phone Number
             </label>
             <input 
               type="tel" 
@@ -76,7 +98,7 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
             </p>
           </div>
 
-          {/* Secondary Phone Number */}
+          {/* Alternative Number */}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
               <PlusCircle size={12} className="text-[#5D4037]" /> Alternative Number (Optional)
@@ -89,11 +111,28 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
               className="w-full border-2 border-gray-300 rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm" 
             />
           </div>
+
+          {/* Place of Order */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
+              <Store size={12} /> Place of Order
+            </label>
+            <select 
+              value={formData.orderPlace || ''} 
+              onChange={(e) => setFormData({...formData, orderPlace: e.target.value})} 
+              className={`w-full border-2 ${localError && !formData.orderPlace ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`}
+            >
+              <option value="">Select Order Location</option>
+              <option value="kabuga factory">Kabuga Factory</option>
+              <option value="kabuga shop">Kabuga shop</option>
+              <option value="masaka shop">Masaka shop</option>
+            </select>
+          </div>
         </div>
 
         {/* COLUMN 2 */}
         <div className="space-y-6">
-          {/* Place of Reception (Shop Location) */}
+          {/* Place of Reception */}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
               <MapPin size={12} /> Place of Reception
@@ -103,28 +142,29 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
               onChange={(e) => setFormData({...formData, receptionLocation: e.target.value})} 
               className={`w-full border-2 ${localError && !formData.receptionLocation ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`}
             >
-              <option value="">Select Shop Location</option>
+              <option value="">Select Reception Location</option>
               <option value="kabuga factory">Kabuga Factory</option>
-              <option value="kabuga">Kabuga</option>
-              <option value="rwamagan">Rwamagana</option>
-              <option value="kayonza">Kayonza</option>
-              <option value="nyakarambi">Nyakarambi</option>
-              <option value="mushikiri">Mushikiri</option>
+              <option value="kabugashop">Kabuga shop</option>
+              <option value="masaka shop">Masaka shop</option>
+              <option value="rwamagana shop">Rwamagana shop</option>
+              <option value="kayonza shop">Kayonza shop</option>
+              <option value="nyakarambi shop">Nyakarambi shop</option>
+              <option value="mushikiri shop">Mushikiri shop</option>
               <option value="Other">Other</option>
             </select>
             
             {formData.receptionLocation === "Other" && (
               <input 
                 type="text"
-                placeholder="Type your location here..."
-                value={formData.otherLocation || ''}
-                onChange={(e) => setFormData({...formData, otherLocation: e.target.value})}
+                placeholder="Type your reception location here..."
+                value={formData.otherReceptionLocation || ''}
+                onChange={(e) => setFormData({...formData, otherReceptionLocation: e.target.value})}
                 className="w-full mt-2 border-2 border-gray-300 rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white animate-in slide-in-from-top-1 duration-300"
               />
             )}
           </div>
 
-          {/* Order Date */}
+          {/* Pickup Date & Time */}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
               <Calendar size={12} /> Pickup Date & Time
@@ -133,19 +173,20 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
               type="datetime-local" 
               value={formData.orderDate || ''} 
               onChange={(e) => setFormData({...formData, orderDate: e.target.value})} 
-              className={`w-full border-2 ${localError && !formData.orderDate ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`} 
+              className={`w-full border-2 ${dateError || (localError && !formData.orderDate) ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`} 
             />
+            {dateError && <p className="text-[10px] font-bold text-red-500">Error: Date cannot be in the past.</p>}
           </div>
 
           {/* Receiver Name */}
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest">Receiver Name (Optional)</label>
+            <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest">Receiver Name</label>
             <input 
               type="text" 
               placeholder="Who will collect the cake?"
               value={formData.orderReceiverName || ''} 
               onChange={(e) => setFormData({...formData, orderReceiverName: e.target.value})} 
-              className="w-full border-2 border-gray-300 rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm" 
+              className={`w-full border-2 ${localError && !formData.orderReceiverName ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`} 
             />
           </div>
         </div>
@@ -156,7 +197,11 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
         {localError && (
           <div className="flex items-center gap-2 text-red-600 font-black text-xs mb-4 animate-pulse">
             <AlertCircle size={14} strokeWidth={3} />
-            <span>Please complete all required fields (Name, 10-digit Phone, Location, and Date).</span>
+            <span>
+              {dateError 
+                ? "The pickup date is expired. Please select a future date." 
+                : `Missing fields: ${missingFields.join(", ")}.`}
+            </span>
           </div>
         )}
 
