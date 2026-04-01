@@ -10,11 +10,19 @@ import { getStoreKeeperMenu } from '../lib/menus';
 export default function StoreKeeperLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // --- NOTIFICATION STATE SHARED BETWEEN HEADER & SIDEBAR ---
+  const [unreadCount, setUnreadCount] = useState(2); 
   const pathname = usePathname();
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Function to clear notifications
+  const clearNotifications = () => {
+    setUnreadCount(0);
+  };
 
   if (!isMounted) return null;
 
@@ -32,6 +40,8 @@ export default function StoreKeeperLayout({ children }: { children: React.ReactN
           menuItems={menuItems} 
           footerTitle="Store Keeper"
           footerInitial="S"
+          // ✅ This now works because Sidebar interface is updated
+          onNotificationClick={clearNotifications}
         />
       </aside>
 
@@ -41,6 +51,9 @@ export default function StoreKeeperLayout({ children }: { children: React.ReactN
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title="Store Keeper"
           notificationHref="/store-keeper/notifications"
+          // ✅ These now work because Header interface is updated
+          unreadCount={unreadCount}
+          onBellClick={clearNotifications}
         />
         
         <main className="flex-1 overflow-y-auto">
@@ -56,6 +69,8 @@ export default function StoreKeeperLayout({ children }: { children: React.ReactN
           menuItems={menuItems} 
           footerTitle="Store Keeper"
           footerInitial="S"
+          // ✅ This now works because Sidebar interface is updated
+          onNotificationClick={clearNotifications}
         />
       </div>
     </div>

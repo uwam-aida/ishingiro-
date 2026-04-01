@@ -21,7 +21,7 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
   const menuItems = getBakerMenu();
 
   return (
-    <div className="-screen bg-[#FDFDFD] flex">
+    <div className="min-h-screen bg-[#FDFDFD] flex">
       
       {/* Sidebar (Desktop) */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 ">

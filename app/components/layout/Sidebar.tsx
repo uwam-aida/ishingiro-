@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect } from 'react';
@@ -9,7 +8,7 @@ import { X, LogOut } from 'lucide-react';
 // Define the Menu Item structure
 interface MenuItem {
   name: string;
-  icon: React.ElementType; // ✅ FIXED (was causing your error)
+  icon: React.ElementType; 
   href: string;
 }
 
@@ -22,6 +21,7 @@ interface SidebarProps {
   footerInitial?: string;
   branchId?: string;
   onLinkClick?: () => void;
+  onNotificationClick?: () => void; // ✅ ADDED THIS PROP
 }
 
 export default function Sidebar({ 
@@ -31,7 +31,8 @@ export default function Sidebar({
   footerTitle = "Store Keeper", 
   footerInitial = "S",
   branchId,
-  onLinkClick
+  onLinkClick,
+  onNotificationClick // ✅ ADDED THIS PROP
 }: SidebarProps) {
   
   const pathname = usePathname();
@@ -71,7 +72,7 @@ export default function Sidebar({
           </button>
 
           <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-3">
-             <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
+              <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
           </div>
 
           <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">
@@ -89,13 +90,17 @@ export default function Sidebar({
         <nav className="p-4 space-y-2 flex-1 overflow-y-auto bg-gray-100">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
-            const Icon = item.icon; // ✅ FIXED
+            const Icon = item.icon; 
 
             return (
               <Link 
                 key={item.href} 
                 href={item.href}
                 onClick={() => {
+                  // ✅ LOGIC: If clicking Notifications, clear the badge
+                  if (item.name === "Notifications" && onNotificationClick) {
+                    onNotificationClick();
+                  }
                   if (onLinkClick) onLinkClick();
                   onClose();
                 }}
@@ -105,7 +110,7 @@ export default function Sidebar({
                     : 'text-gray-500 hover:bg-gray-50 hover:text-[#5D4037]'
                 }`}
               >
-                <Icon size={20} /> {/* ✅ FIXED */}
+                <Icon size={20} /> 
                 <span>{item.name}</span>
               </Link>
             );
@@ -131,4 +136,3 @@ export default function Sidebar({
     </div>
   ); 
 }
-

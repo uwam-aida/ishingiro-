@@ -9,7 +9,8 @@ import {
   Settings,
   Tag,
   ClipboardList,
-  UserCheck // Added for Coordinator icon
+  UserCheck,
+  ShieldCheck // Added for Password Management
 } from 'lucide-react';
 
 export interface MenuItem {
@@ -28,7 +29,6 @@ export const getShopManagerMenu = (branchId: string): MenuItem[] => [
    { name: 'Notifications', icon: Bell, href: `/${branchId}/shop-manager/notifications` },
 ];
 
-// --- BAKER ASSISTANT (GLOBAL - NO BRANCH ID) ---
 export const getBakerMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/baker-assistant` },
   { name: 'Products', icon: Package, href: `/baker-assistant/products` },
@@ -48,7 +48,6 @@ export const getProductionManagerMenu = (): MenuItem[] => [
   { name: 'Notification', icon: Bell, href: `/production-manager/notifications` },
 ];
 
-// FIX: Added Sales Coordinator Getter
 export const getSalesCoordinatorMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/sales-coordinator` },
   { name: 'Cake Orders', icon: ClipboardList, href: `/sales-coordinator/cake-orders` },
@@ -56,10 +55,15 @@ export const getSalesCoordinatorMenu = (): MenuItem[] => [
 ];
 
 // ==========================================
-// GLOBAL ROLES (No Branch ID needed)
+// GLOBAL ROLES
 // ==========================================
 
-// FIX: Added the specific export that the layout error was asking for
+export const getMarketingManagerMenu = (): MenuItem[] => [
+  { name: 'Admin Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
+  { name: 'Manage Passwords', icon: ShieldCheck, href: '/marketing-manager/manage-passwords' }, // Added for Security
+  { name: 'Pricing Strategy', icon: Tag, href: '/marketing-manager/pricing' },
+];
+
 export const salesCoordinatorMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-coordinator' },
   { name: 'Cake Orders', icon: ClipboardList, href: '/sales-coordinator/cake-orders' },
@@ -73,9 +77,4 @@ export const cicmMenu: MenuItem[] = [
 export const cheifFinanceMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/cheif-finance' },
   { name: 'Report', icon: FileText, href: '/cheif-finance/report' },
-];
-
-export const getMarketingManagerMenu = (): MenuItem[] => [
-  { name: 'Admin Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
-  { name: 'Pricing Strategy', icon: Tag, href: '/marketing-manager/pricing' },
 ];
