@@ -10,6 +10,7 @@ import {
   Tag,
   ClipboardList,
   UserCheck,
+  Megaphone,
   ShieldCheck // Added for Password Management
 } from 'lucide-react';
 
@@ -51,6 +52,7 @@ export const getProductionManagerMenu = (): MenuItem[] => [
 export const getSalesCoordinatorMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/sales-coordinator` },
   { name: 'Cake Orders', icon: ClipboardList, href: `/sales-coordinator/cake-orders` },
+  { name: 'Messages', icon: Megaphone, href: '/sales-coordinator/messages' },
   { name: 'Notifications', icon: Bell, href: `/sales-coordinator/notifications` },
 ];
 
@@ -61,12 +63,13 @@ export const getSalesCoordinatorMenu = (): MenuItem[] => [
 export const getMarketingManagerMenu = (): MenuItem[] => [
   { name: 'Admin Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
   { name: 'Manage Passwords', icon: ShieldCheck, href: '/marketing-manager/manage-passwords' }, // Added for Security
-  { name: 'Pricing Strategy', icon: Tag, href: '/marketing-manager/pricing' },
+
 ];
 
 export const salesCoordinatorMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-coordinator' },
   { name: 'Cake Orders', icon: ClipboardList, href: '/sales-coordinator/cake-orders' },
+  { name: 'Messages', icon: Megaphone, href: '/sales-coordinator/messages' },
 ];
 
 export const cicmMenu: MenuItem[] = [
@@ -77,4 +80,5 @@ export const cicmMenu: MenuItem[] = [
 export const cheifFinanceMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/cheif-finance' },
   { name: 'Report', icon: FileText, href: '/cheif-finance/report' },
+  { name: 'Pricing Strategy', icon: Tag, href: '/cheif-finance/pricing' },
 ];

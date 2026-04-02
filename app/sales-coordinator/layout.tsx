@@ -47,6 +47,10 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title={CONFIG.title} 
           notificationHref={CONFIG.notifLink}
+          // --- FIXING ts(2739) BY ADDING MISSING PROPS ---
+          unreadCount={0}
+          onBellClick={() => {}}
+          // ----------------------------------------------
         />
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           {children}
