@@ -1,131 +1,119 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Plus, Save } from 'lucide-react';
+import { 
+  Scale, 
+  PlusCircle, 
+  Package, 
+  CheckCircle
+} from 'lucide-react';
 
-export default function BakerAddProduct() {
-  const [category, setCategory] = useState<'measured' | 'damaged'>('measured');
-  const [unit, setUnit] = useState<'piece' | 'kg'>('piece');
+export default function AddProductPage() {
+  const [productName, setProductName] = useState('');
+  const [weight, setWeight] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  
+  const [history, setHistory] = useState([
+    { id: 1, name: 'White Flour Batch', weight: '50', unit: 'Kg', time: '10:30 AM' },
+    { id: 2, name: 'Sugar Mix', weight: '25', unit: 'Kg', time: '09:15 AM' },
+  ]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const newEntry = {
+      id: Date.now(),
+      name: productName,
+      weight: weight,
+      unit: 'Kg',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    
+    setHistory([newEntry, ...history]);
+    setProductName('');
+    setWeight('');
+
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 3000);
+  };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 pb-20">
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-20 relative">
       
-      <div className="max-w-4xl mx-auto">
-      
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-black text-[#5D4037] tracking-tight">Add New Product</h1>
-          <p className="text-gray-500 mt-1 font-medium">Enter product details to add to production inventory</p>
+      {/* SUCCESS NOTIFICATION */}
+      {showSuccess && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
+            <div className="bg-black text-white px-8 py-4 rounded-2xl flex items-center gap-3 shadow-2xl border border-[#F57C00]">
+                <CheckCircle className="text-[#F57C00]" size={20} />
+                <span className="font-black uppercase text-xs tracking-widest">Product Successfully Added</span>
+            </div>
         </div>
+      )}
 
-        {/* Main Form Card */}
-        <div className="bg-white rounded-[40px] p-8 md:p-10 shadow-sm border border-gray-100">
-          <form className="space-y-8">
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-              
-              {/* LEFT COLUMN: Basic Info */}
-              <div className="space-y-6">
-                
-                {/* Product Name */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#5D4037] uppercase tracking-widest ml-1">Product Name</label>
-                  <input 
-                    type="text" 
-                    placeholder="Enter product name" 
-                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#5D4037]/5 focus:border-[#5D4037] transition-all outline-none font-bold text-[#5D4037]" 
-                  />
-                </div>
+      {/* HEADER */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div>
+          <h1 className="text-4xl font-black text-black tracking-tighter uppercase">Baker assistant</h1>
+          <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Measurement System</p>
+        </div>
+        
 
-                {/* Quantity */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#5D4037] uppercase tracking-widest ml-1">Quantity</label>
-                  <input 
-                    type="number" 
-                    placeholder="0" 
-                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#5D4037]/5 focus:border-[#5D4037] transition-all outline-none font-bold text-[#5D4037]" 
-                  />
-                </div>
+      </div>
 
-                {/* Description */}
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-[#5D4037] uppercase tracking-widest ml-1">Description</label>
-                  <textarea 
-                    rows={4}
-                    placeholder="Enter product description..." 
-                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm focus:ring-4 focus:ring-[#5D4037]/5 focus:border-[#5D4037] transition-all outline-none font-bold text-[#5D4037] resize-none" 
-                  />
-                </div>
+      {/* --- MEASUREMENT FORM --- */}
+      <div className="animate-in fade-in duration-500">
+        <div className="bg-white rounded-[48px] border-2 border-gray-50 shadow-2xl p-8 md:p-12">
+          <div className="flex items-center gap-4 mb-10">
+              <div className="w-14 h-14 bg-orange-50 text-[#F57C00] rounded-2xl flex items-center justify-center">
+                  <Scale size={32} />
+              </div>
+              <div>
+                  <h2 className="text-xl font-black text-black uppercase tracking-tight">New Measured Item</h2>
+                  <p className="text-gray-400 text-[10px] font-bold uppercase">Enter weight in Kilograms (Kg)</p>
+              </div>
+          </div>
 
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Product Name</label>
+                <input 
+                  required
+                  type="text"
+                  value={productName}
+                  onChange={(e) => setProductName(e.target.value)}
+                  placeholder="e.g. Baking Flour"
+                  className="w-full p-5 bg-gray-50 border-none rounded-3xl focus:ring-4 focus:ring-[#F57C00]/10 text-sm font-bold outline-none text-black"
+                />
               </div>
 
-              {/* RIGHT COLUMN: Options */}
-              <div className="space-y-8">
-                
-                {/* Category Selector - FIXED STYLING */}
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-[#5D4037] uppercase tracking-widest ml-1">Category</label>
-                    <div className="bg-gray-100 p-1.5 rounded-2xl flex flex-col gap-1">
-                      <button 
-                        type="button"
-                        onClick={() => setCategory('measured')}
-                        className={`py-3.5 rounded-xl text-xs font-black uppercase tracking-tight transition-all duration-300 ${
-                          category === 'measured' 
-                          ? 'bg-[#2979FF] text-white shadow-lg' 
-                          : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        Measured to be baked
-                      </button>
-                    </div>
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Weight (Kg)</label>
+                <div className="relative">
+                  <input 
+                      required
+                      type="number"
+                      value={weight}
+                      onChange={(e) => setWeight(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-5 bg-gray-50 border-none rounded-3xl focus:ring-4 focus:ring-[#F57C00]/10 text-sm font-black outline-none text-black"
+                  />
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-[#F57C00]">KG</span>
                 </div>
-
-                {/* Unit Selector - FIXED STYLING */}
-                <div className="space-y-3">
-                    <label className="text-[10px] font-black text-[#5D4037] uppercase tracking-widest ml-1">Unit</label>
-                    <div className="bg-gray-100 p-1.5 rounded-2xl flex flex-col gap-1">
-                      <button 
-                        type="button"
-                        onClick={() => setUnit('piece')}
-                        className={`py-3.5 rounded-xl text-xs font-black uppercase tracking-tight transition-all duration-300 ${
-                          unit === 'piece' 
-                          ? 'bg-[#2979FF] text-white shadow-lg' 
-                          : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        Piece
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setUnit('kg')}
-                        className={`py-3.5 rounded-xl text-xs font-black uppercase tracking-tight transition-all duration-300 ${
-                          unit === 'kg' 
-                          ? 'bg-[#2979FF] text-white shadow-lg' 
-                          : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                      >
-                        Kg
-                      </button>
-                    </div>
-                </div>
-
               </div>
             </div>
 
-            {/* Action Button */}
-            <div className="pt-4">
-              <button 
-                type="button"
-                className="w-full bg-[#5D4037] hover:bg-[#4A332C] text-white font-black uppercase tracking-widest py-5 rounded-2xl flex items-center justify-center gap-3 transition-all duration-300 shadow-xl shadow-[#5D4037]/20 active:scale-[0.98]"
-              >
-                <Plus size={20} strokeWidth={3} />
-                Add Product
-              </button>
-            </div>
-
+            <button 
+              type="submit"
+              className="w-full bg-[#F57C00] text-white py-6 rounded-3xl font-black uppercase text-sm tracking-widest hover:bg-black transition-all shadow-xl shadow-orange-100 active:scale-[0.98]"
+            >
+              Confirm and Add Product
+            </button>
           </form>
         </div>
       </div>
+
+      
     </div>
   );
 }

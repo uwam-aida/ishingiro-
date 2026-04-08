@@ -3,13 +3,15 @@
 import React, { useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
-import { salesCoordinatorMenu } from '../lib/menus';
+// 1. Change this to the function name from your lib
+import { getSalesCoordinatorMenu } from '../lib/menus';
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const CONFIG = {
-    menu: salesCoordinatorMenu,  
+    // 2. Call the function here with () to get the menu items
+    menu: getSalesCoordinatorMenu(),  
     title: "Sales Coordinator", 
     initial: "SC",
     notifLink: "/sales-coordinator/notifications"
@@ -27,15 +29,12 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
         />
       </aside>
 
-      {/* 2. MOBILE SIDEBAR 
-          We pass 'isOpen' directly to the Sidebar so it handles the sliding animation 
-      */}
+      {/* 2. MOBILE SIDEBAR */}
       <div className="md:hidden">
         <Sidebar 
           menuItems={CONFIG.menu} 
           footerTitle={CONFIG.title} 
           footerInitial={CONFIG.initial}
-          // IMPORTANT: Pass these props for mobile to work
           isOpen={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
         />
@@ -47,10 +46,8 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title={CONFIG.title} 
           notificationHref={CONFIG.notifLink}
-          // --- FIXING ts(2739) BY ADDING MISSING PROPS ---
           unreadCount={0}
           onBellClick={() => {}}
-          // ----------------------------------------------
         />
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           {children}

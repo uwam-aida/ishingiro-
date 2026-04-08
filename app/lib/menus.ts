@@ -32,15 +32,14 @@ export const getShopManagerMenu = (branchId: string): MenuItem[] => [
 
 export const getBakerMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/baker-assistant` },
-  { name: 'Products', icon: Package, href: `/baker-assistant/products` },
-  { name: 'Add products', icon: PlusCircle, href: `/baker-assistant/add-product` },
+  { name: 'Add Product', icon: PlusCircle, href: '/baker-assistant/add-product' },
+  { name: 'Cake Order', icon: ClipboardList, href: '/cake-order' },
 ];
 
 export const getStoreKeeperMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/store-keeper` },     
   { name: 'Add products', icon: PlusCircle, href: `/store-keeper/add-product` }, 
   { name: 'Add Other', icon: PlusCircle, href: `/store-keeper/add-other` },
-  { name: 'Cake Orders', icon: ClipboardList, href: `/store-keeper/cake-orders` },
   { name: 'Notification', icon: Bell, href: `/store-keeper/notifications` },
 ];
 
@@ -68,7 +67,6 @@ export const getMarketingManagerMenu = (): MenuItem[] => [
 
 export const salesCoordinatorMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/sales-coordinator' },
-  { name: 'Cake Orders', icon: ClipboardList, href: '/sales-coordinator/cake-orders' },
   { name: 'Messages', icon: Megaphone, href: '/sales-coordinator/messages' },
 ];
 

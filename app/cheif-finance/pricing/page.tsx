@@ -3,10 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Plus, Trash2, Search, ChevronDown, ChevronUp, Edit2, X, Check, ArrowDownCircle, AlertTriangle } from 'lucide-react';
 
-export default function MarketingPricingPage() {
-  
-  // --- 1. FULL DATA LIST WITH TYPES ---
-  const defaultProducts = [
+// --- MOVE INTERFACE AND DATA TO THE TOP (OUTSIDE THE FUNCTION) ---
+interface Product {
+  name: string;
+  price: number;
+  category: string;
+  type: string;
+}
+
+export const defaultProducts: Product[] = [ 
     // BREAD (Baked)
     { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
@@ -72,8 +77,9 @@ export default function MarketingPricingPage() {
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
     { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
-  ];
+];
 
+export default function FinancePricingPage() {
   const categories = ['BREAD', 'CAKES', 'AMANDAZI', 'OTHERS', 'BIG CAKES'];
   const unbakedItems = ['ikinyuranyo', 'flour', 'cashnewnuts', 'cornfresh'];
 

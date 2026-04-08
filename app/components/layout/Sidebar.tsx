@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { X, LogOut } from 'lucide-react';
 
 // Define the Menu Item structure
@@ -21,7 +21,7 @@ interface SidebarProps {
   footerInitial?: string;
   branchId?: string;
   onLinkClick?: () => void;
-  onNotificationClick?: () => void; // ✅ ADDED THIS PROP
+  onNotificationClick?: () => void; // ✅ This prop handles clearing the badge
 }
 
 export default function Sidebar({ 
@@ -32,10 +32,16 @@ export default function Sidebar({
   footerInitial = "S",
   branchId,
   onLinkClick,
-  onNotificationClick // ✅ ADDED THIS PROP
+  onNotificationClick 
 }: SidebarProps) {
   
   const pathname = usePathname();
+  const router = useRouter();
+
+  // --- LOGOUT LOGIC ---
+  const handleLogout = () => {
+    router.push('/login');
+  };
 
   // --- AUTO-CLOSE ON NAVIGATION ---
   useEffect(() => {
@@ -45,7 +51,7 @@ export default function Sidebar({
   }, [pathname]);
 
   return (
-    <div>
+    <div className="h-full">
       
       {/* --- MOBILE OVERLAY --- */}
       <div 
@@ -71,11 +77,11 @@ export default function Sidebar({
             <X size={24} />
           </button>
 
-          <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-3">
+          <div className="w-20 h-20 bg-[#1C1C1C] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-3">
               <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
           </div>
 
-          <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">
+          <h2 className="text-[#1C1C1C] font-black uppercase tracking-widest text-xs">
             Ishingiro
           </h2>
           
@@ -98,7 +104,8 @@ export default function Sidebar({
                 href={item.href}
                 onClick={() => {
                   // ✅ LOGIC: If clicking Notifications, clear the badge
-                  if (item.name === "Notifications" && onNotificationClick) {
+                  // We check if name is "Notifications" or "Notification" to be safe
+                  if ((item.name === "Notifications" || item.name === "Notification") && onNotificationClick) {
                     onNotificationClick();
                   }
                   if (onLinkClick) onLinkClick();
@@ -106,8 +113,8 @@ export default function Sidebar({
                 }}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold ${
                   isActive 
-                    ? 'bg-[#5D4037] text-white shadow-lg shadow-[#5D4037]/30' 
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#5D4037]'
+                    ? 'bg-[#1C1C1C] text-white shadow-lg shadow-black/30' 
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#1C1C1C]'
                 }`}
               >
                 <Icon size={20} /> 
@@ -118,14 +125,17 @@ export default function Sidebar({
         </nav>
 
         {/* --- FOOTER --- */}
-        <div className="p-6 border-t border-gray-100 bg-white shrink-0">
+        <div className="p-6 border-t border-gray-100 bg-white shrink-0 mt-auto">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-[#5D4037] font-bold border border-gray-200">
+             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-[#1C1C1C] font-bold border border-gray-200">
                {footerInitial}
              </div>
              <div className="flex-1 min-w-0">
-               <p className="text-sm font-bold text-[#5D4037] truncate">{footerTitle}</p>
-               <button className="text-xs text-red-500 flex items-center gap-1 hover:underline mt-0.5">
+               <p className="text-sm font-bold text-[#1C1C1C] truncate">{footerTitle}</p>
+               <button 
+                 onClick={handleLogout}
+                 className="text-xs text-red-500 flex items-center gap-1 hover:underline mt-0.5"
+               >
                  <LogOut size={12} /> Log Out
                </button>
              </div>

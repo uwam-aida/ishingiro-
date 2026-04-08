@@ -9,15 +9,18 @@ export default function Step5Payment({ formData, setFormData, handlePrev }: any)
   if (!formData) return null;
 
   const total = Number(formData?.totalAmount || 0);
+  const instructionCost = Number(formData?.instructionCost || 0); 
   const paid = Number(formData?.paidAmount || 0);
-  const balance = total - paid;
+  
+  // Corrected calculation to include service amount
+  const balance = (total + instructionCost) - paid;
 
   // INFINITY COUNTER LOGIC
   useEffect(() => {
     if (isSubmitted && !cakeCode) {
       // 1. Get the current count from permanent storage
       const savedCount = localStorage.getItem('ishingiro_cake_counter');
-      
+
       // 2. If no count exists, start at 1. Otherwise, add 1.
       const nextCount = savedCount ? parseInt(savedCount, 10) + 1 : 1;
 
@@ -72,6 +75,9 @@ export default function Step5Payment({ formData, setFormData, handlePrev }: any)
              <Info size={12}/> Order Summary
            </p>
            <div className="grid grid-cols-2 gap-y-3 text-xs font-bold text-gray-800">
+              <span className="text-gray-500 uppercase text-[9px]">Service Amount:</span>
+              <span className="text-right text-[#5D4037]">{instructionCost.toLocaleString()} RWF</span>
+
               <span className="text-gray-500 uppercase text-[9px]">Amount Paid:</span>
               <span className="text-right text-green-600 font-black">{paid.toLocaleString()} RWF</span>
               
@@ -118,9 +124,7 @@ export default function Step5Payment({ formData, setFormData, handlePrev }: any)
             className={`w-full border-2 ${localError && !formData.paymentMethod ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white transition-all`}
           >
             <option value="">Select Payment Method</option>
-            <option value="Momo">MTN Mobile Money (Momo)</option>
-            <option value="AirtelMoney">Airtel Money</option>
-            <option value="Cash">Cash at Shop</option>
+            <option value="Momo">MTN Mobile Money (046817)</option>
           </select>
         </div>
 
@@ -135,6 +139,11 @@ export default function Step5Payment({ formData, setFormData, handlePrev }: any)
             onChange={(e) => setFormData({ ...formData, paidAmount: e.target.value })}
             className={`w-full border-2 ${localError && paid <= 0 ? 'border-red-500' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`}
           />
+        </div>
+
+        <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase px-1">
+          <span>Service Amount:</span>
+          <span>{instructionCost.toLocaleString()} RWF</span>
         </div>
 
         <div className="bg-[#FDF8F5] border-2 border-[#EADCCF] rounded-xl p-5 shadow-sm">

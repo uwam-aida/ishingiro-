@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronDown, AlertCircle, Truck, Layers } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { ChevronDown, AlertCircle, Truck, Layers, Banknote } from 'lucide-react';
 
 export default function Step1Purpose({ formData, setFormData, handleNext, handlePrev }: any) {
   const [localError, setLocalError] = useState(false);
@@ -20,6 +20,40 @@ export default function Step1Purpose({ formData, setFormData, handleNext, handle
     { label: "Stage 3", price: "12,000 RWF" },
     { label: "Stage 4", price: "15,000 RWF" },
   ];
+
+  // --- CALCULATION LOGIC (FIXED TO IGNORE STAGE NUMBERS) ---
+  const totalAmount = useMemo(() => {
+    let total = 0;
+
+    // 1. Calculate Base Size Price (if NO stages)
+    if (formData.hasStages === "NO") {
+      if (formData.size === "Above") {
+        total += Number(formData.customPrice || 0);
+      } else if (formData.size) {
+        // Split by the dash to only get the price part
+        const pricePart = formData.size.split(' - ')[1] || formData.size;
+        const price = parseInt(pricePart.replace(/[^0-9]/g, ''));
+        if (!isNaN(price)) total += price;
+      }
+    }
+
+    // 2. Calculate Stages Price (Wedding or YES stages)
+    if (formData.purpose === "Wedding" || formData.hasStages === "YES") {
+      if (formData.weddingStage) {
+        const selected = formData.weddingStage.split(', ');
+        selected.forEach((s: string) => {
+          // Split by the dash to ignore "Stage 1", "Stage 2", etc.
+          const pricePart = s.split(' - ')[1]; 
+          if (pricePart) {
+            const price = parseInt(pricePart.replace(/[^0-9]/g, ''));
+            if (!isNaN(price)) total += price;
+          }
+        });
+      }
+    }
+
+    return total;
+  }, [formData]);
 
   // Helper to handle multiple checkbox selections
   const handleStageToggle = (value: string) => {
@@ -160,7 +194,7 @@ export default function Step1Purpose({ formData, setFormData, handleNext, handle
                                     className={`w-full border-2 ${localError && !formData.size ? 'border-red-400' : 'border-gray-200'} p-3 rounded-lg font-bold text-gray-800 appearance-none outline-none focus:border-[#5D4037] bg-white transition-colors`}
                                 >
                                     <option value="" className="text-gray-400">Select Size</option>
-                                    <option value="Small - 7,000 RWF">Small - 8,000 RWF</option>
+                                    <option value="Small - 8,000 RWF">Small - 8,000 RWF</option>
                                     <option value="Medium - 10,000 RWF">Medium - 10,000 RWF</option>
                                     <option value="Large - 12,000 RWF">Large - 12,000 RWF</option>
                                     <option value="Extra Large - 15,000 RWF">Extra Large - 15,000 RWF</option>
@@ -215,6 +249,18 @@ export default function Step1Purpose({ formData, setFormData, handleNext, handle
             )}
           </div>
         </div>
+      </div>
+
+      {/* --- LIVE TOTAL AMOUNT DISPLAY --- */}
+      <div className="p-4 bg-[#5D4037] rounded-2xl flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-3 text-white/80">
+              <Banknote size={20} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Amount to be Paid</span>
+          </div>
+          <div className="text-right">
+              <span className="text-xl font-black text-white">{totalAmount.toLocaleString()}</span>
+              <span className="ml-1 text-[10px] font-bold text-white/60">RWF</span>
+          </div>
       </div>
 
       <div className="pt-6">
