@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ishingiro Shop Management System
+**Project Architect:** UWASE Maida
+**Confidentiality:** Internal Use Only - Ishingiro Shop
 
-## Getting Started
+---
 
-First, run the development server:
+## 📌 Project Architecture
+This system is designed to automate the end-to-end operations of Ishingiro Bakery. The frontend is built using Next.js 14 (App Router). The backend must be integrated into the `app/api/` directory to maintain architectural unity.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🛠 Mandatory Role-Based Access Control (RBAC)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The backend must enforce strict data permissions based on the following organizational roles:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Admin / Marketing Manager
+- **Core Responsibilities:** System configuration, user management, and overall data integrity.
+- **Access:** Full control over all accounts and the ability to create/reset passwords for all staff.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Chief of Finance
+- **Revenue Management:** Record and track daily revenue/sales.
+- **Reporting:** Generate financial reports (Daily, Weekly, Monthly, Annual).
+- **Product Control:** Add new products and edit product pricing.
+- **Analytics:** Access to financial diagrams and performance alerts (Profit/Loss, unusual expenses).
+- **Production Oversight:** View baked products and measured ingredients.
 
-## Learn More
+### 3. Sales Coordinator
+- **Operations:** Order creation, customer logging, and payment verification.
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Store Keeper
+- **Logistics:** Final product handover and order status updates (Ready/Collected).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 5. Baker Assistant
+- **Production:** Access to the daily baking queue and ingredient requirements.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ⚙️ Technical Specifications
 
-## Deploy on Vercel
+### 1. Integration Standard
+- **Infrastructure:** Use **Next.js API Routes** for all server-side logic.
+- **Database:** Relational schema (PostgreSQL) is required to handle the complex financial reporting needed by the Chief of Finance.
+- **Logic:** Financial alerts and profit/loss calculations must be performed on the server.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 2. Contributor Workflow
+- **Pull Requests (PR):** All backend code must be submitted via PR for my review. I am the only one authorized to merge to `main`.
+- **UI Integrity:** Do not modify components or styling in `/app` or `/components` without approval.
+- **Security:** Ensure all database credentials and secret keys are stored in `.env.local`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+© 2026 Ishingiro Shop - Kigali, Rwanda.
