@@ -66,6 +66,7 @@ export default function StoreKeeperAddProduct() {
   const [unit, setUnit] = useState<'piece' | 'kg'>('piece');
   const [productName, setProductName] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [description, setDescription] = useState('');
   
   // New States for "Added" feedback
   const [isAdded, setIsAdded] = useState(false);
@@ -168,10 +169,12 @@ export default function StoreKeeperAddProduct() {
                 <label className="text-xs font-bold text-gray-900 uppercase">Description</label>
                 <textarea 
                   rows={4}
+                  value={description} // Add this
+                  onChange={(e) => setDescription(e.target.value)} // Add this
                   placeholder="Enter product description..." 
                   className="w-full bg-gray-50 border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none resize-none" 
                 />
-              </div>
+              </div>  
 
             </div>
 

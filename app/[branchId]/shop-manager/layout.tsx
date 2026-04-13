@@ -6,13 +6,15 @@ import { useParams, usePathname } from 'next/navigation';
 import Sidebar from '../../components/layout/Sidebar';
 import Header from '../../components/layout/Header';
 import { getShopManagerMenu } from '../../lib/menus';
-import { getStoreKeeperMenu } from '../../lib/menus';
-import { getBakerMenu } from '../../lib/menus';
-import { getProductionManagerMenu } from '../../lib/menus';
 
 export default function BranchLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // --- NOTIFICATION STATE (Added to fix the error) ---
+  const [unreadCount, setUnreadCount] = useState(0);
+  const clearNotifications = () => setUnreadCount(0);
+
   const params = useParams();
   const pathname = usePathname();
   
@@ -36,17 +38,12 @@ export default function BranchLayout({ children }: { children: React.ReactNode }
 
   const getActiveMenu = () => {
     if (pathname.includes('/shop-manager')) return getShopManagerMenu(branchId);
-    if (pathname.includes('/store-keeper')) return getStoreKeeperMenu(branchId);
-    if (pathname.includes('/baker-assistant')) return getBakerMenu(branchId);
-    if (pathname.includes('/production-manager')) return getProductionManagerMenu(branchId);
+
     return []; 
   };
 
   const getRolePath = () => {
     if (pathname.includes('/shop-manager')) return 'shop-manager';
-    if (pathname.includes('/store-keeper')) return 'store-keeper';
-    if (pathname.includes('/baker-assistant')) return 'baker-assistant';
-    if (pathname.includes('/production-manager')) return 'production-manager';
     return '';
   };
 
@@ -63,16 +60,21 @@ export default function BranchLayout({ children }: { children: React.ReactNode }
         menuItems={getActiveMenu()} 
         footerTitle={`${branchName} Branch`}
         branchId={branchId}
+        // ✅ Added missing prop to fix Sidebar error
+        onNotificationClick={clearNotifications}
       />
 
       <div className="flex-1 flex flex-col min-h-screen">
         
         <Header 
-           onMenuClick={() => setIsMobileMenuOpen(true)} 
-           title={`${branchName} Management`}
-           notificationHref={`/${branchId}/shop-manager/notification`}
+            onMenuClick={() => setIsMobileMenuOpen(true)} 
+            title={`${branchName} Management`}
+            notificationHref={`/${branchId}/shop-manager/notification`}
+            // ✅ Added missing props to fix Header error
+            unreadCount={unreadCount}
+            onBellClick={clearNotifications}
         />
-
+ 
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>

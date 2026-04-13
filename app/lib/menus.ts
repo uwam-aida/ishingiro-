@@ -33,13 +33,15 @@ export const getShopManagerMenu = (branchId: string): MenuItem[] => [
 export const getBakerMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/baker-assistant` },
   { name: 'Add Product', icon: PlusCircle, href: '/baker-assistant/add-product' },
-  { name: 'Cake Order', icon: ClipboardList, href: '/cake-order' },
+  { name: 'Notifications', icon: Bell, href: `/baker-assistant/notifications` },
+
 ];
 
 export const getStoreKeeperMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/store-keeper` },     
   { name: 'Add products', icon: PlusCircle, href: `/store-keeper/add-product` }, 
   { name: 'Add Other', icon: PlusCircle, href: `/store-keeper/add-other` },
+  { name: 'Cake Orders', icon: ClipboardList, href: `/store-keeper/cake-orders` },
   { name: 'Notification', icon: Bell, href: `/store-keeper/notifications` },
 ];
 

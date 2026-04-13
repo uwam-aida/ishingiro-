@@ -3,11 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
-import { getBakerMenu } from '../lib/menus';// Using @ alias is safer to avoid ../ errors
+import { getBakerMenu } from '../lib/menus';
 
 export default function BakerLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // --- NOTIFICATION STATE (Added to fix the error) ---
+  const [unreadCount, setUnreadCount] = useState(0); 
+  const clearNotifications = () => setUnreadCount(0);
+
   // --- FIX: Prevent empty screen/Hydration crash ---
   const [isMounted, setIsMounted] = useState(false);
 
@@ -29,6 +33,8 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
           menuItems={menuItems} 
           footerTitle="Baker Assistant" 
           footerInitial="B" 
+          // ✅ Added missing prop
+          onNotificationClick={clearNotifications}
         />
       </aside>
 
@@ -48,6 +54,8 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
           footerInitial="B"
           isOpen={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
+          // ✅ Added missing prop
+          onNotificationClick={clearNotifications}
         />
       </div>
 
@@ -56,6 +64,9 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
           onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
           title="Baker Assistant"
           notificationHref="/baker-assistant/notifications"
+          // ✅ Added missing props to fix the TS error
+          unreadCount={unreadCount}
+          onBellClick={clearNotifications}
         />
         <main className="flex-1 p-6 md:p-10 overflow-y-auto">
           {children}
