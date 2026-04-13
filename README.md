@@ -10,7 +10,6 @@ This system is designed to automate the end-to-end operations of Ishingiro Baker
 ## 🛠 Mandatory Role-Based Access Control (RBAC)
 
 The backend must enforce strict data permissions based on the following organizational roles:
-hyurffb
 
 ### 1. Admin / Marketing Manager
 - **Core Responsibilities:** System configuration, user management, and overall data integrity.
