@@ -4,15 +4,14 @@ import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { X, LogOut } from 'lucide-react';
+import Image from 'next/image';
 
-// Define the Menu Item structure
 interface MenuItem {
   name: string;
   icon: React.ElementType; 
   href: string;
 }
 
-// Define the Props
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
@@ -21,7 +20,7 @@ interface SidebarProps {
   footerInitial?: string;
   branchId?: string;
   onLinkClick?: () => void;
-  onNotificationClick?: () => void; // ✅ This prop handles clearing the badge
+  onNotificationClick?: () => void;
 }
 
 export default function Sidebar({ 
@@ -38,12 +37,10 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
 
-  // --- LOGOUT LOGIC ---
   const handleLogout = () => {
     router.push('/login');
   };
 
-  // --- AUTO-CLOSE ON NAVIGATION ---
   useEffect(() => {
     if (isOpen && onClose) {
       onClose();
@@ -51,49 +48,47 @@ export default function Sidebar({
   }, [pathname]);
 
   return (
-    <div className="h-full">
+    // Changed h-screen to min-h-screen to ensure background fills full height
+    <aside className="min-h-screen sticky top-0 z-[101] bg-[#F6F6F6]">
       
       {/* --- MOBILE OVERLAY --- */}
       <div 
-        className={`fixed inset-0 z-40 bg-black/50 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
+        className={`fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
       />
 
-      {/* --- SIDEBAR --- */}
+      {/* --- SIDEBAR CONTAINER --- */}
       <div 
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-gray-100 flex flex-col h-full
+        className={`fixed inset-y-0 left-0 z-[101] w-72 bg-[#F6F6F6] shadow-2xl transform transition-transform duration-300 ease-in-out border-r border-gray-200 flex flex-col h-screen
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         md:translate-x-0 md:static md:shadow-none`}
       >
         
         {/* --- HEADER --- */}
-        <div className="p-6 flex flex-col items-center border-b border-gray-100 relative shrink-0 bg-gray-100">
+        <div className="p-4 md:p-6 flex flex-col items-center border-b border-gray-200 relative shrink-0">
           <button 
             onClick={onClose} 
-            className="absolute top-4 right-4 md:hidden text-gray-400 hover:text-red-500"
+            className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-500 md:hidden"
           >
             <X size={24} />
           </button>
 
-          <div className="w-20 h-20 bg-[#1C1C1C] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-3">
-              <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
+          <div className="relative w-full h-40 md:h-40 mb-2">
+              <Image 
+                src="/logo.png" 
+                alt="Ishingiro" 
+                fill 
+                className="object-contain" 
+                priority
+              />
           </div>
-
-          <h2 className="text-[#1C1C1C] font-black uppercase tracking-widest text-xs">
-            Ishingiro
-          </h2>
           
-          {branchId && (
-            <span className="mt-1 px-2 py-0.5 bg-gray-100 text-gray-500 text-[10px] font-bold rounded-full uppercase">
-              {branchId} Branch
-            </span>
-          )}
         </div>
 
-        {/* --- MENU --- */}
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto bg-gray-100">
+        {/* --- MENU (Flex-1 fills the gap) --- */}
+        <nav className="p-4 space-y-1 md:space-y-2 flex-1 overflow-y-auto">
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon; 
@@ -103,18 +98,16 @@ export default function Sidebar({
                 key={item.href} 
                 href={item.href}
                 onClick={() => {
-                  // ✅ LOGIC: If clicking Notifications, clear the badge
-                  // We check if name is "Notifications" or "Notification" to be safe
                   if ((item.name === "Notifications" || item.name === "Notification") && onNotificationClick) {
                     onNotificationClick();
                   }
                   if (onLinkClick) onLinkClick();
                   onClose();
                 }}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold text-sm md:text-base ${
                   isActive 
-                    ? 'bg-[#1C1C1C] text-white shadow-lg shadow-black/30' 
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#1C1C1C]'
+                    ? 'bg-[#1C1C1C] text-white shadow-lg shadow-black/20' 
+                    : 'text-gray-500 hover:bg-white hover:text-[#1C1C1C]'
                 }`}
               >
                 <Icon size={20} /> 
@@ -125,9 +118,10 @@ export default function Sidebar({
         </nav>
 
         {/* --- FOOTER --- */}
-        <div className="p-6 border-t border-gray-100 bg-white shrink-0 mt-auto">
+        {/* mt-auto ensures this pushes to the absolute bottom of the flex container */}
+        <div className="mt-auto p-4 md:p-6 border-t border-gray-200 bg-[#F6F6F6] shrink-0">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-[#1C1C1C] font-bold border border-gray-200">
+             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-[#1C1C1C] font-bold border border-gray-200 shadow-sm">
                {footerInitial}
              </div>
              <div className="flex-1 min-w-0">
@@ -136,13 +130,13 @@ export default function Sidebar({
                  onClick={handleLogout}
                  className="text-xs text-red-500 flex items-center gap-1 hover:underline mt-0.5"
                >
-                 <LogOut size={12} /> Log Out
+                 <LogOut size={14} /> Log Out
                </button>
              </div>
           </div>
         </div>
 
       </div>
-    </div>
+    </aside>
   ); 
 }

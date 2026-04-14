@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { Bell, Menu, User, X, Info, Cake, Package } from 'lucide-react';
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { Bell, Menu, User } from 'lucide-react';
 
 // --- FIX: Define the props here ---
 interface HeaderProps {
@@ -22,33 +22,28 @@ export default function Header({
   onBellClick 
 }: HeaderProps) {
   
-  // 1. LOCAL NOTIFICATION LIST
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: "New Cake Order: KS-01", time: "Just now", type: 'cake', read: false },
-    { id: 2, text: "Stock Alert: Wheat Flour is low", time: "1 hour ago", type: 'stock', read: false },
-  ]);
+  const router = useRouter();
 
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  // 3. LOGIC: Clear badge number when clicking the bell
-  const handleOpenNotifications = () => {
-    setShowDropdown(!showDropdown);
-    if (!showDropdown) {
-      // Mark local items as read
-      setNotifications(notifications.map(n => ({ ...n, read: true })));
-      // ✅ Trigger the global clear function from Layout
-      onBellClick();
-    }
+  // --- LOGIC: Clear badge and Navigate directly to the notifications page ---
+  const handleBellClick = () => {
+    onBellClick();
+    
+    // FIX: Ensuring the URL is always "notifications" to prevent 404
+    const correctPath = notificationHref.endsWith('s') ? notificationHref : `${notificationHref}s`;
+    router.push(correctPath);
   };
 
   return (
-    <header className="h-20 bg-gray-100 px-8 flex items-center justify-between sticky top-0 z-30 border-b border-gray-50">
+    /* FIX: Changed z-index to 100 to ensure it stays above all body content.
+       Added 'w-full' and 'sticky top-0' to lock it to the top.
+    */
+    <header className="h-20 bg-[#F6F6F6] px-8 flex items-center justify-between sticky top-0 z-[100] border-b border-gray-200 w-full shadow-sm">
       
       {/* Left: Mobile Menu */}
       <div className="flex items-center">
         <button 
           onClick={onMenuClick}
-          className="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          className="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
         >
           <Menu size={24} />
         </button>
@@ -57,15 +52,29 @@ export default function Header({
       {/* Right Side */}
       <div className="flex items-center gap-6">
         
-        {/* NOTIFICATION LOGIC REMOVED FROM HERE */}
+        {/* --- NOTIFICATION BELL ICON (DIRECT LINK) --- */}
+        <div className="relative">
+          <button 
+            onClick={handleBellClick}
+            className="p-2.5 text-gray-500 hover:bg-white hover:shadow-sm rounded-xl transition-all relative"
+          >
+            <Bell size={22} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] bg-[#F57C00] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[#F6F6F6] px-1">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
 
         {/* Dynamic User Profile */}
         <div className="flex items-center gap-3 cursor-pointer group">
-          <div className="w-8 h-8 bg-gray-100 text-gray-500 rounded-full flex items-center justify-center border border-gray-200">
+          <div className="w-8 h-8 bg-white text-gray-500 rounded-full flex items-center justify-center border border-gray-200 shadow-sm">
             <User size={16} />
           </div>
-          <span className="text-sm font-bold text-gray-900 group-hover:text-gray-600 transition-colors">
-            {title}
+          <span className="text-sm font-bold text-gray-900 group-hover:text-[#F57C00] transition-colors uppercase tracking-tight">
+            {/* FIX: Force KABUGA MANAGEMENT to display as KABUGA SHOP MANAGER */}
+            {title === "KABUGA MANAGEMENT" ? "KABUGA SHOP MANAGER" : title}
           </span>
         </div>
       </div>

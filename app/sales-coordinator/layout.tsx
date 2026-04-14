@@ -18,7 +18,8 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex">
+    /* h-screen and overflow-hidden here stops the sidebar from scrolling away */
+    <div className="h-screen bg-[#FDFDFD] flex overflow-hidden">
       
       {/* 1. DESKTOP SIDEBAR */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 bg-white">
@@ -41,7 +42,8 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* 3. MAIN CONTENT */}
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+      {/* Added h-full and overflow-hidden to the wrapper to keep Header pinned */}
+      <div className="flex-1 md:ml-64 flex flex-col h-full overflow-hidden">
         <Header 
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title={CONFIG.title} 
@@ -49,6 +51,8 @@ export default function SalesLayout({ children }: { children: React.ReactNode })
           unreadCount={0}
           onBellClick={() => {}}
         />
+        
+        {/* overflow-y-auto ensures ONLY the page content scrolls */}
         <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           {children}
         </main>

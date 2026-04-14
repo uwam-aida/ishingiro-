@@ -197,8 +197,8 @@ export default function DynamicShopDashboard() {
       <div className="max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-6">
         <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md py-4 border-b border-gray-200/50 flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <button onClick={() => router.back()} className="p-2.5 rounded-xl bg-white border border-gray-200 text-[#F57C00] shadow-sm"><ArrowLeft size={20} /></button>
-              <h1 className="text-xl md:text-2xl font-black text-[#F57C00] uppercase">{branchName} MANAGER</h1>
+
+              <h1 className="text-xl md:text-2xl font-black text-black uppercase">{branchName} MANAGER</h1>
             </div>
         </div>
 
