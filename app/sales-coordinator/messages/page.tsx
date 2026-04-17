@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone } from 'lucide-react';
+import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2 } from 'lucide-react';
 
 export default function SalesBroadcastPage() {
   const [message, setMessage] = useState('');
@@ -9,7 +9,7 @@ export default function SalesBroadcastPage() {
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // --- THE TARGET ROLES (Excluding Marketing & Finance) ---
+  // --- THE TARGET ROLES ---
   const targetRoles = [
     { id: 'all', label: 'All Staff (Allowed Roles)' },
     { id: 'kabuga-shop-manager', label: 'Kabuga Shop Manager' },
@@ -26,13 +26,11 @@ export default function SalesBroadcastPage() {
 
     setIsSending(true);
     
-    // Simulate network delay for the Ishingiro system
     setTimeout(() => {
       setIsSending(false);
       setSuccess(true);
       setMessage('');
       
-      // Hide success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     }, 1500);
   };
@@ -54,26 +52,49 @@ export default function SalesBroadcastPage() {
         {/* LEFT: FORM */}
         <div className="md:col-span-2 bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
           <form onSubmit={handleSendMessage} className="space-y-6">
-            <div className="space-y-2">
+            
+            {/* RADIO BUTTON SELECTION */}
+            <div className="space-y-3">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Select Recipient Group</label>
-              <select 
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full p-4 bg-gray-50 border-2 border-transparent rounded-2xl font-bold text-gray-800 outline-none focus:border-blue-600 transition-all cursor-pointer"
-              >
-                {targetRoles.map(role => (
-                  <option key={role.id} value={role.id}>{role.label}</option>
+              <div className="grid grid-cols-1 gap-2">
+                {targetRoles.map((role) => (
+                  <label 
+                    key={role.id}
+                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer group ${
+                      selectedRole === role.id 
+                      ? 'border-blue-600 bg-blue-50/50' 
+                      : 'border-gray-50 bg-gray-50 hover:border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${selectedRole === role.id ? 'bg-blue-600 text-white' : 'bg-white text-gray-400'}`}>
+                        <UserCircle2 size={18} />
+                      </div>
+                      <span className={`text-sm font-bold ${selectedRole === role.id ? 'text-blue-900' : 'text-gray-600'}`}>
+                        {role.label}
+                      </span>
+                    </div>
+                    
+                    <input 
+                      type="radio"
+                      name="role-selection"
+                      value={role.id}
+                      checked={selectedRole === role.id}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      className="w-5 h-5 accent-blue-600 cursor-pointer"
+                    />
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 pt-4">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Your Message</label>
               <textarea 
                 placeholder="Type your announcement here..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                rows={5}
+                rows={4}
                 className="w-full p-6 bg-gray-50 border-2 border-transparent rounded-[2rem] font-medium text-gray-800 outline-none focus:border-blue-600 focus:bg-white transition-all resize-none"
               />
             </div>

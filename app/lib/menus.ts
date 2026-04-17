@@ -54,7 +54,6 @@ export const getSalesCoordinatorMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/sales-coordinator` },
   { name: 'Cake Orders', icon: ClipboardList, href: `/sales-coordinator/cake-orders` },
   { name: 'Messages', icon: Megaphone, href: '/sales-coordinator/messages' },
-  { name: 'Notifications', icon: Bell, href: `/sales-coordinator/notifications` },
 ];
 
 // ==========================================

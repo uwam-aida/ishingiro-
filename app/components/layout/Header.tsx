@@ -58,12 +58,7 @@ export default function Header({
             onClick={handleBellClick}
             className="p-2.5 text-gray-500 hover:bg-white hover:shadow-sm rounded-xl transition-all relative"
           >
-            <Bell size={22} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 min-w-[18px] h-[18px] bg-[#F57C00] text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-[#F6F6F6] px-1">
-                {unreadCount}
-              </span>
-            )}
+            
           </button>
         </div>
 
