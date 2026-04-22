@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
-// 1. Change this to the function name from your lib
 import { getSalesCoordinatorMenu } from '../lib/menus';
 
 export default function SalesLayout({ children }: { children: React.ReactNode }) {

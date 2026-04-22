@@ -4,11 +4,18 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { 
-  Users, TrendingUp, ShieldCheck, Activity, 
-  Search, ArrowLeft, Circle, Clock, ChevronDown, 
-  ChevronUp, LayoutDashboard, Tag, PackagePlus, 
-  PackageMinus, PackageCheck, ExternalLink, Eye, ArrowRight,
-  Target, Calendar, BarChart3, AlertCircle, ShoppingBag, PlusCircle
+  Users, 
+  ArrowLeft, 
+  Circle, 
+  Clock, 
+  ChevronDown, 
+  ChevronUp, 
+  BarChart3, 
+  ExternalLink, 
+  Activity,
+  ShieldCheck,
+  ArrowRight,
+  Search
 } from 'lucide-react';
 
 export default function MarketingManagerAdmin() {
@@ -18,9 +25,8 @@ export default function MarketingManagerAdmin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
-  // --- FULL PRODUCT LIST WITH TARGETS ---
-  const [productTargets, setProductTargets] = useState([
-    // BREAD
+  // --- PRODUCT DATA (Maintained for Global Analytics) ---
+  const [productTargets] = useState([
     { id: 1, name: 'big milk', target: 500, current: 420, category: 'BREAD' },
     { id: 2, name: 'small milk', target: 1000, current: 850, category: 'BREAD' },
     { id: 3, name: 'pcpn', target: 200, current: 150, category: 'BREAD' },
@@ -34,20 +40,17 @@ export default function MarketingManagerAdmin() {
     { id: 11, name: 'mult graine', target: 50, current: 30, category: 'BREAD' },
     { id: 12, name: 'milk mult graine', target: 50, current: 55, category: 'BREAD' },
     { id: 13, name: 'brown bread', target: 200, current: 190, category: 'BREAD' },
-    // CAKES
     { id: 14, name: 'tea cake', target: 100, current: 80, category: 'CAKES' },
     { id: 15, name: 'marble cake', target: 80, current: 75, category: 'CAKES' },
     { id: 16, name: 'brown cake', target: 400, current: 410, category: 'CAKES' },
     { id: 17, name: 'oliver corn cake', target: 200, current: 150, category: 'CAKES' },
     { id: 18, name: 'muffin cake', target: 500, current: 480, category: 'CAKES' },
-    // AMANDAZI
     { id: 19, name: 'ishingiro', target: 1000, current: 950, category: 'AMANDAZI' },
     { id: 20, name: 's.begne', target: 2000, current: 1900, category: 'AMANDAZI' },
     { id: 21, name: 'dark donut', target: 100, current: 85, category: 'AMANDAZI' },
     { id: 22, name: 'choc donuts', target: 100, current: 110, category: 'AMANDAZI' },
     { id: 23, name: 'kk donuts', target: 150, current: 140, category: 'AMANDAZI' },
     { id: 24, name: 'triangle', target: 500, current: 480, category: 'AMANDAZI' },
-    // OTHERS
     { id: 25, name: 'meat samosa', target: 200, current: 190, category: 'OTHERS' },
     { id: 26, name: 'biscuits', target: 1000, current: 800, category: 'OTHERS' },
     { id: 27, name: 'ISH.MILK Cookie', target: 300, current: 250, category: 'OTHERS' },
@@ -62,7 +65,6 @@ export default function MarketingManagerAdmin() {
     { id: 36, name: 'yellow c flour 3kg', target: 20, current: 12, category: 'OTHERS' },
     { id: 37, name: 'cashnewnuts', target: 10, current: 5, category: 'OTHERS' },
     { id: 38, name: 'cornfresh cream', target: 100, current: 80, category: 'OTHERS' },
-    // BIG CAKES
     { id: 39, name: 'cake 38000', target: 5, current: 2, category: 'BIG CAKES' },
     { id: 40, name: 'cake 20000', target: 10, current: 8, category: 'BIG CAKES' },
     { id: 41, name: 'cakes 24000', target: 5, current: 6, category: 'BIG CAKES' },
@@ -81,16 +83,9 @@ export default function MarketingManagerAdmin() {
     { id: 54, name: 'ADDCAKE', target: 100, current: 120, category: 'BIG CAKES' },
   ]);
 
-  const [selectedProductToEdit, setSelectedProductToEdit] = useState(productTargets[0].id);
-
-  const updateTarget = (id: number, value: number) => {
-    setProductTargets(prev => prev.map(p => p.id === id ? { ...p, target: value } : p));
-  };
-
   const totalTarget = productTargets.reduce((acc, p) => acc + p.target, 0);
   const totalCurrent = productTargets.reduce((acc, p) => acc + p.current, 0);
   const isGlobalTargetMet = totalCurrent >= totalTarget;
-  const activeEditingProduct = productTargets.find(p => p.id === selectedProductToEdit);
 
   // --- SYSTEM USERS ---
   const allUsers = [
@@ -150,48 +145,6 @@ export default function MarketingManagerAdmin() {
                       <span>Live: {totalCurrent.toLocaleString()} units</span>
                       <span>Target: {totalTarget.toLocaleString()} units</span>
                    </div>
-                </div>
-              </div>
-            </div>
-
-            {/* PRODUCT SELECTOR & TARGET INPUT */}
-            <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-10 items-center">
-              <div className="md:col-span-1 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-[#1C1C1C] text-[#F57C00] rounded-xl"><ShoppingBag size={24} /></div>
-                  <h3 className="text-xl font-black uppercase italic tracking-tight">Product Selection</h3>
-                </div>
-                <p className="text-gray-400 text-[10px] font-bold leading-relaxed uppercase tracking-widest">Choose a product from the list to update its target.</p>
-                
-                <select 
-                  value={selectedProductToEdit}
-                  onChange={(e) => setSelectedProductToEdit(Number(e.target.value))}
-                  className="w-full p-5 bg-gray-50 border-2 border-transparent rounded-2xl font-black text-[#1C1C1C] outline-none focus:border-[#F57C00] cursor-pointer transition-all uppercase text-[10px] tracking-widest"
-                >
-                  {productTargets.map(p => (
-                    <option key={p.id} value={p.id}>{p.name.toUpperCase()} ({p.category})</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="md:col-span-2 bg-gray-50 p-10 rounded-[2.5rem] border border-gray-100 flex flex-col md:flex-row items-center gap-8">
-                <div className="flex-1 space-y-2 w-full">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2 italic">Define Target Goal</label>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      value={activeEditingProduct?.target}
-                      onChange={(e) => updateTarget(selectedProductToEdit, Number(e.target.value))}
-                      className="w-full bg-white p-6 rounded-2xl font-black text-2xl text-[#1C1C1C] border-2 border-transparent focus:border-[#F57C00] outline-none transition-all"
-                    />
-                    <span className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-gray-300 uppercase text-[10px] tracking-widest">PCS/Units</span>
-                  </div>
-                </div>
-
-                <div className={`p-8 rounded-3xl flex flex-col items-center justify-center min-w-[160px] ${activeEditingProduct && activeEditingProduct.current >= activeEditingProduct.target ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  <p className="text-[9px] font-black uppercase tracking-tighter mb-1 italic">Product Status</p>
-                  <p className="text-xl font-black uppercase italic">{activeEditingProduct && activeEditingProduct.current >= activeEditingProduct.target ? 'Achieved' : 'Pending'}</p>
-                  <p className="text-[10px] font-bold mt-2">Current: {activeEditingProduct?.current}</p>
                 </div>
               </div>
             </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, CheckCircle2 } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // <-- ADDED THIS
+import { Plus, CheckCircle2, ArrowLeft } from 'lucide-react'; // <-- ADDED ArrowLeft
 
 // --- OFFICIAL PRODUCT LIST ---
 const MARKETING_PRODUCTS = [
@@ -62,6 +63,8 @@ const MARKETING_PRODUCTS = [
 ];
 
 export default function StoreKeeperAddProduct() {
+  const router = useRouter(); // <-- ADDED THIS
+
   const [category, setCategory] = useState<'baked' | 'unbaked' | 'damaged'>('baked');
   const [unit, setUnit] = useState<'piece' | 'kg'>('piece');
   const [productName, setProductName] = useState('');
@@ -79,10 +82,15 @@ export default function StoreKeeperAddProduct() {
   const matchedProduct = MARKETING_PRODUCTS.find(p => p.name.toLowerCase() === productName.toLowerCase());
   const isNotFound = productName.length > 0 && !matchedProduct;
 
+  // --- UPDATED LOGIC ERROR MESSAGES ---
   let logicError = "";
   if (matchedProduct) {
-    if (matchedProduct.type === 'Baked' && category === 'unbaked') logicError = "THIS PRODUCT IS BAKED";
-    if (matchedProduct.type === 'Unbaked' && category === 'baked') logicError = "THIS PRODUCT IS UNBAKED";
+    if (matchedProduct.type === 'Baked' && category === 'unbaked') {
+        logicError = "this is not unbaked product";
+    }
+    if (matchedProduct.type === 'Unbaked' && category === 'baked') {
+        logicError = "this is not baked product";
+    }
   }
 
   // Handle Add Product Click
@@ -98,6 +106,7 @@ export default function StoreKeeperAddProduct() {
       
       // Reset form after success
       setProductName('');
+      setDescription(''); // Added to clear description on save
       
       // Hide success message after 3 seconds
       setTimeout(() => setIsAdded(false), 3000);
@@ -105,12 +114,21 @@ export default function StoreKeeperAddProduct() {
   };
 
   return (
+
     <div className="max-w-5xl mx-auto pb-10">
       
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Add New Product</h1>
-        <p className="text-gray-500 mt-1">Enter product details to add to inventory.</p>
+      {/* Header - UPDATED WITH BACK ARROW */}
+      <div className="flex items-center gap-4 mb-8">
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold text-gray-900">Add New Product</h1>
+          <p className="text-gray-500 mt-1">Enter product details to add to inventory.</p>
+        </div>
       </div>
 
       {/* Form Card */}
@@ -143,6 +161,13 @@ export default function StoreKeeperAddProduct() {
                   placeholder="Enter product name" 
                   className={`w-full bg-gray-50 border rounded-xl p-4 text-sm transition-all outline-none ${isNotFound || logicError ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200 focus:ring-2 focus:ring-blue-500'}`} 
                 />
+
+                {/* --- DISPLAY DESCRIPTION UNDER NAME --- */}
+                {description && (
+                  <p className="text-[10px] text-gray-400 italic mt-1 ml-1 truncate">
+                    Preview: {description}
+                  </p>
+                )}
                 
                 {isNotFound && !logicError && <p className="text-[10px] text-red-600 font-black uppercase mt-1 ml-1">PRODUCT NOT FOUND</p>}
                 {logicError && <p className="text-[10px] text-red-600 font-black uppercase mt-1 ml-1">{logicError}</p>}
@@ -169,8 +194,8 @@ export default function StoreKeeperAddProduct() {
                 <label className="text-xs font-bold text-gray-900 uppercase">Description</label>
                 <textarea 
                   rows={4}
-                  value={description} // Add this
-                  onChange={(e) => setDescription(e.target.value)} // Add this
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
                   placeholder="Enter product description..." 
                   className="w-full bg-gray-50 border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none resize-none" 
                 />

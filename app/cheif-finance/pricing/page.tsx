@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, Trash2, Search, ChevronDown, ChevronUp, Edit2, X, Check, ArrowDownCircle, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation'; 
+import { Save, Plus, Trash2, Search, ChevronDown, ChevronUp, Edit2, X, Check, ArrowDownCircle, AlertTriangle, ArrowLeft } from 'lucide-react'; 
 
 // --- MOVE INTERFACE AND DATA TO THE TOP (OUTSIDE THE FUNCTION) ---
 interface Product {
@@ -80,6 +81,8 @@ export const defaultProducts: Product[] = [
 ];
 
 export default function FinancePricingPage() {
+  const router = useRouter(); 
+
   const categories = ['BREAD', 'CAKES', 'AMANDAZI', 'OTHERS', 'BIG CAKES'];
   const unbakedItems = ['ikinyuranyo', 'flour', 'cashnewnuts', 'cornfresh'];
 
@@ -182,13 +185,19 @@ export default function FinancePricingPage() {
 
   return (
     <div className="space-y-8 pb-10">
-      {/* MOBILE LOGO */}
-      <div className="md:hidden w-full bg-white border-b border-gray-100 px-6 py-6 flex flex-col items-center">
-        <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden border-4 border-white shadow-xl mb-4">
-          <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
-        </div>
-        <h2 className="text-[#5D4037] font-black uppercase tracking-[0.25em] text-sm">Ishingiro</h2>
-      </div>
+      {/* <-- BACK BUTTON & TITLE --> */}
+<div className="flex items-center gap-4 md:gap-6 px-4 md:px-0 pt-6">
+  <button 
+    onClick={() => router.back()}
+    className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+  >
+    <ArrowLeft size={22} strokeWidth={2} />
+  </button>
+  
+  <h1 className="text-xl md:text-2xl font-black text-[#5D4037] uppercase tracking-tight">
+    Pricing Strategy
+  </h1>
+</div>
 
       {/* QUICK NAV */}
       <div className="flex flex-wrap gap-2 sticky top-16 md:top-0 z-30 bg-[#FDFDFD] py-4 border-b border-gray-100">

@@ -111,7 +111,7 @@ export default function DynamicShopDashboard() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
-  // NEW: State for Cake Orders
+  // ✅ NEW: State for Cake Orders
   const [cakeOrders, setCakeOrders] = useState<any[]>([
     { id: 501, item: 'Chocolate Cake', code: 'KS-01', customer: 'Jean Paul', time: '10:00 AM' }
   ]);
@@ -174,22 +174,26 @@ export default function DynamicShopDashboard() {
 
   // --- UPDATED BRANCH NAME LOGIC ---
   const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
+  
+  // ✅ UPDATED STATE TO INCLUDE 'cake_orders'
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
 
+  // ✅ UPDATED STATS TO INCLUDE CAKE ORDERS
   const stats = [
     { id: 'baked', label: 'Baked Items', icon: ShoppingBag },
     { id: 'orders', label: 'Orders', icon: Clock },
+    { id: 'cake_orders', label: 'Cake Orders', icon: Cake }, // <-- NEW TAB
     { id: 'received', label: 'Received', icon: Archive },
     { id: 'stock', label: 'My Stock', icon: Store },
     { id: 'damaged', label: 'Damaged', icon: AlertCircle },
-    { id: 'history', label: 'Full History', icon: History }, // NEW STAT
+    { id: 'history', label: 'Full History', icon: History },
   ];
 
   // COMBINED DATA LOGIC FOR "FULL ADDED PRODUCTS"
   const fullHistory = [
       ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
-      ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#5D4037]' }))
+      ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' })) // Matches the standard orange
   ].sort((a, b) => b.time.localeCompare(a.time));
 
   return (
@@ -197,19 +201,19 @@ export default function DynamicShopDashboard() {
       <div className="max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-6">
         <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md py-4 border-b border-gray-200/50 flex justify-between items-center">
             <div className="flex items-center gap-3">
-
               <h1 className="text-xl md:text-2xl font-black text-black uppercase">{branchName} MANAGER</h1>
             </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* ✅ UPDATED GRID TO 7 COLUMNS TO FIT NEW TAB */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {stats.map((stat) => (
             <div 
                 key={stat.id} 
                 onClick={() => setActiveFilter(stat.id as any)} 
                 className={`p-5 rounded-[2rem] border transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
                     activeFilter === stat.id 
-                    ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : stat.id === 'history' ? 'bg-gray-800 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') 
+                    ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : stat.id === 'history' ? 'bg-gray-800 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') // Defaults to orange
                     : (stat.id === 'damaged' ? 'bg-white hover:border-red-600' : 'bg-white hover:border-[#F57C00]')
                 }`}
             >
@@ -220,7 +224,7 @@ export default function DynamicShopDashboard() {
                 }`}>
                   <stat.icon size={20} />
                 </div>
-                <h3 className="font-black text-[10px] uppercase tracking-widest opacity-80">{stat.label}</h3>
+                <h3 className="font-black text-[9px] md:text-[10px] uppercase tracking-widest opacity-80">{stat.label}</h3>
             </div>
           ))}
         </div>
@@ -299,6 +303,42 @@ export default function DynamicShopDashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* ✅ NEW: CAKE ORDERS GRID - Styled exactly like standard 'Orders' */}
+          {activeFilter === 'cake_orders' && (
+            <div className="animate-in fade-in p-8">
+               <div className="max-w-2xl">
+                 <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">CUSTOM CAKE ORDERS</h2>
+               </div>
+               <table className="w-full text-left font-bold border-collapse mt-2">
+                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                   <tr>
+                     <th className="px-8 py-4 text-gray-900">Cake Name</th>
+                     <th className="px-8 py-4 text-center text-gray-900">Order Code</th>
+                     <th className="px-8 py-4 text-center text-gray-900">Customer</th>
+                     <th className="px-8 py-4 text-right text-gray-900">Status</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-gray-100">
+                   {cakeOrders.map((cake) => (
+                     <tr key={cake.id} className="hover:bg-gray-50 transition-colors font-bold">
+                       <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{cake.item}</td>
+                       <td className="px-8 py-6 text-center text-lg text-gray-900">{cake.code}</td>
+                       <td className="px-8 py-6 text-center text-sm text-gray-900">{cake.customer}</td>
+                       <td className="px-8 py-6 text-right">
+                         <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase font-bold">{cake.time} • PENDING</span>
+                       </td>
+                     </tr>
+                   ))}
+                   {cakeOrders.length === 0 && (
+                     <tr>
+                        <td colSpan={4} className="px-8 py-6 text-center text-gray-400 text-sm">No cake orders found.</td>
+                     </tr>
+                   )}
+                 </tbody>
+               </table>
             </div>
           )}
 

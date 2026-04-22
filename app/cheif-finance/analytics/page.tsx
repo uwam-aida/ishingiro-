@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation'; // <-- ADDED THIS
 import { 
   TrendingUp, 
   Package, 
@@ -10,10 +11,13 @@ import {
   Minus,
   ChefHat,
   Store,
-  ArrowDownRight
+  ArrowDownRight,
+  ArrowLeft // <-- ADDED THIS
 } from 'lucide-react';
 
 export default function FinanceAnalytics() {
+  const router = useRouter(); // <-- ADDED THIS
+  
   const [activeCategory, setActiveCategory] = useState<'sales' | 'production' | 'inventory' | 'damage'>('sales');
   
   // State for Dynamic Activities
@@ -125,10 +129,19 @@ export default function FinanceAnalytics() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-12">
       
-      {/* --- HEADER --- */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Business Analytics</h1>
-        <p className="text-gray-500 mt-2 font-medium">Business growth and performance analysis</p>
+      {/* --- HEADER - UPDATED WITH BACK ARROW --- */}
+      <div className="flex items-center gap-4">
+        {/* <-- ADDED THIS BACK BUTTON --> */}
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Business Analytics</h1>
+          <p className="text-gray-500 mt-2 font-medium">Business growth and performance analysis</p>
+        </div>
       </div>
 
       {/* --- INTERACTIVE STATS CARDS --- */}

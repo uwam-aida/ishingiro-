@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Cake, Check, X } from 'lucide-react';
+import { Cake, Check, X, ArrowLeft } from 'lucide-react'; // <-- ADDED ArrowLeft
 
 // Import the step components from your components folder
 import Step1Purpose from '../../../components/cake-form/step1Purpose';
@@ -10,6 +10,7 @@ import Step2Design from '../../../components/cake-form/Step2Design';
 import Step3Details from '../../../components/cake-form/Step3Details';
 import Step4Contact from '../../../components/cake-form/Step4Contact';
 import Step5Payment from '../../../components/cake-form/Step5Payment';
+
 export default function CakeOrderForm() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
@@ -86,7 +87,17 @@ export default function CakeOrderForm() {
         </div>
       )}
 
-      <div className="flex flex-col items-center pt-8">
+      {/* --- HEADER WITH NEW BACK BUTTON --- */}
+      <div className="flex flex-col items-center pt-8 relative max-w-3xl mx-auto px-6">
+        
+        {/* <-- ADDED THIS BACK BUTTON --> */}
+        <button 
+          onClick={() => router.back()}
+          className="absolute left-6 top-8 flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+
         <div className="w-48 h-24 relative mb-4">
            <img src="/cake-top.png" alt="Cake" className="w-full h-full object-contain" />
         </div>

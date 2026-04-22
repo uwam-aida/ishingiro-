@@ -13,8 +13,7 @@ import {
   CheckCircle,
   MapPin,
   Users,
-  Cake,
-  ClipboardList
+  Cake
 } from 'lucide-react';
 
 export default function CICMDashboard() {
@@ -22,25 +21,17 @@ export default function CICMDashboard() {
   // State to toggle between Dashboard view and Details view
   const [currentView, setCurrentView] = useState('Dashboard');
 
-  // --- 1. GRID DATA (Updated to include Reports as Grid Items) ---
+  // --- 1. GRID DATA (Removed Branch Delivery Report) ---
   const stats = [
     { label: 'Baked Items', value: '1,250', sub: 'Completed Production', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'Delivered Products', value: '1,100', sub: 'Dispatched to Branches', icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Shop Stock', value: '850', sub: 'Currently in Shops', icon: ShoppingBag, color: 'text-green-600', bg: 'bg-green-50' },
     { label: 'Rest Products', value: '150', sub: 'From Store Keeper', icon: Store, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Damaged Items', value: '12', sub: 'Total Losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
-    // Added these to the GRID as requested
-    { label: 'Branch Delivery Report', value: '2 Branches', sub: 'Masaka & Kabuga', icon: ClipboardList, color: 'text-[#5D4037]', bg: 'bg-stone-100' },
     { label: 'Live Cake Orders', value: '3 Active', sub: 'Custom Orders', icon: Cake, color: 'text-pink-600', bg: 'bg-pink-50' },
   ];
 
   // --- 2. REPORTS DATA ---
-  const branchReport = [
-    { item: 'White Bread', masaka: '200 pcs', kabuga: '350 pcs', total: '550 pcs' },
-    { item: 'Tea Scones',  masaka: '100 pcs', kabuga: '150 pcs', total: '250 pcs' },
-    { item: 'Cakes',       masaka: '20 pcs',  kabuga: '40 pcs',  total: '60 pcs' },
-  ];
-
   const cakeOrdersReport = [
     { category: 'BIRTHDAY', item: 'Vanilla Cake', code: 'KS-46', source: 'Kabuga', target: 'John Doe' },
     { category: 'WEDDING', item: 'Chocolate 3-Tier', code: 'KS-12', source: 'Masaka', target: 'Event Hall' },
@@ -50,8 +41,6 @@ export default function CICMDashboard() {
   // --- 3. DETAILS DATA GENERATOR ---
   const getDetailsData = (view: string) => {
     switch (view) {
-      case 'Branch Delivery Report':
-        return branchReport.map((r, i) => ({ id: i, item: r.item, qty: r.total, loc: `Msk: ${r.masaka} | Kbg: ${r.kabuga}`, status: 'Reported' }));
       case 'Live Cake Orders':
         return cakeOrdersReport.map((c, i) => ({ id: i, item: c.item, qty: c.code, loc: c.source, status: c.category }));
       case 'Baked Items':
@@ -78,7 +67,7 @@ export default function CICMDashboard() {
             <p className="text-gray-500 text-sm mt-1">Management Overview for Masaka and Kabuga branches.</p>
           </div>
 
-          {/* 1. GRIDS (Includes Branch Delivery and Cake Orders now) */}
+          {/* 1. GRIDS */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {stats.map((stat, index) => (
               <button 
@@ -128,7 +117,7 @@ export default function CICMDashboard() {
                 </table>
              </div>
           </div>
-         </div>
+          </div>
       )}
      </div>
   );

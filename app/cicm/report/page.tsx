@@ -1,179 +1,228 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { 
-  FileText, 
   Printer, 
   Calendar, 
-  AlertCircle, 
-  Store, 
-  MapPin, 
-  Users,
-  TrendingUp 
+  TrendingUp,
+  ArrowLeft,
+  Download,
+  Receipt,
+  Store
 } from 'lucide-react';
 
 export default function CICMReportPage() {
-  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const router = useRouter();
   
-  // --- MOCK DATA ---
-  const reportData = [
-    { name: 'White Bread', 
-      kabuga: { baked: 500, delivered: 490, shopRest: 20, storeRest: 10, damaged: 5, sold: 455 },
-      masaka: { baked: 300, delivered: 295, shopRest: 15, storeRest: 5, damaged: 2, sold: 273 }
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedBranch, setSelectedBranch] = useState('All'); // ✅ Set 'All' as default or added option
+
+  // --- 1. DATA SOURCE (Structured by Branch) ---
+  const branchData: any = {
+    Kabuga: {
+      bread: [
+        { item: 'big milk', qty: 215, price: 1300 },
+        { item: 'small milk', qty: 40, price: 600 },
+        { item: 'pcpn', qty: 31, price: 1100 },
+      ],
+      tiku: [
+        { item: 'ishingiro', qty: 12, price: 150 },
+        { item: 'salt big', qty: 1, price: 1100 },
+      ]
     },
-    { name: 'Tea Scones', 
-      kabuga: { baked: 200, delivered: 200, shopRest: 10, storeRest: 5, damaged: 0, sold: 185 },
-      masaka: { baked: 150, delivered: 148, shopRest: 8, storeRest: 2, damaged: 1, sold: 137 }
+    Masaka: {
+      bread: [
+        { item: 'big milk', qty: 150, price: 1300 },
+        { item: 'small milk', qty: 20, price: 600 },
+        { item: 'pcpn', qty: 10, price: 1100 },
+      ],
+      tiku: [
+        { item: 'ishingiro', qty: 5, price: 150 },
+        { item: 'salt big', qty: 0, price: 1100 },
+      ]
     }
-  ];
+  };
 
-  const othersData = [
-    { category: 'Guests', item: 'Special Bread', qty: 5 },
-    { category: 'Clients', item: 'Bulk Donuts', qty: 50 },
-    { category: 'Events', item: 'Wedding Cake', qty: 1 },
-    { category: 'Tiku', item: 'Kabuga Donuts', qty: 100 }, 
-  ];
+  // --- 2. LOGIC TO COMBINE DATA FOR "ALL" ---
+  const currentData = useMemo(() => {
+    if (selectedBranch === 'All') {
+      const combine = (key: string) => {
+        const result: any = {};
+        ['Kabuga', 'Masaka'].forEach(b => {
+          branchData[b][key].forEach((row: any) => {
+            if (result[row.item]) {
+              result[row.item].qty += row.qty;
+            } else {
+              result[row.item] = { ...row };
+            }
+          });
+        });
+        return Object.values(result);
+      };
+      return { bread: combine('bread'), tiku: combine('tiku') };
+    }
+    return branchData[selectedBranch];
+  }, [selectedBranch]);
 
-  // --- RENDER TABLE HELPER ---
-  const BranchTable = ({ branch, title }: { branch: 'kabuga' | 'masaka', title: string }) => (
-    <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden mb-8 break-inside-avoid">
-      <div className="bg-[#5D4037] px-6 py-4 flex justify-between items-center text-white">
-        <h2 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
-          <MapPin size={20} /> {title}
-        </h2>
-        <span className="bg-white/20 px-3 py-1 rounded-lg text-xs font-bold">
-          {new Date(reportDate).toLocaleDateString()}
-        </span>
+  const calculateTotal = (data: any[]) => data?.reduce((sum, row) => sum + (row.qty * row.price), 0) || 0;
+
+  // --- 3. UPDATED EXCEL EXPORT ---
+  const handleExportExcel = () => {
+    let csv = `ISHINGIRO SHOP\n`;
+    csv += `REVENUE REPORT: ${selectedBranch.toUpperCase()} BRANCHES\n`;
+    csv += `DATE: ${reportDate}\n\n`;
+    
+    const formatSection = (title: string, data: any[]) => {
+      let content = `${title.toUpperCase()}\nItem,Qty,Price,Total\n`;
+      data.forEach(d => content += `${d.item},${d.qty},${d.price},${d.qty * d.price}\n`);
+      content += `TOTAL,,, ${calculateTotal(data)}\n\n`;
+      return content;
+    };
+
+    csv += formatSection("Bread Section", currentData.bread);
+    csv += formatSection("Tiku (Store Keeper)", currentData.tiku);
+    csv += `GRAND TOTAL,,, ${calculateTotal(currentData.bread) + calculateTotal(currentData.tiku)}`;
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `IshingiroShop_${selectedBranch}_${reportDate}.csv`;
+    a.click();
+  };
+
+  const ReportTable = ({ title, data, colorClass = "bg-[#5D4037]" }: any) => (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-fit break-inside-avoid">
+      <div className={`${colorClass} px-4 py-2 text-white flex justify-between items-center`}>
+        <h2 className="text-xs font-black uppercase tracking-widest">{title}</h2>
+        <span className="text-[9px] font-bold opacity-70 uppercase">{selectedBranch} View</span>
       </div>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-[#5D4037] font-bold uppercase text-xs">
-            <tr>
-              <th className="px-4 py-3 border-b">Product</th>
-              <th className="px-4 py-3 border-b text-right bg-blue-50/50">Baked</th>
-              <th className="px-4 py-3 border-b text-right">Delivered</th>
-              <th className="px-4 py-3 border-b text-right text-orange-600 bg-orange-50/30">Shop Rest</th>
-              <th className="px-4 py-3 border-b text-right text-purple-600 bg-purple-50/30">Store Rest</th>
-              <th className="px-4 py-3 border-b text-right text-red-600 bg-red-50/30">Damaged</th>
-              <th className="px-4 py-3 border-b text-right font-black bg-gray-100/50">Sold</th>
+      <table className="w-full text-left text-[11px]">
+        <thead className="bg-gray-50 text-gray-400 font-bold uppercase">
+          <tr>
+            <th className="px-4 py-2">Item</th>
+            <th className="px-4 py-2 text-center">Qty</th>
+            <th className="px-4 py-2 text-right">Price</th>
+            <th className="px-4 py-2 text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-50">
+          {data?.map((row: any, i: number) => (
+            <tr key={i} className="hover:bg-gray-50/50">
+              <td className="px-4 py-1.5 font-bold text-[#5D4037] uppercase">{row.item}</td>
+              <td className="px-4 py-1.5 text-center font-medium">{row.qty}</td>
+              <td className="px-4 py-1.5 text-right text-gray-500">{row.price.toLocaleString()}</td>
+              <td className="px-4 py-1.5 text-right font-black">{(row.qty * row.price).toLocaleString()}</td>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {reportData.map((item) => (
-              <tr key={item.name} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-2 font-bold text-[#5D4037]">{item.name}</td>
-                <td className="px-4 py-2 text-right bg-blue-50/20">{item[branch].baked}</td>
-                <td className="px-4 py-2 text-right">{item[branch].delivered}</td>
-                <td className="px-4 py-2 text-right text-orange-600 bg-orange-50/10 font-medium">{item[branch].shopRest}</td>
-                <td className="px-4 py-2 text-right text-purple-600 bg-purple-50/10 font-medium">{item[branch].storeRest}</td>
-                <td className="px-4 py-2 text-right text-red-600 bg-red-50/10 font-bold">{item[branch].damaged}</td>
-                <td className="px-4 py-2 text-right font-black bg-gray-100/30">{item[branch].sold}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+          <tr className="bg-gray-50/80 font-black">
+            <td colSpan={3} className="px-4 py-2 text-[#5D4037] text-right uppercase">Total:</td>
+            <td className="px-4 py-2 text-right text-[#5D4037]">
+              {calculateTotal(data).toLocaleString()}
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   );
 
   return (
-    <div className="space-y-8 pb-10 print:p-0">
+    <div className="space-y-6 pb-10">
       
-      {/* --- MOBILE LOGO HEADER --- */}
-      <div className="md:hidden flex flex-col items-center justify-center mb-6 pt-2 print:hidden">
-        <div className="w-16 h-16 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-2">
-           <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
+      {/* --- OFFICIAL PRINT HEADER --- */}
+      <div className="hidden print:block border-b-4 border-[#5D4037] pb-6 mb-8">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="relative w-32 h-32">
+            </div>
+            <div>
+              <h1 className="text-3xl font-black text-[#5D4037]">ISHINGIRO SHOP</h1>
+              <p className="text-sm font-bold text-gray-400 uppercase tracking-[0.3em]">Official Revenue Report</p>
+              <div className="flex items-center gap-2 mt-2 bg-[#5D4037] text-white px-3 py-1 rounded-lg w-fit">
+                <Store size={14} />
+                <span className="text-xs font-black uppercase tracking-widest">
+                  {selectedBranch === 'All' ? 'ALL Branches' : `${selectedBranch} Branch`}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Date Generated</p>
+            <p className="text-xl font-black text-[#5D4037]">
+              {new Date(reportDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </p>
+          </div>
         </div>
-        <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">Ishingiro</h2>
       </div>
 
-      {/* --- HEADER --- */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[#5D4037]">Inventory & Stock Report</h1>
-          <p className="text-gray-500 text-sm">Separated branch analysis and Store-Keeper distribution.</p>
-        </div>
-        
-        <div className="flex gap-3 items-center">
-          <div className="bg-white border border-gray-200 rounded-xl px-3 py-2 flex items-center gap-2">
-            <Calendar size={16} className="text-gray-400" />
-            <input 
-              type="date" 
-              value={reportDate}
-              onChange={(e) => setReportDate(e.target.value)}
-              className="text-sm font-bold text-[#5D4037] outline-none"
-            />
+      {/* --- UI HEADER (Hides on Print) --- */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 print:hidden">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.back()} className="p-3 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-xl font-black text-[#5D4037] uppercase tracking-tight">CICM Revenue Report</h1>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Ishingiro Shop</p>
           </div>
-          <button 
-            onClick={() => window.print()}
-            className="bg-[#5D4037] text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-[#4a332a] transition-colors"
-          >
-            <Printer size={16} /> Print Report
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {/* ✅ BRANCH SELECTOR WITH 'ALL' */}
+          <div className="bg-white border-2 border-[#5D4037]/10 rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm">
+            <Store size={14} className="text-[#5D4037]" />
+            <select 
+              value={selectedBranch} 
+              onChange={(e) => setSelectedBranch(e.target.value)}
+              className="text-xs font-black text-[#5D4037] outline-none bg-transparent uppercase cursor-pointer"
+            >
+              <option value="All">All Branches</option>
+              <option value="Kabuga">Kabuga</option>
+              <option value="Masaka">Masaka</option>
+            </select>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-xl px-3 py-2 flex items-center gap-2">
+            <Calendar size={14} className="text-gray-400" />
+            <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value)} className="text-xs font-bold text-[#5D4037] outline-none" />
+          </div>
+          
+          <button onClick={handleExportExcel} className="bg-green-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-green-700 transition-all active:scale-95 shadow-sm">
+            <Download size={14} /> EXCEL
+          </button>
+          <button onClick={() => window.print()} className="bg-[#5D4037] text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-black transition-all active:scale-95 shadow-sm">
+            <Printer size={14} /> PRINT
           </button>
         </div>
       </div>
 
-      {/* --- CONTENT --- */}
-      
-      {/* 1. KABUGA TABLE */}
-      <BranchTable branch="kabuga" title="Kabuga Branch" />
+      {/* --- CONTENT GRID --- */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ReportTable title="Bread Sales" data={currentData.bread} />
+        <ReportTable title="Tiku / Others" data={currentData.tiku} colorClass="bg-blue-600" />
+      </div>
 
-      {/* 2. OTHERS TABLE (Kabuga Only / Store-Keeper) */}
-      <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden mb-8 break-inside-avoid">
-        <div className="bg-orange-600 px-6 py-4 flex justify-between items-center text-white font-bold">
-          <h2 className="text-lg font-black uppercase tracking-widest flex items-center gap-2">
-            <Users size={20} /> Others (Store-Keeper / Kabuga Only)
-          </h2>
+      {/* --- CONSOLIDATED SUMMARY --- */}
+      <div className="bg-[#F57C00] p-6 rounded-[32px] text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 print:shadow-none print:border-2 print:border-[#F57C00] print:text-[#F57C00] print:bg-white">
+        <div className="flex items-center gap-4">
+          <div className="bg-white/20 p-4 rounded-2xl print:bg-[#F57C00]/10">
+            <Receipt size={32} />
+          </div>
+          <div>
+            <p className="text-xs font-bold opacity-80 uppercase tracking-widest">Grand Total Revenue ({selectedBranch})</p>
+            <h2 className="text-4xl font-black">
+              RWF {(calculateTotal(currentData.bread) + calculateTotal(currentData.tiku)).toLocaleString()}
+            </h2>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-orange-50 text-orange-800 font-bold uppercase text-xs">
-              <tr>
-                <th className="px-4 py-3 border-b">Category</th>
-                <th className="px-4 py-3 border-b">Item</th>
-                <th className="px-4 py-3 border-b text-right">Quantity</th>
-                <th className="px-4 py-3 border-b text-right">Source</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-medium">
-              {othersData.map((row, i) => (
-                <tr key={i} className="hover:bg-orange-50/30 transition-colors">
-                  <td className="px-4 py-3 font-bold text-orange-700">{row.category}</td>
-                  <td className="px-4 py-3 text-gray-700">{row.item}</td>
-                  <td className="px-4 py-3 text-right font-black text-gray-900">{row.qty} pcs</td>
-                  <td className="px-4 py-3 text-right text-gray-400 italic">Store Keeper</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex items-center gap-2 bg-black/10 px-6 py-3 rounded-2xl print:border print:border-[#F57C00]">
+          <TrendingUp size={20} />
+          <span className="font-bold text-sm uppercase tracking-tighter">Verified Revenue</span>
         </div>
       </div>
 
-      {/* 3. MASAKA TABLE */}
-      <div className="print:break-before-page"></div>
-      <BranchTable branch="masaka" title="Masaka Branch" />
-
-      {/* --- SUMMARY --- */}
-      <div className="bg-[#EBE0CC] p-6 rounded-2xl print:break-inside-avoid">
-        <h3 className="text-[#5D4037] font-black uppercase tracking-widest text-sm mb-4 border-b border-[#5D4037]/20 pb-2 flex items-center gap-2">
-          <TrendingUp size={16} className="text-[#5D4037]"/> Consolidated Summary
-        </h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-          <div>
-            <p className="text-xs text-[#5D4037]/70 font-bold uppercase">Total Baked</p>
-            <p className="text-2xl font-black text-[#5D4037]">800 pcs</p>
-          </div>
-          <div>
-            <p className="text-xs text-red-600 font-bold uppercase">Total Damaged</p>
-            <p className="text-2xl font-black text-red-600">7 pcs</p>
-          </div>
-          <div>
-            <p className="text-xs text-[#5D4037]/70 font-bold uppercase">Consolidated Sold</p>
-            <p className="text-2xl font-black text-[#5D4037]">728 pcs</p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

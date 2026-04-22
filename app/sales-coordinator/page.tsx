@@ -13,7 +13,8 @@ import {
   MapPin,
   Search,
   ClipboardList,
-  History
+  History,
+  Cake // <-- ADDED THIS ICON
 } from 'lucide-react';
 
 export default function SalesCoordinatorDashboard() {
@@ -28,6 +29,16 @@ export default function SalesCoordinatorDashboard() {
       value: '24', 
       sub: 'Pending branch orders', 
       icon: ClipboardList, 
+      color: 'text-orange-600', 
+      bg: 'bg-orange-50',
+    },
+    // <-- ADDED CAKE ORDERS CARD HERE NEXT TO REQUESTS -->
+    { 
+      label: 'Cake Orders', 
+      fullLabel: 'Customers Cake Orders',
+      value: '5', 
+      sub: 'Pending cake orders', 
+      icon: Cake, 
       color: 'text-orange-600', 
       bg: 'bg-orange-50',
     },
@@ -86,6 +97,12 @@ export default function SalesCoordinatorDashboard() {
           { id: 1, item: 'Milk Bread', qty: '50 pcs', stock: 'Kabuga Request', time: '09:00 AM', status: 'Pending' },
           { id: 2, item: 'Tea Cake', qty: '10 pcs', stock: 'Masaka Request', time: '09:15 AM', status: 'Approved' },
         ];
+      // <-- ADDED CAKE ORDERS DATA LIST HERE -->
+      case 'Cake Orders':
+        return [
+          { id: 1, item: 'Chocolate Cake', qty: 'Code: KS-01', stock: 'Customer: Jean Paul', time: '10:00 AM', status: 'Pending' },
+          { id: 2, item: 'Vanilla Wedding Cake', qty: 'Code: KS-02', stock: 'Customer: Alice', time: '11:30 AM', status: 'Approved' }
+        ];
       case 'Baked':
         return [
           { id: 1, item: 'White Bread', qty: '500 pcs', stock: 'Factory', time: '06:30 AM', status: 'Ready' },
@@ -119,14 +136,6 @@ export default function SalesCoordinatorDashboard() {
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
       
-      {/* --- MOBILE LOGO HEADER --- */}
-      <div className="md:hidden flex flex-col items-center justify-center mb-6 pt-2">
-        <div className="w-16 h-16 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-2">
-           <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
-        </div>
-        <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">Ishingiro</h2>
-      </div>
-
       {currentView === 'Dashboard' && (
         <>
           <div>

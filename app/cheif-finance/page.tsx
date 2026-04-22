@@ -1,30 +1,34 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Banknote, TrendingUp, AlertTriangle, Printer } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { 
+  TrendingUp, 
+  AlertTriangle, 
+  Printer, 
+  ArrowLeft, 
+  Calendar, 
+  ShoppingCart, 
+  MapPin,
+  Trash2,
+  PackageX
+} from 'lucide-react';
 
 export default function ChiefFinanceDashboard() {
   
-  // 1. STATE: Branch Selection
+  // 1. STATE MANAGEMENT
   const [selectedBranch, setSelectedBranch] = useState<'All' | 'Kabuga' | 'Masaka'>('All');
+  const [activeView, setActiveView] = useState<'Overview' | 'Transactions' | 'Losses'>('Overview');
+  const [activeDay, setActiveDay] = useState<string | null>(null);
 
   // 2. MOCK DATA
   const allData = [
-    { id: 1, item: 'White Bread', branch: 'Kabuga', baked: 200, received: 180, sold: 150, damaged: 5, stock: 25, price: 1000, cost: 600 },
-    { id: 2, item: 'Vanilla Cake', branch: 'Kabuga', baked: 50, received: 45, sold: 40, damaged: 2, stock: 3, price: 5000, cost: 3000 },
-    { id: 3, item: 'White Bread', branch: 'Masaka', baked: 150, received: 140, sold: 130, damaged: 0, stock: 10, price: 1000, cost: 600 },
-    { id: 4, item: 'Donuts',      branch: 'Masaka', baked: 300, received: 280, sold: 250, damaged: 10, stock: 20, price: 500, cost: 200 },
+    { id: 1, item: 'White Bread', branch: 'Kabuga', baked: 200, sold: 150, damaged: 5, price: 1000, cost: 600, day: 'Mon', reason: 'Overbaked' },
+    { id: 2, item: 'Vanilla Cake', branch: 'Kabuga', baked: 50, sold: 40, damaged: 2, price: 5000, cost: 3000, day: 'Fri', reason: 'Icing Smudged' },
+    { id: 3, item: 'White Bread', branch: 'Masaka', baked: 150, sold: 130, damaged: 0, price: 1000, cost: 600, day: 'Fri', reason: 'None' },
+    { id: 4, item: 'Donuts', branch: 'Masaka', baked: 300, sold: 250, damaged: 10, price: 500, cost: 200, day: 'Wed', reason: 'Stale' },
+    { id: 5, item: 'Tea Scones', branch: 'Kabuga', baked: 100, sold: 90, damaged: 1, price: 200, cost: 100, day: 'Sun', reason: 'Dropped' },
   ];
 
-  // 3. FINANCIAL CALCULATIONS
-  const filteredData = selectedBranch === 'All' ? allData : allData.filter(d => d.branch === selectedBranch);
-  
-  const totalRevenue = filteredData.reduce((acc, curr) => acc + (curr.sold * curr.price), 0);
-  const totalCost = filteredData.reduce((acc, curr) => acc + (curr.baked * curr.cost), 0);
-  const totalLoss = filteredData.reduce((acc, curr) => acc + (curr.damaged * curr.cost), 0);
-  const netProfit = totalRevenue - totalCost - totalLoss;
-
-  // 4. CHART DATA
   const chartData = [
     { day: 'Mon', height: 45, amount: 450000 },
     { day: 'Tue', height: 30, amount: 300000 },
@@ -35,131 +39,201 @@ export default function ChiefFinanceDashboard() {
     { day: 'Sun', height: 95, amount: 950000 },
   ];
 
-  // Formatting Helper (Custom "Frw" text)
-  const formatMoney = (amount: number) => {
-    return `${amount.toLocaleString()} Frw`; 
-  };
+  // 3. CALCULATIONS
+  const formatMoney = (amount: number) => `${amount.toLocaleString()} Frw`;
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const filteredData = useMemo(() => {
+    let data = allData;
+    if (selectedBranch !== 'All') data = data.filter(d => d.branch === selectedBranch);
+    if (activeDay) data = data.filter(d => d.day === activeDay);
+    return data;
+  }, [selectedBranch, activeDay]);
+
+  const totalRevenue = filteredData.reduce((acc, curr) => acc + (curr.sold * curr.price), 0);
+  const totalLoss = filteredData.reduce((acc, curr) => acc + (curr.damaged * curr.cost), 0);
+  const netProfit = totalRevenue - (filteredData.reduce((acc, curr) => acc + (curr.baked * curr.cost), 0)) - totalLoss;
+
+  const damagedItems = filteredData.filter(d => d.damaged > 0);
 
   return (
     <div className="space-y-8 pb-10 min-h-screen bg-[#FDFDFD]">
       
-      {/* --- CONTROL BAR --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <div>
-          <h1 className="text-2xl font-extrabold text-[#5D4037] tracking-tight">Financial Overview</h1>
-          <p className="text-gray-500 text-sm font-medium">Track business growth and profitability.</p>
+      {/* --- HEADER --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          {(activeView !== 'Overview' || activeDay) && (
+            <button 
+              onClick={() => { setActiveView('Overview'); setActiveDay(null); }}
+              className="p-3 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 shadow-sm transition-all text-[#5D4037]"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          )}
+          <div>
+            <h1 className="text-2xl font-black text-[#5D4037] tracking-tight uppercase">
+              {activeView === 'Losses' ? 'Damage & Loss Report' : activeDay ? `${activeDay} Sales` : 'Financial Hub'}
+            </h1>
+            <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">
+              {selectedBranch} Branch Analysis
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 print:hidden">
           <div className="bg-white border border-gray-200 p-1 rounded-xl flex items-center shadow-sm">
              {['All', 'Kabuga', 'Masaka'].map((branch) => (
                <button
                  key={branch}
                  onClick={() => setSelectedBranch(branch as any)}
-                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
-                   selectedBranch === branch 
-                   ? 'bg-[#5D4037] text-white shadow-md' 
-                   : 'text-gray-400 hover:text-[#5D4037]'
+                 className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                   selectedBranch === branch ? 'bg-[#5D4037] text-white shadow-md' : 'text-gray-400 hover:text-[#5D4037]'
                  }`}
                >
                  {branch}
                </button>
              ))}
           </div>
-          <button 
-            onClick={handlePrint}
-            className="bg-[#A67C37] hover:bg-[#8e6a2f] text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-[#A67C37]/20 transition-all active:scale-95"
-          >
-            <Printer size={18} />
-            <span className="hidden md:inline">Generate Report</span>
-          </button>
         </div>
       </div>
 
       {/* --- STATS CARDS --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Revenue */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in duration-500">
+        {/* Revenue Card */}
+        <button 
+          onClick={() => setActiveView('Overview')}
+          className={`p-6 rounded-[32px] border transition-all text-left group ${activeView === 'Overview' && !activeDay ? 'bg-white border-[#5D4037] shadow-lg ring-4 ring-[#5D4037]/5' : 'bg-white border-gray-100 shadow-sm hover:border-[#5D4037]'}`}
+        >
+          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Total Revenue</p>
+          <h2 className="text-3xl font-black text-[#5D4037] mt-1">{formatMoney(totalRevenue)}</h2>
+          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 w-fit px-2 py-1 rounded-lg">
+             <TrendingUp size={12} /> Live Performance
           </div>
-          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Total Revenue</p>
-          <h2 className="text-3xl font-black text-[#5D4037] mt-2">{formatMoney(totalRevenue)}</h2>
-          <div className="mt-4 flex items-center gap-2 text-green-600 text-xs font-bold bg-green-50 w-fit px-2 py-1 rounded-lg">
-            <TrendingUp size={14} /> +12.5% Growth
-          </div>
-        </div>
+        </button>
 
-        {/* Losses */}
-        <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <AlertTriangle size={80} className="text-red-600" />
+        {/* ✅ LOSS CARD (CLICKABLE) */}
+        <button 
+          onClick={() => setActiveView('Losses')}
+          className={`p-6 rounded-[32px] border transition-all text-left group relative overflow-hidden ${activeView === 'Losses' ? 'bg-white border-red-500 shadow-lg ring-4 ring-red-500/5' : 'bg-white border-gray-100 shadow-sm hover:border-red-200'}`}
+        >
+          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <AlertTriangle size={100} className="text-red-600" />
           </div>
-          <p className="text-gray-400 text-xs font-bold uppercase tracking-widest">Financial Loss</p>
-          <h2 className="text-3xl font-black text-red-500 mt-2">{formatMoney(totalLoss)}</h2>
-          <p className="text-xs text-gray-400 mt-2 font-medium">Cost of damaged goods</p>
-        </div>
+          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Financial Loss</p>
+          <h2 className="text-3xl font-black text-red-500 mt-1">{formatMoney(totalLoss)}</h2>
+          <div className="mt-4 flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 w-fit px-2 py-1 rounded-lg">
+             <PackageX size={12} /> Click for Details
+          </div>
+        </button>
 
-        {/* Profit */}
-        <div className="bg-[#5D4037] p-6 rounded-3xl shadow-lg shadow-[#5D4037]/30 relative overflow-hidden text-white">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <TrendingUp size={80} className="text-white" />
-          </div>
-          <p className="text-[#EBE0CC] text-xs font-bold uppercase tracking-widest">Net Profit Estimate</p>
-          <h2 className="text-4xl font-black mt-2">{formatMoney(netProfit)}</h2>
-          <p className="text-xs text-[#EBE0CC]/80 mt-2 font-medium">Revenue - (Costs + Losses)</p>
+        {/* Profit Card */}
+        <div className="bg-[#5D4037] p-6 rounded-[32px] shadow-xl text-white relative overflow-hidden">
+          <p className="text-[#EBE0CC] text-[10px] font-black uppercase tracking-widest">Net Profit</p>
+          <h2 className="text-3xl font-black mt-1">{formatMoney(netProfit)}</h2>
+          <p className="text-[10px] font-medium text-[#EBE0CC]/60 mt-4 italic">Post-production & damage deductions</p>
         </div>
       </div>
 
-      {/* --- BUSINESS GROWTH CHART --- */}
-      <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm h-80 flex flex-col">
-         
-         {/* Chart Header */}
-         <div className="flex items-center justify-between mb-6">
-           <div>
-             <h3 className="text-lg font-bold text-[#5D4037]">Business Growth (Revenue)</h3>
-             <p className="text-xs text-gray-400">Daily performance over the last 7 days</p>
-           </div>
-           <div className="text-xs font-bold bg-[#5D4037]/10 text-[#5D4037] px-3 py-1 rounded-full">
-             +24% vs last week
-           </div>
-         </div>
-         
-         {/* The Bar Chart */}
-         <div className="flex-1 flex items-end justify-between gap-3 md:gap-6 pb-2">
+      {/* --- CONDITIONAL VIEW LOGIC --- */}
+      
+      {activeView === 'Overview' && !activeDay && (
+        /* WEEKLY CHART */
+        <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm h-96 flex flex-col animate-in slide-in-from-bottom-4">
+          <h3 className="text-lg font-black text-[#5D4037] uppercase tracking-tighter">Revenue Growth</h3>
+          <div className="flex-1 flex items-end justify-between gap-2 md:gap-6 mt-6 pb-2">
             {chartData.map((data, index) => (
-              <div key={index} className="w-full flex flex-col items-center group relative h-full justify-end">
-                
-                {/* Tooltip */}
-                <div className="absolute -top-12 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-[#5D4037] text-white text-[10px] font-bold py-1 px-2 rounded-lg shadow-xl mb-2 whitespace-nowrap z-10">
-                  {formatMoney(data.amount)}
-                  <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#5D4037] rotate-45"></div>
-                </div>
-
-                {/* The Bar */}
-                <div 
-                  style={{ height: `${data.height}%` }} 
-                  className={`w-full max-w-[50px] rounded-t-xl transition-all duration-500 ease-out relative overflow-hidden ${
-                    data.day === 'Sun' ? 'bg-[#5D4037]' : 'bg-[#EBE0CC]'
-                  } group-hover:bg-[#A67C37]`}
-                >
-                  <div className="absolute top-0 left-0 w-full h-1 bg-white/20"></div>
-                </div>
-
-                {/* Day Label */}
-                <span className={`text-[10px] font-bold mt-3 ${
-                  data.day === 'Sun' ? 'text-[#5D4037]' : 'text-gray-400'
-                }`}>
-                  {data.day}
-                </span>
+              <div key={index} onClick={() => { setActiveDay(data.day); setActiveView('Transactions'); }} className="w-full flex flex-col items-center group cursor-pointer h-full justify-end">
+                <div style={{ height: `${data.height}%` }} className="w-full max-w-[50px] rounded-t-2xl transition-all duration-300 bg-[#EBE0CC] group-hover:bg-[#5D4037]" />
+                <span className="text-[10px] font-black mt-3 text-gray-400 group-hover:text-[#5D4037]">{data.day}</span>
               </div>
             ))}
-         </div>
-      </div>
+          </div>
+        </div>
+      )}
+
+      {activeView === 'Transactions' && (
+        /* SALES TRANSACTIONS TABLE */
+        <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden animate-in slide-in-from-right-4">
+           <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+              <h3 className="font-black text-[#5D4037] uppercase text-xs">Sales Record: {activeDay || 'All Time'}</h3>
+           </div>
+           <table className="w-full text-left">
+              <thead className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-400">
+                 <tr>
+                    <th className="px-8 py-4">Item</th>
+                    <th className="px-8 py-4">Branch</th>
+                    <th className="px-8 py-4 text-center">Sold</th>
+                    <th className="px-8 py-4 text-right">Revenue</th>
+                 </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                 {filteredData.map((row) => (
+                   <tr key={row.id} className="text-sm font-bold">
+                      <td className="px-8 py-4 text-[#5D4037] uppercase">{row.item}</td>
+                      <td className="px-8 py-4 text-gray-400 text-xs"><MapPin size={12} className="inline mr-1"/> {row.branch}</td>
+                      <td className="px-8 py-4 text-center">{row.sold}</td>
+                      <td className="px-8 py-4 text-right">{formatMoney(row.sold * row.price)}</td>
+                   </tr>
+                 ))}
+              </tbody>
+           </table>
+        </div>
+      )}
+
+      {activeView === 'Losses' && (
+        /* ✅ DAMAGES/LOSSES TABLE */
+        <div className="bg-white rounded-[40px] border-2 border-red-50 shadow-xl overflow-hidden animate-in slide-in-from-right-4">
+           <div className="p-6 border-b border-red-50 flex items-center justify-between bg-red-50/20">
+              <div className="flex items-center gap-3">
+                 <div className="p-3 bg-red-500 text-white rounded-2xl shadow-lg shadow-red-500/20">
+                    <Trash2 size={24} />
+                 </div>
+                 <div>
+                    <h3 className="font-black text-red-600 uppercase tracking-widest text-sm">Damage Audit Log</h3>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase">Non-recoverable financial losses</p>
+                 </div>
+              </div>
+           </div>
+           <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                 <thead className="bg-red-50/10 text-red-400 text-[10px] uppercase font-black tracking-widest border-b border-red-50">
+                    <tr>
+                       <th className="px-8 py-5">Product Name</th>
+                       <th className="px-8 py-5">Location</th>
+                       <th className="px-8 py-5 text-center">Qty Damaged</th>
+                       <th className="px-8 py-5">Reason / Note</th>
+                       <th className="px-8 py-5 text-right font-black">Financial Loss</th>
+                    </tr>
+                 </thead>
+                 <tbody className="divide-y divide-red-50/50">
+                    {damagedItems.map((row) => (
+                      <tr key={row.id} className="hover:bg-red-50/10 transition-colors">
+                         <td className="px-8 py-5 font-black text-gray-900 text-sm uppercase">{row.item}</td>
+                         <td className="px-8 py-5">
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-gray-500 bg-gray-100 w-fit px-2 py-1 rounded-md">
+                               {row.day} | {row.branch}
+                            </span>
+                         </td>
+                         <td className="px-8 py-5 text-center font-black text-red-600 text-lg">{row.damaged}</td>
+                         <td className="px-8 py-5">
+                            <span className="text-[11px] font-bold italic text-gray-400">{row.reason}</span>
+                         </td>
+                         <td className="px-8 py-5 text-right font-black text-red-600 bg-red-50/20">
+                            {formatMoney(row.damaged * row.cost)}
+                         </td>
+                      </tr>
+                    ))}
+                    {damagedItems.length === 0 && (
+                      <tr>
+                         <td colSpan={5} className="px-8 py-24 text-center text-gray-400 font-bold italic">
+                            Excellent! No damages recorded for this selection.
+                         </td>
+                      </tr>
+                    )}
+                 </tbody>
+              </table>
+           </div>
+        </div>
+      )}
 
     </div>
   );

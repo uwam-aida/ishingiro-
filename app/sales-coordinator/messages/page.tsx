@@ -1,9 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2 } from 'lucide-react';
+import { useRouter } from 'next/navigation'; // <-- ADDED THIS
+import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft } from 'lucide-react'; // <-- ADDED ArrowLeft
 
 export default function SalesBroadcastPage() {
+  const router = useRouter(); // <-- ADDED THIS
+  
   const [message, setMessage] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [isSending, setIsSending] = useState(false);
@@ -37,8 +40,17 @@ export default function SalesBroadcastPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
-      {/* HEADER */}
+      {/* HEADER - UPDATED WITH BACK ARROW */}
       <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
+        
+        {/* <-- ADDED THIS BACK BUTTON --> */}
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+
         <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200">
           <Megaphone size={24} />
         </div>

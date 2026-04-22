@@ -2,61 +2,104 @@
 
 import React, { useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
-import { cheifFinanceMenu } from '../lib/menus'; // The correct import
-import { Menu } from 'lucide-react';
+import Header from '../components/layout/Header';
+import { cheifFinanceMenu } from '../lib/menus'; 
+import { Calendar, ShieldCheck } from 'lucide-react';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  // --- Financial Context State ---
+  const [unreadCount, setUnreadCount] = useState(3); 
+  const handleBellClick = () => setUnreadCount(0);
+
+  const today = new Date().toLocaleDateString('en-GB', { 
+    weekday: 'long', 
+    day: 'numeric', 
+    month: 'long' 
+  });
+
+  const CONFIG = {
+    title: "Chief of Finance",
+    initial: "CF",
+    notifLink: "/finance/notifications"
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#FDFDFD]">
+    <div className="flex min-h-screen bg-[#F8F9FA] font-sans overflow-x-hidden selection:bg-[#5D4037]/10">
       
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:block w-64 fixed inset-y-0 z-50">
+      {/* 1. DESKTOP SIDEBAR (Enhanced with subtle border & shadow) */}
+      <aside className="hidden md:flex w-68 flex-col fixed inset-y-0 z-50 border-r border-gray-200/60 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden">
         <Sidebar 
           menuItems={cheifFinanceMenu}
-          footerTitle="Chief of Finance"
-          footerInitial="CF"
+          footerTitle={CONFIG.title}
+          footerInitial={CONFIG.initial}
         />
       </aside>
 
-      {/* Mobile Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* 2. MOBILE SIDEBAR DRAWER */}
+      <div className={`fixed inset-y-0 left-0 z-[101] w-72 bg-[#F6F6F6] shadow-2xl transform transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) md:hidden print:hidden ${
+        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
         <Sidebar 
           isOpen={isSidebarOpen} 
           onClose={() => setIsSidebarOpen(false)} 
           menuItems={cheifFinanceMenu}
-          footerTitle="Chief of Finance"
-          footerInitial="CF"
+          footerTitle={CONFIG.title}
+          footerInitial={CONFIG.initial}
         />
       </div>
 
-      {/* Mobile Overlay */}
+      {/* 3. MOBILE OVERLAY */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/50 md:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-md md:hidden transition-opacity duration-500 print:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
         />
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+      {/* 4. MAIN CONTENT AREA */}
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
         
-        {/* Mobile Header */}
-        <div className="md:hidden bg-white p-4 flex items-center justify-between shadow-sm sticky top-0 z-30">
-           <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-[#5D4037]">
-             <Menu size={24} />
-           </button>
-           <div className="flex items-center gap-2">
-             <img src="/logo.png" alt="Logo" className="w-8 h-8 rounded-full object-cover" />
-             <span className="font-black text-[#5D4037] text-sm tracking-widest uppercase">Ishingiro</span>
-           </div>
-           <div className="w-10"></div>
+        {/* HEADER (Standardized & Polished) */}
+        <div className="sticky top-0 z-40 print:hidden">
+          <div className="absolute inset-0 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm" />
+          <div className="relative">
+            <Header 
+              onMenuClick={() => setIsSidebarOpen(true)} 
+              title={CONFIG.title}
+              notificationHref={CONFIG.notifLink}
+              unreadCount={unreadCount}
+              onBellClick={handleBellClick}
+            />
+          </div>
         </div>
 
-        <main className="p-4 md:p-8 w-full max-w-7xl mx-auto">
-          {children}
+        {/* 5. DASHBOARD WELCOME BAR (Only visible on Desktop) */}
+        <div className="hidden md:flex items-center justify-between px-8 py-4 bg-transparent print:hidden">
+           <div className="flex items-center gap-2 text-gray-400">
+              <Calendar size={14} />
+              <span className="text-[10px] font-bold uppercase tracking-widest">{today}</span>
+           </div>
+           <div className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full border border-green-100">
+              <ShieldCheck size={12} className="text-green-600" />
+              <span className="text-[10px] font-black text-green-700 uppercase tracking-tighter">Secure Session</span>
+           </div>
+        </div>
+
+        {/* PAGE CONTENT */}
+        <main className="flex-1 px-4 py-2 md:px-8 md:py-4 w-full max-w-7xl mx-auto overflow-y-auto print:bg-white print:p-0">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {children}
+          </div>
         </main>
+
+        {/* SUBTLE FOOTER TAG */}
+        <footer className="p-6 text-center print:hidden">
+           <p className="text-[10px] font-medium text-gray-300 uppercase tracking-[0.4em]">
+             Ishingiro Shop Financial Management System
+           </p>
+        </footer>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   Send, 
   UserCircle, 
@@ -72,6 +73,8 @@ const MARKETING_PRODUCTS = [
 ];
 
 export default function AddOtherProduct() {
+  const router = useRouter(); 
+  
   // --- VIEW STATE: 'grid' or 'form' ---
   const [view, setView] = useState<'grid' | 'form'>('grid');
   
@@ -135,10 +138,21 @@ export default function AddOtherProduct() {
       {/* --- VIEW 1: THE CLICKABLE GRID --- */}
       {view === 'grid' && (
         <div className="animate-in fade-in zoom-in-95 duration-300">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-black text-[#F57C00] uppercase tracking-tight">Select Category</h1>
-            <p className="text-gray-400 text-sm font-bold uppercase">Choose a target for distribution</p>
+          
+          {/* <-- NEW HEADER DESIGN WITH BOX ARROW --> */}
+          <div className="flex items-center gap-4 mb-8">
+            <button 
+              onClick={() => router.back()}
+              className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+            >
+              <ArrowLeft size={22} strokeWidth={2} />
+            </button>
+            <div className="flex-1">
+              <h1 className="text-2xl font-black text-[#F57C00] uppercase tracking-tight">Select Category</h1>
+              <p className="text-gray-400 text-sm font-bold uppercase">Choose a target for distribution</p>
+            </div>
           </div>
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {categories.map((item) => (
               <button

@@ -1,9 +1,12 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation'; // <-- ADDED THIS
 import { Bell, Clock, Package, Scale, ChefHat, ArrowLeft } from 'lucide-react';
 
 export default function BakerNotificationsPage() {
+  const router = useRouter(); // <-- ADDED THIS
+
   const notifications = [
     { id: 1, text: "Production Order: 300 White Loaves requested", time: "Just now", type: 'order', status: 'unread' },
     { id: 2, text: "Inventory Alert: Wheat Flour below 50kg", time: "2 hours ago", type: 'stock', status: 'unread' },
@@ -13,8 +16,17 @@ export default function BakerNotificationsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* HEADER */}
+      {/* HEADER - UPDATED WITH BACK ARROW */}
       <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
+        
+        {/* <-- ADDED BACK BUTTON --> */}
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+
         <div className="p-3 bg-[#1C1C1C] rounded-2xl text-white shadow-lg shadow-black/20">
           <Bell size={24} />
         </div>

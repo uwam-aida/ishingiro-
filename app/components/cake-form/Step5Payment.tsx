@@ -125,6 +125,7 @@ export default function Step5Payment({ formData, setFormData, handlePrev }: any)
           >
             <option value="">Select Payment Method</option>
             <option value="Momo">MTN Mobile Money (046817)</option>
+            <option value="Cash">CASH</option>
           </select>
         </div>
 

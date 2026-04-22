@@ -25,11 +25,13 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
   const menuItems = getBakerMenu();
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex">
+    <div className="min-h-screen bg-[#FDFDFD] flex overflow-hidden">
       
-      {/* Sidebar (Desktop) */}
-      <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 ">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden md:flex w-72 flex-col fixed inset-y-0 z-50 bg-gray-50">
         <Sidebar 
+          isOpen={isMobileMenuOpen} 
+          onClose={() => setIsMobileMenuOpen(false)}
           menuItems={menuItems} 
           footerTitle="Baker Assistant" 
           footerInitial="B" 
@@ -38,39 +40,33 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
         />
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/20 md:hidden backdrop-blur-sm" 
-          onClick={() => setIsMobileMenuOpen(false)} 
-        />
-      )}
-
-      {/* Mobile Sidebar Content */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <Sidebar 
-          menuItems={menuItems} 
-          footerTitle="Baker Assistant" 
-          footerInitial="B"
-          isOpen={isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-          // ✅ Added missing prop
-          onNotificationClick={clearNotifications}
-        />
-      </div>
-
-      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+      {/* Main Content Area */}
+      <div className="flex-1 md:ml-72 flex flex-col min-h-screen">
         <Header 
-          onMenuClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+          onMenuClick={() => setIsMobileMenuOpen(true)} 
           title="Baker Assistant"
           notificationHref="/baker-assistant/notifications"
           // ✅ Added missing props to fix the TS error
           unreadCount={unreadCount}
           onBellClick={clearNotifications}
         />
-        <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+        
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
+      </div>
+
+      {/* Mobile Sidebar Logic */}
+      <div className="md:hidden">
+        <Sidebar 
+          isOpen={isMobileMenuOpen} 
+          onClose={() => setIsMobileMenuOpen(false)}
+          menuItems={menuItems} 
+          footerTitle="Baker Assistant" 
+          footerInitial="B"
+          // ✅ Added missing prop
+          onNotificationClick={clearNotifications}
+        />
       </div>
     </div>
   );

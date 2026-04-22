@@ -169,7 +169,7 @@ export default function StoreKeeperDashboard() {
     { id: 'my_stock', label: 'Stock', value: myStock.length.toString(), icon: ShoppingBag },
     { id: 'cake_orders', label: 'Cake Orders', value: cakeOrders.length.toString(), icon: ClipboardList }, // Added
     { id: 'cake_requests', label: 'Cake Requests', value: cakeRequests.length.toString(), icon: Package }, // Added
-    { id: 'delivered', label: 'Added Products', value: deliveryHistory.length.toString(), icon: CheckCheck },
+    { id: 'delivered', label: 'Full Added Products', value: deliveryHistory.length.toString(), icon: CheckCheck },
     { id: 'damaged', label: 'Damaged', value: damagedProducts.length.toString(), icon: ShieldAlert },
     { id: 'notes', label: 'Delivery Notes', value: issuedNotes.length.toString(), icon: FileText },
   ];

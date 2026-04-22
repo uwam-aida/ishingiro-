@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation'; // <-- ADDED THIS
 import { 
   Scale, 
   PlusCircle, 
   Package, 
-  CheckCircle
+  CheckCircle,
+  ArrowLeft // <-- ADDED THIS
 } from 'lucide-react';
 
 export default function AddProductPage() {
+  const router = useRouter(); // <-- ADDED THIS
+
   const [productName, setProductName] = useState('');
   const [weight, setWeight] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -50,14 +54,18 @@ export default function AddProductPage() {
         </div>
       )}
 
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div>
+      {/* HEADER - UPDATED WITH BACK ARROW */}
+      <div className="flex items-center gap-4 mb-4">
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+        <div className="flex-1">
           <h1 className="text-4xl font-black text-black tracking-tighter uppercase">Baker assistant</h1>
           <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Measurement System</p>
         </div>
-        
-
       </div>
 
       {/* --- MEASUREMENT FORM --- */}
