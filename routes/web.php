@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PasswordController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ShopManagerController;
 use Illuminate\Support\Facades\Route;
@@ -28,6 +29,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::resource('products', ProductController::class);
 });
 
 Route::middleware(['auth', 'role:marketing_manager'])->group(function () {
@@ -39,7 +41,7 @@ Route::middleware(['auth', 'role:shop_manager'])->group(function () {
 });
 
 //rest password
-Route::middleware(['auth', 'role:admin'])->group(function () {
+Route::middleware(['auth', 'role:marketing_manager'])->group(function () {
     Route::post('/generate-code/{userId}', [PasswordController::class, 'generateCode']);
     Route::post('/admin-reset/{userId}', [PasswordController::class, 'adminReset']);
 });

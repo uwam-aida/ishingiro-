@@ -15,7 +15,8 @@ class RoleSeeder extends Seeder
     {
         Role::insert([
             ['name' => 'marketing_manager'], 
-            ['name' => 'shop_manager'],
+            ['name' => 'shop_manager_kabuga'],
+            ['name' => 'shop_manager_masaka'],
             ['name' => 'store_keeper'],
             ['name' => 'baker_assistant'],
             ['name' => 'operations_manager'],

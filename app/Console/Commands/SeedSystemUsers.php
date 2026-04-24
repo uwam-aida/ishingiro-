@@ -37,6 +37,8 @@ class SeedSystemUsers extends Command
                 $this->error("Role {$userData['role']} not found");
                 continue;
             }
+            $this->info("Looking for: " . $userData['role']);
+            $this->info("Matched role ID: " . $role->id);
 
             User::updateOrCreate(
                 ['email' => $userData['email']],
