@@ -19,4 +19,13 @@ class Product extends Model
     {
         return $this->hasMany(Stock::class);
     }
+    public function damages()
+    {
+        return $this->hasMany(Damage::class);
+    }
+
+    public function productions()
+    {
+        return $this->hasMany(Production::class);
+    }
 }

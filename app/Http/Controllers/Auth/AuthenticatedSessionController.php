@@ -29,7 +29,29 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(RouteServiceProvider::HOME);
+        // return redirect()->intended(RouteServiceProvider::HOME);
+        $user = auth()->user();
+
+        return match ($user->role->name) {
+            'marketing_manager' => redirect('/marketing/dashboard'),
+
+            'shop_manager_kabuga' => redirect('/shop/kabuga'),
+            'shop_manager_masaka' => redirect('/shop/masaka'),
+
+            'store_keeper' => redirect('/stock/dashboard'),
+
+            'baker_assistant' => redirect('/baker/dashboard'),
+
+            'operations_manager' => redirect('/operations/dashboard'),
+
+            'sales_coordinator' => redirect('/sales/dashboard'),
+
+            'cicm' => redirect('/reports/dashboard'),
+
+            'finance_chief' => redirect('/finance/dashboard'),
+
+            default => redirect('/dashboard'),
+        };
     }
 
     /**

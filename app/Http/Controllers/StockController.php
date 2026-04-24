@@ -25,6 +25,8 @@ class StockController extends Controller
             'user_id' => auth()->id()
         ]);
 
+    
+
         return $stock;
     }
 

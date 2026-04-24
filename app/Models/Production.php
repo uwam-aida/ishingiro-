@@ -5,16 +5,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class StockMovement extends Model
+class Production extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'product_id',
-        'location',
-        'quantity',
-        'user_id',
-        'type' // e.g., 'baked', 'delivered', 'damaged', etc.
+    'product_id',
+    'quantity',
+    'location'
     ];
+
     public function product()
     {
         return $this->belongsTo(Product::class);

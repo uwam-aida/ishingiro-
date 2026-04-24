@@ -9,10 +9,16 @@ return [
             'role' => 'marketing_manager',
         ],
         [
-            'name' => 'Shop Manager',
-            'email' => 'shop@test.com',
+            'name' => 'Shop Manager Masaka',
+            'email' => 'shop_masaka@test.com',
             'password' => 'password123',
-            'role' => 'shop_manager',
+            'role' => 'shop_manager_masaka',
+        ],
+        [
+            'name' => 'Shop Manager Kabuga',
+            'email' => 'shop_kabuga@test.com',
+            'password' => 'password123',
+            'role' => 'shop_manager_kabuga',
         ],
         [
             'name' => 'Store Keeper',
