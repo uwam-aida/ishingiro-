@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Services\NotificationService;
@@ -9,7 +10,7 @@ use Illuminate\Http\Request;
 
 class StockController extends Controller
 {
-    public function addStock(Request $request, NotificationService $notify)
+    public function addStock(Request $request)
     {
         $validated = $request->validate([
         'product_id' => 'required|exists:products,id',
@@ -33,7 +34,7 @@ class StockController extends Controller
 
             // 🔔 LOW STOCK ALERT
         if ($stock->quantity < 10) {
-            $notify->sendToRole('operations_manager', "Low stock alert");
+            SendNotificationJob::dispatch('operations_manager', "Low stock alert");
         }
     
 

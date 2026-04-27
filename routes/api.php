@@ -9,6 +9,7 @@ use App\Http\Controllers\PasswordController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalesController;
+use App\Http\Controllers\ShopManagerController;
 use App\Http\Controllers\StockController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn() => auth()->user());
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/save-player-id', [AuthController::class, 'savePlayerId']);
+    // Any authenticated user can view products
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::get('/products/{product}', [ProductController::class, 'show']);
     /*
     |--------------------------------------------------------------------------
     | MARKETING MANAGER (FULL CONTROL)
@@ -72,6 +76,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('role:shop_manager_masaka')->group(function () {
             Route::post('/masaka', [OrderController::class, 'store'])->defaults('location', 'masaka');
         });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | SHOP MANAGERS
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:shop_manager_kabuga,shop_manager_masaka')->group(function () {
+        Route::post('/shop/orders', [ShopManagerController::class, 'storeOrder']);
+        Route::post('/shop/cake-orders', [ShopManagerController::class, 'storeCakeOrder']);
+        Route::post('/shop/feedback', [ShopManagerController::class, 'storeFeedback']);
+        Route::post('/shop/damages', [ShopManagerController::class, 'recordDamage']);
     });
 
 

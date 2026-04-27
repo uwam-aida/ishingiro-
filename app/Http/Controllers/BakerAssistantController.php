@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\Damage;
 use App\Models\Ingredient;
 use App\Models\Production;
@@ -17,7 +18,7 @@ class BakerAssistantController extends Controller
     }
 
     // RECORD PRODUCTION
-    public function storeProduction(Request $request, NotificationService $notify)
+    public function storeProduction(Request $request)
     {
         $validated = $request->validate([
         'product_id' => 'required|exists:products,id',
@@ -26,9 +27,11 @@ class BakerAssistantController extends Controller
     ]);
 
         $production = Production::create($validated);
-            //Notify shop managers
-        $notify->sendToRole('shop_manager_kabuga', "New baked products available");
-        $notify->sendToRole('shop_manager_masaka', "New baked products available");
+        
+
+        // Use job queue
+        SendNotificationJob::dispatch('shop_manager_kabuga', "New baked products available");
+        SendNotificationJob::dispatch('shop_manager_masaka', "New baked products available");
 
         return $production;
 

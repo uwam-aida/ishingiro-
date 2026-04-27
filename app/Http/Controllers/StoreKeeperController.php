@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\Damage;
 use App\Models\Delivery;
 use App\Models\Stock;
@@ -39,7 +40,7 @@ class StoreKeeperController extends Controller
     }
 
     // DAMAGE
-    public function storeDamage(Request $request, NotificationService $notify)
+    public function storeDamage(Request $request)
     {
         $request->validate([
             'product_id' => 'required',
@@ -48,8 +49,8 @@ class StoreKeeperController extends Controller
         ]);
         $damage = Damage::create($request->all());
         if ($damage->quantity > 20) {
-            $notify->sendToRole('operations_manager', "High damage detected");
-            $notify->sendToRole('marketing_manager', "Critical damage alert");
+            SendNotificationJob::dispatch('operations_manager', "High damage detected");
+            SendNotificationJob::dispatch('marketing_manager', "Critical damage alert");
         }
         return $damage;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -10,7 +11,7 @@ use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
-    public function store(Request $request, $location, NotificationService $notify)
+    public function store(Request $request, $location)
     {
         $request->validate([
             'items' => 'required|array|min:1',
@@ -39,9 +40,9 @@ class OrderController extends Controller
         }
 
         //NOTIFICATIONS
-        $notify->sendToRole('store_keeper', "New order received ($location)");
-        $notify->sendToRole('sales_coordinator', "New order created");
-        $notify->sendToRole('marketing_manager', "Order created in $location");
+        SendNotificationJob::dispatch('store_keeper', "New order received ($location)");
+        SendNotificationJob::dispatch('sales_coordinator', "New order created");
+        SendNotificationJob::dispatch('marketing_manager', "Order created in $location");
 
         return $order->load('items');
     }

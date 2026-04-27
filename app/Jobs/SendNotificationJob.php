@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Services\NotificationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -27,8 +28,8 @@ class SendNotificationJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(): void
+    public function handle(NotificationService $notify): void
     {
-        SendNotificationJob::dispatch($this->role, $this->message);
+        $notify->sendToRole($this->role, $this->message);
     }
 }

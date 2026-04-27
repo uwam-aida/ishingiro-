@@ -20,8 +20,14 @@ class RoleMiddleware
 
     public function handle($request, Closure $next, ...$roles)
     {
-        if (!in_array(auth()->user()->role->name, $roles)) {
-            abort(403);
+        $user = auth()->user();
+        
+        if (!$user || !$user->role) {
+            abort(403, 'Unauthorized - No role assigned');
+        }
+
+        if (!in_array($user->role->name, $roles)) {
+            abort(403, 'Unauthorized - Insufficient permissions');
         }
 
         return $next($request);

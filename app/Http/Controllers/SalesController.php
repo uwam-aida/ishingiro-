@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendNotificationJob;
 use App\Models\CakeOrder;
 use App\Models\Stock;
 use App\Services\NotificationService;
@@ -9,7 +10,7 @@ use Illuminate\Http\Request;
 
 class SalesController extends Controller
 {
-    public function storeCakeOrder(Request $request, NotificationService $notify)
+    public function storeCakeOrder(Request $request)
     {
         $request->validate([
             'customer_name' => 'required|string',
@@ -18,8 +19,8 @@ class SalesController extends Controller
 
         $order = CakeOrder::create($request->all());
 
-        $notify->sendToRole('shop_manager_kabuga', "New cake order");
-        $notify->sendToRole('shop_manager_masaka', "New cake order");
+        SendNotificationJob::dispatch('shop_manager_kabuga', "New cake order");
+        SendNotificationJob::dispatch('shop_manager_masaka', "New cake order");
 
         return $order;
     }
