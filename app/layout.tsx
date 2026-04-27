@@ -4,7 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css"; 
 
 // 1. IMPORT YOUR NEW WRAPPER HERE
-import OneSignalWrapper from "@/components/OneSignalWrapper"; 
+import OneSignalWrapper from "./components/OneSignalWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
