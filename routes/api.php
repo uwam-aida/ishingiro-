@@ -18,7 +18,6 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 Route::post('/login', [AuthController::class, 'login']);
-Route::middleware('auth:sanctum')->post('/save-player-id', [AuthController::class, 'savePlayerId']);
 Route::post('/reset-password', [PasswordController::class, 'resetWithCode']);
 
 
@@ -30,7 +29,8 @@ Route::post('/reset-password', [PasswordController::class, 'resetWithCode']);
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/user', fn() => auth()->user());
-
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/save-player-id', [AuthController::class, 'savePlayerId']);
     /*
     |--------------------------------------------------------------------------
     | MARKETING MANAGER (FULL CONTROL)

@@ -44,6 +44,15 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function ($user) {
+            $user->normalized_name = strtolower(str_replace([' ', '_'], '', $user->name));
+        });
+    }
+
     public function role()
     {
         return $this->belongs(Role::class);

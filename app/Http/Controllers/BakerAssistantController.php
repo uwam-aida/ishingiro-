@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Damage;
 use App\Models\Ingredient;
 use App\Models\Production;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class BakerAssistantController extends Controller
