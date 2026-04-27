@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Damage;
 use App\Models\Delivery;
 use App\Models\Stock;
+use App\Services\NotificationService;
 use Illuminate\Http\Request;
 
 class StoreKeeperController extends Controller
@@ -38,9 +39,19 @@ class StoreKeeperController extends Controller
     }
 
     // DAMAGE
-    public function storeDamage(Request $request)
+    public function storeDamage(Request $request, NotificationService $notify)
     {
-        return Damage::create($request->all());
+        $request->validate([
+            'product_id' => 'required',
+            'quantity' => 'required|integer|min:1',
+            'location' => 'required|string'
+        ]);
+        $damage = Damage::create($request->all());
+        if ($damage->quantity > 20) {
+            $notify->sendToRole('operations_manager', "High damage detected");
+            $notify->sendToRole('marketing_manager', "Critical damage alert");
+        }
+        return $damage;
     }
 
     // VIEW STOCK

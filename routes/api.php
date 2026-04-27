@@ -14,31 +14,26 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Public API Routes
+| PUBLIC
 |--------------------------------------------------------------------------
 */
-
-// LOGIN (must NOT be inside auth middleware)
 Route::post('/login', [AuthController::class, 'login']);
-
-// PASSWORD RESET (with code)
+Route::middleware('auth:sanctum')->post('/save-player-id', [AuthController::class, 'savePlayerId']);
 Route::post('/reset-password', [PasswordController::class, 'resetWithCode']);
 
 
 /*
 |--------------------------------------------------------------------------
-| Protected API Routes
+| PROTECTED
 |--------------------------------------------------------------------------
 */
 Route::middleware('auth:sanctum')->group(function () {
 
-    // Get logged-in user
     Route::get('/user', fn() => auth()->user());
-
 
     /*
     |--------------------------------------------------------------------------
-    | Marketing Manager (FULL ACCESS)
+    | MARKETING MANAGER (FULL CONTROL)
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:marketing_manager')->group(function () {
@@ -52,85 +47,96 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Store Keeper
+    | STORE KEEPER
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:store_keeper')->group(function () {
-        Route::post('/stock/add', [StockController::class, 'addStock']);
-        Route::post('/stock/reduce', [StockController::class, 'reduceStock']);
+    Route::middleware('role:store_keeper')->prefix('stock')->group(function () {
+
+        Route::get('/', [StockController::class, 'index']);
+        Route::post('/add', [StockController::class, 'addStock']);
+        Route::post('/reduce', [StockController::class, 'reduceStock']);
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Shop Managers
+    | SHOP MANAGERS (SEPARATED)
     |--------------------------------------------------------------------------
     */
-    
-    Route::middleware('role:shop_manager_kabuga')->group(function () {
-    Route::post('/kabuga/orders', [OrderController::class, 'store'])
-        ->defaults('location', 'kabuga');
-    });
+    Route::prefix('orders')->group(function () {
 
-    Route::middleware('role:shop_manager_masaka')->group(function () {
-        Route::post('/masaka/orders', [OrderController::class, 'store'])
-            ->defaults('location', 'masaka');
+        Route::middleware('role:shop_manager_kabuga')->group(function () {
+            Route::post('/kabuga', [OrderController::class, 'store'])->defaults('location', 'kabuga');
+        });
+
+        Route::middleware('role:shop_manager_masaka')->group(function () {
+            Route::post('/masaka', [OrderController::class, 'store'])->defaults('location', 'masaka');
+        });
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Baker Assistant
+    | BAKER ASSISTANT
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:baker_assistant')->group(function () {
-        Route::post('/baker/production', [BakerAssistantController::class, 'storeProduction']);
+    Route::middleware('role:baker_assistant')->prefix('baker')->group(function () {
+
+        Route::post('/ingredients', [BakerAssistantController::class, 'storeIngredient']);
+        Route::post('/production', [BakerAssistantController::class, 'storeProduction']);
+        Route::post('/damage', [BakerAssistantController::class, 'storeDamage']);
+        Route::get('/ingredients', [BakerAssistantController::class, 'index']);
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Operations Manager
+    | OPERATIONS MANAGER
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:operations_manager')->group(function () {
-        Route::get('/operations/overview', [OperationsController::class, 'index']);
+    Route::middleware('role:operations_manager')->prefix('operations')->group(function () {
+
+        Route::get('/', [OperationsController::class, 'index']);
+        Route::put('/stock/{id}', [OperationsController::class, 'updateStock']);
+        Route::put('/production/{id}', [OperationsController::class, 'updateProduction']);
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Sales Coordinator
+    | SALES COORDINATOR
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:sales_coordinator')->group(function () {
-        Route::post('/sales/cake-order', [SalesController::class, 'storeCakeOrder']);
+    Route::middleware('role:sales_coordinator')->prefix('sales')->group(function () {
+
+        Route::post('/cake-order', [SalesController::class, 'storeCakeOrder']);
+        Route::get('/', [SalesController::class, 'index']);
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | Finance Chief
+    | FINANCE CHIEF
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:finance_chief')->group(function () {
-        Route::post('/finance/revenue', [FinanceController::class, 'store']);
-        Route::put('/finance/products/{product}', [ProductController::class, 'updatePrice']);
+    Route::middleware('role:finance_chief')->prefix('finance')->group(function () {
+
+        Route::post('/revenue', [FinanceController::class, 'store']);
+        Route::put('/products/{product}', [FinanceController::class, 'updatePrice']);
+        Route::get('/', [FinanceController::class, 'index']);
     });
 
-    Route::middleware(['auth:sanctum', 'role:cicm'])->prefix('reports')->group(function () {
 
-        // Combined report (ALL)
+    /*
+    |--------------------------------------------------------------------------
+    | CICM (REPORTS)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:cicm')->prefix('reports')->group(function () {
+
         Route::get('/combined', [ReportController::class, 'combined']);
-
-        // Per shop
-        Route::get('/kabuga', [ReportController::class, 'byLocation'])
-            ->defaults('location', 'kabuga');
-
-        Route::get('/masaka', [ReportController::class, 'byLocation'])
-            ->defaults('location', 'masaka');
-
-        // Detailed raw data
+        Route::get('/kabuga', [ReportController::class, 'byLocation'])->defaults('location', 'kabuga');
+        Route::get('/masaka', [ReportController::class, 'byLocation'])->defaults('location', 'masaka');
         Route::get('/detailed', [ReportController::class, 'detailed']);
     });
 

@@ -16,9 +16,21 @@ class BakerAssistantController extends Controller
     }
 
     // RECORD PRODUCTION
-    public function storeProduction(Request $request)
+    public function storeProduction(Request $request, NotificationService $notify)
     {
-        return Production::create($request->all());
+        $validated = $request->validate([
+        'product_id' => 'required|exists:products,id',
+        'quantity' => 'required|integer|min:1',
+        'location' => 'required|in:kabuga,masaka'
+    ]);
+
+        $production = Production::create($validated);
+            //Notify shop managers
+        $notify->sendToRole('shop_manager_kabuga', "New baked products available");
+        $notify->sendToRole('shop_manager_masaka', "New baked products available");
+
+        return $production;
+
     }
 
     // DAMAGE

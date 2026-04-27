@@ -34,4 +34,17 @@ class AuthController extends Controller
             'user' => $user,
         ]);
     }
+
+    public function savePlayerId(Request $request)
+    {
+        $request->validate([
+            'player_id' => 'required|string'
+        ]);
+
+        $user = auth()->user();
+        $user->player_id = $request->player_id;
+        $user->save();
+
+        return response()->json(['status' => 'saved']);
+    }
 }
