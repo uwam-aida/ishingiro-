@@ -177,6 +177,9 @@ Route::get('/health', function () {
         'timestamp' => now()->toIso8601String(),
     ]);
 });
+Route::get('/debug-sentry', function () {
+    throw new Exception('Sentry test error');
+});
 
 /*
 |--------------------------------------------------------------------------
