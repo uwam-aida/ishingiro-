@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     redis-tools \
+    autoconf \
+    g++ \
+    make \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -28,18 +31,19 @@ RUN docker-php-ext-install \
     bcmath \
     gd
 
-# Install Redis PHP extension
-RUN pecl install redis && docker-php-ext-enable redis
+# Install Redis PHP extension via PECL
+RUN pecl install redis-6.0.2 \
+    && docker-php-ext-enable redis
+
+# Verify Redis extension is loaded
+RUN php -m | grep redis
 
 # Configure Apache for Laravel
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
-RUN sed -i 's!/var/www/!/var/www/html/public!g' /etc/apache2/apache2.conf
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Enable .htaccess
 RUN sed -i '/<Directory \/var\/www\//,/<\/Directory>/ s/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf
-
-# Set ServerName to suppress warning
-RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Set working directory
 WORKDIR /var/www/html
