@@ -1,5 +1,6 @@
 <?php
 
+
 use App\Http\Controllers\BakerAssistantController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\OperationsController;
@@ -9,7 +10,6 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalesController;
-use App\Http\Controllers\ShopManagerController;
 use App\Http\Controllers\StockController;
 use Illuminate\Support\Facades\Route;
 
