@@ -170,6 +170,14 @@ Route::middleware(['auth'])->group(function () {
 */
 Route::post('/reset-password', [PasswordController::class, 'resetWithCode']);
 
+Route::get('/health', function () {
+    return response()->json([
+        'status' => 'ok',
+        'service' => 'Ishingiro Shop API',
+        'timestamp' => now()->toIso8601String(),
+    ]);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Auth scaffolding
