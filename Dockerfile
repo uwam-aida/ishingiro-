@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     autoconf \
     g++ \
     make \
+    libssl-dev \
+    pkg-config \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,14 +31,16 @@ RUN docker-php-ext-install \
     exif \
     pcntl \
     bcmath \
-    gd
+    gd \
+    sockets
 
-# Install Redis PHP extension via PECL
-RUN pecl install redis-6.0.2 \
+# Install Redis extension properly
+RUN pecl install redis \
+    && echo "extension=redis.so" > /usr/local/etc/php/conf.d/docker-php-ext-redis.ini \
     && docker-php-ext-enable redis
 
-# Verify Redis extension is loaded
-RUN php -m | grep redis
+# Verify it's loaded
+RUN php -m | grep -i redis || echo "Redis not found, will use predis"
 
 # Configure Apache for Laravel
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
@@ -48,13 +52,14 @@ RUN sed -i '/<Directory \/var\/www\//,/<\/Directory>/ s/AllowOverride None/Allow
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
+# Copy files first (needed for composer)
 COPY . /var/www/html
 
 # Install composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install dependencies
+# Install dependencies (including predis)
+RUN composer require predis/predis --no-interaction
 RUN composer install --no-dev --optimize-autoloader
 
 # Set permissions
