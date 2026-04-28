@@ -1,16 +1,17 @@
 <?php
 
 
-use App\Http\Controllers\BakerAssistantController;
-use App\Http\Controllers\FinanceController;
-use App\Http\Controllers\OperationsController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\PasswordController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\SalesController;
-use App\Http\Controllers\StockController;
+
+use App\Http\Controllers\Api\BakerAssistantController;
+use App\Http\Controllers\Api\FinanceController;
+use App\Http\Controllers\Api\OperationsController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PasswordController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProfileController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\SalesController;
+use App\Http\Controllers\Api\StockController;
 use Illuminate\Support\Facades\Route;
 
 /*

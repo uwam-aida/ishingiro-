@@ -1,16 +1,18 @@
 <?php
 
+
+
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\BakerAssistantController;
-use App\Http\Controllers\FinanceController;
-use App\Http\Controllers\OperationsController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\PasswordController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\SalesController;
-use App\Http\Controllers\ShopManagerController;
-use App\Http\Controllers\StockController;
+use App\Http\Controllers\Api\BakerAssistantController;
+use App\Http\Controllers\Api\FinanceController;
+use App\Http\Controllers\Api\OperationsController;
+use App\Http\Controllers\Api\OrderController;
+use App\Http\Controllers\Api\PasswordController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\SalesController;
+use App\Http\Controllers\Api\ShopManagerController;
+use App\Http\Controllers\Api\StockController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -41,9 +43,9 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:marketing_manager')->group(function () {
-
-        Route::apiResource('products', ProductController::class);
-
+        Route::post('/api/products', [ProductController::class, 'store']);
+        Route::put('/api/products/{id}', [ProductController::class, 'update']);
+        Route::delete('/api/products/{id}', [ProductController::class, 'delete']);
         Route::post('/generate-code/{userId}', [PasswordController::class, 'generateCode']);
         Route::post('/admin-reset/{userId}', [PasswordController::class, 'adminReset']);
     });
