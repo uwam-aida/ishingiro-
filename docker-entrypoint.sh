@@ -3,8 +3,13 @@
 echo "Starting Ishingiro Shop System..."
 echo "================================"
 
+# Wait for database to be ready
+echo "Waiting for database..."
+sleep 5
+
 # Generate app key if not set
 if [ -z "$APP_KEY" ]; then
+    echo "Generating APP_KEY..."
     php artisan key:generate --force
 fi
 
@@ -20,10 +25,14 @@ php artisan db:seed --class=RoleSeeder --force
 echo "Creating test users..."
 php artisan app:seed-system-users
 
-# Clear and cache
-echo "⚡ Optimizing..."
+# Clear cache
+echo "Optimizing application..."
+php artisan config:clear
+php artisan cache:clear
 php artisan optimize
 
-# Start Apache
+# Create storage link if not exists
+php artisan storage:link
+
 echo "Starting Apache..."
-apache2-foreground
+exec apache2-foreground
