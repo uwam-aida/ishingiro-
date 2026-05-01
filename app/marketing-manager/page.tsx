@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { 
@@ -25,8 +25,8 @@ export default function MarketingManagerAdmin() {
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedDay, setExpandedDay] = useState<string | null>(null);
 
-  // --- PRODUCT DATA (Maintained for Global Analytics) ---
-  const [productTargets] = useState([
+  // --- PRODUCT DATA (Now updatable via setProductTargets) ---
+  const [productTargets, setProductTargets] = useState([
     { id: 1, name: 'big milk', target: 500, current: 420, category: 'BREAD' },
     { id: 2, name: 'small milk', target: 1000, current: 850, category: 'BREAD' },
     { id: 3, name: 'pcpn', target: 200, current: 150, category: 'BREAD' },
@@ -82,6 +82,45 @@ export default function MarketingManagerAdmin() {
     { id: 53, name: 'cake 5000', target: 50, current: 45, category: 'BIG CAKES' },
     { id: 54, name: 'ADDCAKE', target: 100, current: 120, category: 'BIG CAKES' },
   ]);
+
+  // --- NEW: FETCH REAL DATA FROM BACKEND ---
+  useEffect(() => {
+    const fetchLiveProducts = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        const response = await fetch(`${baseUrl}/products`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          // If the database actually has products, map them to fit your beautiful UI
+          if (data && data.length > 0) {
+            const liveData = data.map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              target: 500, // Safe default target for the progress bar
+              current: item.stock || 0, // Using actual stock from the database!
+              category: item.category || 'OTHERS'
+            }));
+            setProductTargets(liveData);
+          }
+        }
+      } catch (error) {
+        console.error("Could not load live products, falling back to local data.", error);
+      }
+    };
+
+    fetchLiveProducts();
+  }, []);
 
   const totalTarget = productTargets.reduce((acc, p) => acc + p.target, 0);
   const totalCurrent = productTargets.reduce((acc, p) => acc + p.current, 0);

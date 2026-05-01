@@ -63,7 +63,6 @@ export const getSalesCoordinatorMenu = (): MenuItem[] => [
 
 export const getMarketingManagerMenu = (): MenuItem[] => [
   { name: 'Admin Dashboard', icon: LayoutDashboard, href: '/marketing-manager' },
-  { name: 'Manage Passwords', icon: ShieldCheck, href: '/marketing-manager/manage-passwords' }, // Added for Security
 ];
 
 // ⚠️ Note: I kept this array version of the Sales Coordinator menu just in case you 

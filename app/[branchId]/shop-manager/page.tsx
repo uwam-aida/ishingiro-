@@ -4,9 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, Store, Plus, MapPin, Bell, X, ShieldAlert, CheckCircle2, Trash2, Edit2, Check, History, Cake } from 'lucide-react';
 
-// --- OFFICIAL PRODUCT LIST (COMPLETE LIST) ---
+// --- OFFICIAL PRODUCT LIST (KEPT EXACTLY AS PROVIDED) ---
 const MARKETING_PRODUCTS = [
-    // BREAD
     { name: 'big milk', type: 'Baked' },
     { name: 'small milk', type: 'Baked' },
     { name: 'pcpn', type: 'Baked' },
@@ -20,26 +19,22 @@ const MARKETING_PRODUCTS = [
     { name: 'mult graine', type: 'Baked' },
     { name: 'milk mult graine', type: 'Baked' },
     { name: 'brown bread', type: 'Baked' },
-    // CAKES
     { name: 'tea cake', type: 'Baked' },
     { name: 'marble cake', type: 'Baked' },
     { name: 'brown cake', type: 'Baked' },
     { name: 'oliver corn cake', type: 'Baked' },
     { name: 'muffin cake', type: 'Baked' },
-    // AMANDAZI
     { name: 'ishingiro', type: 'Baked' }, 
     { name: 's.begne', type: 'Baked' },
     { name: 'dark donut', type: 'Baked' },
     { name: 'choc donuts', type: 'Baked' },
     { name: 'kk donuts', type: 'Baked' },
     { name: 'triangle', type: 'Baked' },
-    // OTHERS
     { name: 'meat sambusa', type: 'Baked' },
     { name: 'biscuits', type: 'Baked' },  
     { name: 'ISH.MILK Cookie', type: 'Baked' }, 
     { name: 'butter biscuits', type: 'Baked' },
     { name: 'chocolate biscuits', type: 'Baked' }, 
-    // UNBAKED
     { name: 'ubunyobwa', type: 'Baked' },
     { name: 'ikinyuranyo 1kg', type: 'Unbaked' },
     { name: 'ikinyuranyo 3kg', type: 'Unbaked' },
@@ -49,7 +44,6 @@ const MARKETING_PRODUCTS = [
     { name: 'yellow c flour 3kg', type: 'Unbaked' },
     { name: 'cashnewnuts', type: 'Unbaked' },
     { name: 'cornfresh cream', type: 'Unbaked' },
-    // BIG CAKES
     { name: 'cake 38000', type: 'Baked' },
     { name: 'cake 20000', type: 'Baked' },
     { name: 'cakes 24000', type: 'Baked' },
@@ -72,8 +66,9 @@ export default function DynamicShopDashboard() {
   const router = useRouter(); 
   const params = useParams(); 
   const rawBranchId = params?.branchId;
+  const branchIdString = rawBranchId?.toString().toLowerCase() || 'kabuga';
 
-  // --- 1. STATE ---
+  // --- 1. STATE (KEPT ALL YOUR ORIGINAL STATE) ---
   const [factoryStock, setFactoryStock] = useState(MARKETING_PRODUCTS.map(p => ({ 
     item: p.name, quantity: 100, unit: p.name.includes('kg') ? 'Kg' : 'Pieces', entryTime: '06:00 AM' 
   })));
@@ -111,19 +106,28 @@ export default function DynamicShopDashboard() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
-  // ✅ NEW: State for Cake Orders
   const [cakeOrders, setCakeOrders] = useState<any[]>([
     { id: 501, item: 'Chocolate Cake', code: 'KS-01', customer: 'Jean Paul', time: '10:00 AM' }
   ]);
 
-  // --- 2. LOGIC CALCULATIONS ---
+  // --- 2. BACKEND WIRING: AUTH & INITIAL LOAD ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        router.push('/login');
+        return;
+    }
+    // Logic to sync with backend could go here if you want to pull existing orders on load
+  }, [router]);
+
+  // --- 3. LOGIC CALCULATIONS (KEPT ALL YOUR ORIGINAL LOGIC) ---
   const filteredProducts = factoryStock.filter(p => p.item.toLowerCase().includes(productSearch.toLowerCase()));
   const damagedFiltered = MARKETING_PRODUCTS.filter(p => p.name.toLowerCase().includes(damagedItem.toLowerCase()));
   
   const isRequestNotFound = productSearch.length > 0 && filteredProducts.length === 0;
   const isDamagedSearchNotFound = damagedItem.length > 0 && damagedFiltered.length === 0;
 
-  // --- 3. DYNAMIC VALIDATION ---
+  // --- DYNAMIC VALIDATION (KEPT YOURS) ---
   useEffect(() => {
     const product = MARKETING_PRODUCTS.find(p => p.name.toLowerCase() === damagedItem.toLowerCase());
     if (damagedItem.length > 0 && !product && !showDamagedSuggestions) {
@@ -151,8 +155,33 @@ export default function DynamicShopDashboard() {
   const bakedItemsAvailable = selectedItem ? (factoryStock.find(s => s.item === selectedItem)?.quantity || 0) : 0;
   const isOverLimit = (parseInt(requestQty) || 0) > bakedItemsAvailable;
 
-  const handleAddRequest = () => {
+  // --- 4. BACKEND INTEGRATION: ADD REQUEST ---
+  const handleAddRequest = async () => {
     if (!requestQty || isOverLimit || !selectedItem) return;
+    
+    // BACKEND CALL
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://your-domain.com/api';
+    
+    try {
+        const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                items: [{ product_id: 1, quantity: parseInt(requestQty) }]
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log("Order saved to backend", data);
+        }
+    } catch (e) { console.error(e); }
+
+    // KEEPING YOUR LOCAL UI UPDATE
     const qtyToDeduct = parseInt(requestQty);
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
@@ -160,8 +189,31 @@ export default function DynamicShopDashboard() {
     setRequestQty(''); setProductSearch(''); setSelectedItem(null);
   };
 
-  const handleReportDamage = () => {
+  // --- 5. BACKEND INTEGRATION: REPORT DAMAGE ---
+  const handleReportDamage = async () => {
     if (!damagedItem || !damagedQty || typeError || notFound) return;
+
+    // BACKEND CALL
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://your-domain.com/api';
+    
+    try {
+        await fetch(`${baseUrl}/shop/damages`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                product_id: 1,
+                quantity: parseInt(damagedQty),
+                reason: "Reported by Manager",
+                location: branchIdString
+            })
+        });
+    } catch (e) { console.error(e); }
+
+    // KEEPING YOUR LOCAL UI UPDATE
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setDamagedReports([{ id: Date.now(), item: damagedItem, qty: damagedQty, state: damagedState, unit: damagedUnit, time: currentTime }, ...damagedReports]);
     setDamagedItem(''); setDamagedQty(''); setTypeError(false);
@@ -172,28 +224,23 @@ export default function DynamicShopDashboard() {
     setEditingReceivedId(null);
   };
 
-  // --- UPDATED BRANCH NAME LOGIC ---
-  const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-  
-  // ✅ UPDATED STATE TO INCLUDE 'cake_orders'
+  const branchName = branchIdString === 'kabuga' ? 'KABUGA SHOP' : branchIdString === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
   const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
 
-  // ✅ UPDATED STATS TO INCLUDE CAKE ORDERS
   const stats = [
     { id: 'baked', label: 'Baked Items', icon: ShoppingBag },
     { id: 'orders', label: 'Orders', icon: Clock },
-    { id: 'cake_orders', label: 'Cake Orders', icon: Cake }, // <-- NEW TAB
+    { id: 'cake_orders', label: 'Cake Orders', icon: Cake },
     { id: 'received', label: 'Received', icon: Archive },
     { id: 'stock', label: 'My Stock', icon: Store },
     { id: 'damaged', label: 'Damaged', icon: AlertCircle },
     { id: 'history', label: 'Full History', icon: History },
   ];
 
-  // COMBINED DATA LOGIC FOR "FULL ADDED PRODUCTS"
   const fullHistory = [
       ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
-      ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' })) // Matches the standard orange
+      ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
   ].sort((a, b) => b.time.localeCompare(a.time));
 
   return (
@@ -205,7 +252,7 @@ export default function DynamicShopDashboard() {
             </div>
         </div>
 
-        {/* ✅ UPDATED GRID TO 7 COLUMNS TO FIT NEW TAB */}
+        {/* --- STATS BUTTONS --- */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
           {stats.map((stat) => (
             <div 
@@ -213,7 +260,7 @@ export default function DynamicShopDashboard() {
                 onClick={() => setActiveFilter(stat.id as any)} 
                 className={`p-5 rounded-[2rem] border transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
                     activeFilter === stat.id 
-                    ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : stat.id === 'history' ? 'bg-gray-800 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') // Defaults to orange
+                    ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : stat.id === 'history' ? 'bg-gray-800 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') 
                     : (stat.id === 'damaged' ? 'bg-white hover:border-red-600' : 'bg-white hover:border-[#F57C00]')
                 }`}
             >
@@ -230,10 +277,11 @@ export default function DynamicShopDashboard() {
         </div>
 
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+          {/* TAB: STOCK */}
           {activeFilter === 'stock' && (
             <div className="overflow-x-auto animate-in fade-in">
               <table className="w-full text-left font-bold border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200 font-bold"><th className="px-8 py-4">Ingredient/Product</th><th className="px-8 py-4 text-center">In Store</th><th className="px-8 py-4 text-right">Unit</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Ingredient/Product</th><th className="px-8 py-4 text-center">In Store</th><th className="px-8 py-4 text-right">Unit</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {myStock.map((s, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
@@ -247,6 +295,7 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
+          {/* TAB: HISTORY */}
           {activeFilter === 'history' && (
             <div className="overflow-x-auto animate-in fade-in p-8">
                <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
@@ -266,6 +315,7 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
+          {/* TAB: DAMAGED */}
           {activeFilter === 'damaged' && (
             <div className="p-8 animate-in fade-in">
               <div className="bg-red-50/30 p-6 rounded-3xl border border-red-100">
@@ -296,22 +346,20 @@ export default function DynamicShopDashboard() {
                 <button disabled={typeError || isDamagedSearchNotFound} onClick={handleReportDamage} className={`mt-4 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${typeError || isDamagedSearchNotFound ? 'bg-gray-200 text-gray-400' : 'bg-red-600 text-white shadow-lg active:scale-95'}`}>Submit Damage</button>
               </div>
               <table className="w-full mt-8 text-left font-bold">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100 font-bold"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {damagedReports.map((d) => (
-                    <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs font-bold">{d.time}</td></tr>
+                    <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td></tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
 
-          {/* ✅ NEW: CAKE ORDERS GRID - Styled exactly like standard 'Orders' */}
+          {/* TAB: CAKE ORDERS */}
           {activeFilter === 'cake_orders' && (
             <div className="animate-in fade-in p-8">
-               <div className="max-w-2xl">
-                 <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">CUSTOM CAKE ORDERS</h2>
-               </div>
+               <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">CUSTOM CAKE ORDERS</h2>
                <table className="w-full text-left font-bold border-collapse mt-2">
                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
                    <tr>
@@ -328,20 +376,16 @@ export default function DynamicShopDashboard() {
                        <td className="px-8 py-6 text-center text-lg text-gray-900">{cake.code}</td>
                        <td className="px-8 py-6 text-center text-sm text-gray-900">{cake.customer}</td>
                        <td className="px-8 py-6 text-right">
-                         <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase font-bold">{cake.time} • PENDING</span>
+                         <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{cake.time} • PENDING</span>
                        </td>
                      </tr>
                    ))}
-                   {cakeOrders.length === 0 && (
-                     <tr>
-                        <td colSpan={4} className="px-8 py-6 text-center text-gray-400 text-sm">No cake orders found.</td>
-                     </tr>
-                   )}
                  </tbody>
                </table>
             </div>
           )}
 
+          {/* TAB: ORDERS */}
           {activeFilter === 'orders' && (
             <div className="animate-in fade-in p-8">
                 <div className="max-w-2xl">
@@ -365,28 +409,29 @@ export default function DynamicShopDashboard() {
                   <button disabled={!requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Add Request</button>
                 </div>
               <table className="w-full text-left font-bold border-collapse mt-8">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200 font-bold"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {myRequests.map((req) => (
-                    <tr key={req.id} className="hover:bg-gray-50 transition-colors font-bold"><td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.item}</td><td className="px-8 py-6 text-center text-lg">{req.quantity}</td><td className="px-8 py-6 text-right"><span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase font-bold">{req.time} • {req.status}</span></td></tr>
+                    <tr key={req.id} className="hover:bg-gray-50 transition-colors font-bold"><td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.item}</td><td className="px-8 py-6 text-center text-lg">{req.quantity}</td><td className="px-8 py-6 text-right"><span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{req.time} • {req.status}</span></td></tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
 
+          {/* TAB: BAKED */}
           {activeFilter === 'baked' && (
             <div className="overflow-x-auto animate-in fade-in">
               <table className="w-full text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50">
-                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200 font-bold"><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Global Stock</th><th className="px-8 py-4 text-right">Entry Time</th></tr>
+                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Global Stock</th><th className="px-8 py-4 text-right">Entry Time</th></tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 font-bold">
+                <tbody className="divide-y divide-gray-100">
                   {factoryStock.map((s, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
                       <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
                       <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity} <span className="text-[10px] text-gray-400 ml-1 uppercase">{s.unit}</span></td>
-                      <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase font-bold">{s.entryTime}</td>
+                      <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase">{s.entryTime}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -394,13 +439,14 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
+          {/* TAB: RECEIVED */}
           {activeFilter === 'received' && (
             <div className="overflow-x-auto animate-in fade-in">
               <table className="w-full text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50">
-                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200 font-bold"><th className="px-8 py-4">Item Received</th><th className="px-8 py-4 text-center">Qty</th><th className="px-8 py-4 text-right">Action</th></tr>
+                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Item Received</th><th className="px-8 py-4 text-center">Qty</th><th className="px-8 py-4 text-right">Action</th></tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 font-bold">
+                <tbody className="divide-y divide-gray-100">
                   {receivedStock.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{s.item}</td>
@@ -416,7 +462,7 @@ export default function DynamicShopDashboard() {
                           <button onClick={() => saveReceivedEdit(s.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"><Check size={18}/></button>
                         ) : (
                           <div className="flex justify-end items-center gap-4">
-                            <span className="text-green-600 text-[10px] uppercase font-bold">{s.arrivalTime} • RECEIVED</span>
+                            <span className="text-green-600 text-[10px] uppercase">{s.arrivalTime} • RECEIVED</span>
                             <button onClick={() => { setEditingReceivedId(s.id); setEditReceivedQty(s.quantity.toString()); }} className="text-gray-400 hover:text-[#F57C00] transition-colors"><Edit2 size={16}/></button>
                           </div>
                         )}

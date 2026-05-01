@@ -1,0 +1,67 @@
+### VARIABLES
+@baseUrl = https://ishingiro-m4th.onrender.com/api
+@token = 7|JF55LZbHn3b73bdfYzR48Q2YdMsSQ2EdNuZr6YRUf312b23e
+### 0. LOGIN (Run this if the token expires)
+POST {{baseUrl}}/login
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "marketing_manager",
+  "password": "password123"
+}
+
+###
+
+### 1. GET MY PROFILE
+GET {{baseUrl}}/user
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 2. GET ALL PRODUCTS
+GET {{baseUrl}}/products
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 3. ADD A NEW PRODUCT (Waiting for backend fix)
+POST {{baseUrl}}/products
+Authorization: Bearer {{token}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "name": "big milk",
+  "price": 1200,
+  "category": "Baked",
+  "stock": 100
+}
+
+###
+
+### 4. GET REPORTS
+GET {{baseUrl}}/reports/combined
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 5. GET ORDERS
+GET {{baseUrl}}/orders
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 6. TEST PLAYER ID (Connection Check)
+POST {{baseUrl}}/save-player-id
+Authorization: Bearer {{token}}
+Accept: application/json
+Content-Type: application/json
+
+{
+  "player_id": "test-onesignal-123"
+}
