@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   TrendingUp, 
   AlertTriangle, 
@@ -14,22 +15,24 @@ import {
 } from 'lucide-react';
 
 export default function ChiefFinanceDashboard() {
-  
+  const router = useRouter();
+
   // 1. STATE MANAGEMENT
   const [selectedBranch, setSelectedBranch] = useState<'All' | 'Kabuga' | 'Masaka'>('All');
   const [activeView, setActiveView] = useState<'Overview' | 'Transactions' | 'Losses'>('Overview');
   const [activeDay, setActiveDay] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // 2. MOCK DATA
-  const allData = [
+  // 2. DATA STATE (Initialized with your Mock Data so the UI doesn't break!)
+  const [allData, setAllData] = useState([
     { id: 1, item: 'White Bread', branch: 'Kabuga', baked: 200, sold: 150, damaged: 5, price: 1000, cost: 600, day: 'Mon', reason: 'Overbaked' },
     { id: 2, item: 'Vanilla Cake', branch: 'Kabuga', baked: 50, sold: 40, damaged: 2, price: 5000, cost: 3000, day: 'Fri', reason: 'Icing Smudged' },
     { id: 3, item: 'White Bread', branch: 'Masaka', baked: 150, sold: 130, damaged: 0, price: 1000, cost: 600, day: 'Fri', reason: 'None' },
     { id: 4, item: 'Donuts', branch: 'Masaka', baked: 300, sold: 250, damaged: 10, price: 500, cost: 200, day: 'Wed', reason: 'Stale' },
     { id: 5, item: 'Tea Scones', branch: 'Kabuga', baked: 100, sold: 90, damaged: 1, price: 200, cost: 100, day: 'Sun', reason: 'Dropped' },
-  ];
+  ]);
 
-  const chartData = [
+  const [chartData, setChartData] = useState([
     { day: 'Mon', height: 45, amount: 450000 },
     { day: 'Tue', height: 30, amount: 300000 },
     { day: 'Wed', height: 60, amount: 600000 },
@@ -37,9 +40,49 @@ export default function ChiefFinanceDashboard() {
     { day: 'Fri', height: 85, amount: 850000 },
     { day: 'Sat', height: 70, amount: 700000 },
     { day: 'Sun', height: 95, amount: 950000 },
-  ];
+  ]);
 
-  // 3. CALCULATIONS
+  // --- 3. BACKEND API INTEGRATION ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const fetchFinanceData = async () => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      try {
+        // Once the backend dev creates the ledger endpoint, you will uncomment this:
+        /*
+        const ledgerRes = await fetch(`${baseUrl}/finance/ledger`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (ledgerRes.ok) {
+          const fetchedData = await ledgerRes.json();
+          setAllData(fetchedData);
+        }
+
+        const chartRes = await fetch(`${baseUrl}/finance/chart`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (chartRes.ok) {
+          const fetchedChart = await chartRes.json();
+          setChartData(fetchedChart);
+        }
+        */
+      } catch (error) {
+        console.error("Failed to load live finance data", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchFinanceData();
+  }, [router]);
+
+  // 4. CALCULATIONS
   const formatMoney = (amount: number) => `${amount.toLocaleString()} Frw`;
 
   const filteredData = useMemo(() => {
@@ -47,7 +90,7 @@ export default function ChiefFinanceDashboard() {
     if (selectedBranch !== 'All') data = data.filter(d => d.branch === selectedBranch);
     if (activeDay) data = data.filter(d => d.day === activeDay);
     return data;
-  }, [selectedBranch, activeDay]);
+  }, [selectedBranch, activeDay, allData]);
 
   const totalRevenue = filteredData.reduce((acc, curr) => acc + (curr.sold * curr.price), 0);
   const totalLoss = filteredData.reduce((acc, curr) => acc + (curr.damaged * curr.cost), 0);

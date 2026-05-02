@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -16,19 +16,58 @@ import {
 export default function FinanceProductsPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'measured' | 'baked'>('measured');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // --- MOCK DATA ---
-  const measuredProducts = [
+  // --- MOCK DATA (Now in State for API Updates) ---
+  const [measuredProducts, setMeasuredProducts] = useState([
     { id: 1, name: 'Wheat Flour', stock: '450 kg', status: 'Healthy', branch: 'Kabuga', value: '450,000 Frw' },
     { id: 2, name: 'Sugar', stock: '12 kg', status: 'Low Stock', branch: 'Masaka', value: '18,000 Frw' },
     { id: 3, name: 'Baking Powder', stock: '5 kg', status: 'Healthy', branch: 'Kabuga', value: '25,000 Frw' },
-  ];
+  ]);
 
-  const bakedProducts = [
+  const [bakedProducts, setBakedProducts] = useState([
     { id: 1, name: 'White Bread', daily: '500 pcs', sold: '480', loss: '2', branch: 'Kabuga' },
     { id: 2, name: 'Milk Bread', daily: '200 pcs', sold: '195', loss: '5', branch: 'Masaka' },
     { id: 3, name: 'Tea Scones', daily: '300 pcs', sold: '290', loss: '0', branch: 'Kabuga' },
-  ];
+  ]);
+
+  // --- BACKEND API INTEGRATION ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const fetchData = async () => {
+      setIsLoading(true);
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      try {
+        // NOTE: Waiting for the backend developer to create these endpoints!
+        // Once she creates them, uncomment this code:
+        /*
+        if (activeTab === 'measured') {
+          const res = await fetch(`${baseUrl}/finance/inventory/measured`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) setMeasuredProducts(await res.json());
+        } else {
+          const res = await fetch(`${baseUrl}/finance/inventory/baked`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (res.ok) setBakedProducts(await res.json());
+        }
+        */
+      } catch (error) {
+        console.error("Failed to fetch product inventory data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [activeTab, router]);
 
   return (
     <div className="space-y-8 pb-10">

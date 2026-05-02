@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+// 1. Added useEffect for the auth check
+import React, { useState, useEffect } from 'react';
+// 2. Added useRouter for navigation
+import { useRouter } from 'next/navigation';
 import { 
   ChefHat, 
   Trash2, 
@@ -8,10 +11,39 @@ import {
   ArrowLeft,
   Search,
   Package
+  
 } from 'lucide-react';
 
 export default function BakerDashboard() {
+  const router = useRouter(); // Initialize router
   const [currentView, setCurrentView] = useState('Dashboard');
+
+  // --- NEW: AUTHENTICATION CHECK ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login'); // Kick them out if not logged in
+    }
+  }, [router]);
+
+  // --- NEW: LOGOUT FUNCTION ---
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      if (token) {
+        await fetch(`${baseUrl}/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+        });
+      }
+    } catch (error) {
+      console.error("Logout error", error);
+    } finally {
+      localStorage.clear();
+      router.push('/login');
+    }
+  };
 
   // --- 1. THE THREE MAIN CATEGORIES ---
   const stats = [
@@ -52,9 +84,13 @@ export default function BakerDashboard() {
       {/* --- DASHBOARD VIEW --- */}
       {currentView === 'Dashboard' ? (
         <>
-          <div className="mb-8">
-            <h1 className="text-4xl font-black text-black tracking-tighter uppercase">Baker Assistant</h1>
-            <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Production Management</p>
+          {/* UPDATED HEADER: Now includes the Log Out button */}
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-black text-black tracking-tighter uppercase">Baker Assistant</h1>
+              <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Production Management</p>
+            </div>
+           
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

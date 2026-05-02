@@ -13,7 +13,7 @@ interface Product {
 
 // --- OFFICIAL PRODUCT LIST (COMPLETE LIST) ---
 const FINANCE_PRODUCTS: Product[] = [
-{ name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
     { name: 'sen', price: 1000, category: 'BREAD', type: 'baked' },
@@ -84,6 +84,14 @@ export default function StoreKeeperDashboard() {
   const router = useRouter(); 
   const params = useParams();
   
+  // --- 1. NEW: AUTHENTICATION CHECK (We keep this so the page is protected!) ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+    }
+  }, [router]);
+
   const rawBranchId = params?.branchId;
   const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
 
@@ -91,7 +99,8 @@ export default function StoreKeeperDashboard() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'sales_log' | 'cake_orders' | 'cake_requests'>('requests');  const [deliveryNote, setDeliveryNote] = useState<any>(null);
+  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'sales_log' | 'cake_orders' | 'cake_requests'>('requests');  
+  const [deliveryNote, setDeliveryNote] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editQty, setEditQty] = useState('');
 
@@ -167,8 +176,8 @@ export default function StoreKeeperDashboard() {
     { id: 'requests', label: 'Requests', value: shopRequests.length.toString(), icon: Bell },
     { id: 'baked_log', label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat },
     { id: 'my_stock', label: 'Stock', value: myStock.length.toString(), icon: ShoppingBag },
-    { id: 'cake_orders', label: 'Cake Orders', value: cakeOrders.length.toString(), icon: ClipboardList }, // Added
-    { id: 'cake_requests', label: 'Cake Requests', value: cakeRequests.length.toString(), icon: Package }, // Added
+    { id: 'cake_orders', label: 'Cake Orders', value: cakeOrders.length.toString(), icon: ClipboardList }, 
+    { id: 'cake_requests', label: 'Cake Requests', value: cakeRequests.length.toString(), icon: Package }, 
     { id: 'delivered', label: 'Full Added Products', value: deliveryHistory.length.toString(), icon: CheckCheck },
     { id: 'damaged', label: 'Damaged', value: damagedProducts.length.toString(), icon: ShieldAlert },
     { id: 'notes', label: 'Delivery Notes', value: issuedNotes.length.toString(), icon: FileText },
@@ -316,10 +325,10 @@ export default function StoreKeeperDashboard() {
 
       {/* --- HEADER --- */}
       <div className="flex items-center gap-4 pt-6 no-print text-black">
-  <div>
-    <h1 className="text-2xl font-black text-black uppercase tracking-tight">STORE KEEPER</h1>
-  </div>
-</div>
+        <div>
+          <h1 className="text-2xl font-black text-black uppercase tracking-tight">STORE KEEPER</h1>
+        </div>
+      </div>
 
       {/* --- STATS GRID --- */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 no-print text-black">
@@ -464,7 +473,7 @@ export default function StoreKeeperDashboard() {
               <tbody className="divide-y divide-gray-200">
                 {issuedNotes.map((note) => (
                   <tr key={note.id} onClick={() => setDeliveryNote(note)} className="hover:bg-gray-50/50 cursor-pointer transition-all group">
-                    <td className="px-8 py-6"><div className="flex flex-col gap-1">{note.items.map((it, i) => (<span key={i} className="text-[12px] font-black text-[#F57C00] uppercase">{it.quantity} {it.name} → {it.destination}</span>))}</div></td>
+                    <td className="px-8 py-6"><div className="flex flex-col gap-1">{note.items.map((it: any, i: number) => (<span key={i} className="text-[12px] font-black text-[#F57C00] uppercase">{it.quantity} {it.name} → {it.destination}</span>))}</div></td>
                     <td className="px-8 py-6 text-right text-xs font-black text-gray-400 group-hover:text-[#F57C00]">{note.time}</td>
                   </tr>
                 ))}

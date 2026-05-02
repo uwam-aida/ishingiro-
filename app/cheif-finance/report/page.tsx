@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Scale, 
   Package, 
@@ -15,19 +16,57 @@ import {
 } from 'lucide-react';
 
 export default function MeasuredProductsReport() {
+  const router = useRouter();
 
   const [selectedBranch, setSelectedBranch] = useState<'All' | 'Kabuga' | 'Masaka'>('All');
+  const [isLoading, setIsLoading] = useState(false);
   const reportDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const isoDate = new Date().toISOString().split('T')[0];
 
-  const productData = [
+  // --- STATE WITH MOCK DATA FALLBACK ---
+  const [productData, setProductData] = useState([
     { id: 1, branch: 'Kabuga', name: 'White Bread', unit: 'Piece', price: 1000, sold: 500, damaged: 10 },
     { id: 2, branch: 'Kabuga', name: 'Brown Bread', unit: 'Piece', price: 1200, sold: 300, damaged: 5 },
     { id: 3, branch: 'Kabuga', name: 'Tea Scones', unit: 'Kg', price: 3000, sold: 50, damaged: 2 },
     { id: 4, branch: 'Masaka', name: 'White Bread', unit: 'Piece', price: 1000, sold: 450, damaged: 8 },
     { id: 5, branch: 'Masaka', name: 'Cakes', unit: 'Piece', price: 5000, sold: 20, damaged: 1 },
     { id: 6, branch: 'Masaka', name: 'Donuts', unit: 'Piece', price: 500, sold: 400, damaged: 15 },
-  ];
+  ]);
+
+  // --- BACKEND API INTEGRATION ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const fetchReportData = async () => {
+      setIsLoading(true);
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      try {
+        // NOTE: Waiting for the backend developer to create the aggregated endpoint!
+        // Once she creates it, uncomment this code:
+        /*
+        const response = await fetch(`${baseUrl}/finance/measured-products`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setProductData(data);
+        }
+        */
+      } catch (error) {
+        console.error("Failed to fetch report data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReportData();
+  }, [router]);
+
 
   const filteredData = selectedBranch === 'All' 
     ? productData 

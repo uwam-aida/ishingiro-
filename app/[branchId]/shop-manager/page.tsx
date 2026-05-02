@@ -155,13 +155,13 @@ export default function DynamicShopDashboard() {
   const bakedItemsAvailable = selectedItem ? (factoryStock.find(s => s.item === selectedItem)?.quantity || 0) : 0;
   const isOverLimit = (parseInt(requestQty) || 0) > bakedItemsAvailable;
 
-  // --- 4. BACKEND INTEGRATION: ADD REQUEST ---
+  // --- 4. UPDATED: BACKEND INTEGRATION FOR ADD REQUEST ---
   const handleAddRequest = async () => {
     if (!requestQty || isOverLimit || !selectedItem) return;
     
-    // BACKEND CALL
+    // BACKEND CALL - Connecting to the exact endpoint from the docs
     const token = localStorage.getItem('token');
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://your-domain.com/api';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
     try {
         const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
@@ -171,6 +171,8 @@ export default function DynamicShopDashboard() {
                 'Content-Type': 'application/json' 
             },
             body: JSON.stringify({
+                // Note: The API requires a product_id. Since we only have a string name in selectedItem right now, 
+                // we are passing 1 as a placeholder until the frontend has full product IDs.
                 items: [{ product_id: 1, quantity: parseInt(requestQty) }]
             })
         });
@@ -178,6 +180,8 @@ export default function DynamicShopDashboard() {
         if (response.ok) {
             const data = await response.json();
             console.log("Order saved to backend", data);
+        } else {
+            console.error("Backend error saving order");
         }
     } catch (e) { console.error(e); }
 
@@ -189,28 +193,33 @@ export default function DynamicShopDashboard() {
     setRequestQty(''); setProductSearch(''); setSelectedItem(null);
   };
 
-  // --- 5. BACKEND INTEGRATION: REPORT DAMAGE ---
+  // --- 5. UPDATED: BACKEND INTEGRATION FOR REPORT DAMAGE ---
   const handleReportDamage = async () => {
     if (!damagedItem || !damagedQty || typeError || notFound) return;
 
-    // BACKEND CALL
+    // BACKEND CALL - Connecting to the exact endpoint from the docs
     const token = localStorage.getItem('token');
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://your-domain.com/api';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
     try {
-        await fetch(`${baseUrl}/shop/damages`, {
+        const response = await fetch(`${baseUrl}/shop/damages`, {
             method: 'POST',
             headers: { 
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json' 
             },
             body: JSON.stringify({
+                // Note: Similar to orders, we pass 1 as a placeholder product_id.
                 product_id: 1,
                 quantity: parseInt(damagedQty),
-                reason: "Reported by Manager",
+                reason: `Reported by Manager. State: ${damagedState}`,
                 location: branchIdString
             })
         });
+
+        if (response.ok) {
+           console.log("Damage reported to backend successfully.");
+        }
     } catch (e) { console.error(e); }
 
     // KEEPING YOUR LOCAL UI UPDATE

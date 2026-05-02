@@ -37,8 +37,29 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
 
-  const handleLogout = () => {
-    router.push('/login');
+  // --- UPDATED: SECURE BACKEND LOGOUT LOGIC ---
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      // 1. Tell the backend server to officially destroy the token
+      if (token) {
+        await fetch(`${baseUrl}/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Error connecting to server for logout:", error);
+    } finally {
+      // 2. Clear our local storage and redirect, even if the server is slow
+      localStorage.clear();
+      router.push('/login');
+    }
   };
 
   useEffect(() => {
