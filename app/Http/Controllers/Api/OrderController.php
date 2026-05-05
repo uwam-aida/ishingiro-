@@ -47,5 +47,13 @@ class OrderController extends Controller
 
         return $order->load('items');
     }
+
+    public function indexByLocation($location)
+    {
+        return Order::with('items.product')
+            ->where('location', $location)
+            ->latest()
+            ->get();
+    }
         
 }

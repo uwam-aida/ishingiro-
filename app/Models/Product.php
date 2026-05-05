@@ -12,7 +12,9 @@ class Product extends Model
     protected $fillable = [
         'name',
         'price',
+        'cost',
         'category',
+        'type',      // NEW (baked / unbaked)
         'stock'
     ];
     public function stocks()
@@ -27,5 +29,9 @@ class Product extends Model
     public function productions()
     {
         return $this->hasMany(Production::class);
+    }
+     public function targets()
+    {
+        return $this->hasMany(SalesTarget::class);
     }
 }

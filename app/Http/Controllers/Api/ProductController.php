@@ -16,14 +16,35 @@ class ProductController extends Controller
         return Product::all();
     }
 
+    public function show(Product $product)
+    {
+        return $product;
+    }
+
     public function store(Request $request)
     {
-        return Product::create($request->all());
+        $validated = $request->validate([
+            'name' => 'required|string',
+            'price' => 'required|numeric',
+            'cost' => 'nullable|numeric',
+            'category' => 'nullable|string',
+            'type' => 'required|in:baked,unbaked'
+        ]);
+
+        return Product::create($validated);
     }
 
     public function update(Request $request, Product $product)
     {
-        $product->update($request->all());
+        $validated = $request->validate([
+            'name' => 'sometimes|string',
+            'price' => 'sometimes|numeric',
+            'cost' => 'nullable|numeric',
+            'category' => 'nullable|string',
+            'type' => 'sometimes|in:baked,unbaked'
+        ]);
+
+        $product->update($validated);
         return $product;
     }
 
@@ -31,5 +52,5 @@ class ProductController extends Controller
     {
         $product->delete();
         return response()->noContent();
-    }
+    } 
 }

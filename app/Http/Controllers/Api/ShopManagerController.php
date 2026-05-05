@@ -50,4 +50,17 @@ class ShopManagerController extends Controller
     {
         return Damage::create($request->all());
     }
+
+    public function cakeOrdersByLocation($location)
+    {
+        return CakeOrder::where('location', $location)->latest()->get();
+    }
+
+    public function damagesByLocation($location)
+    {
+        return Damage::with('product')
+            ->where('location', $location)
+            ->latest()
+            ->get();
+    }
 }

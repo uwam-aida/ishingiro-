@@ -72,4 +72,19 @@ class StockController extends Controller
 
         return response()->json(['status' => 'success']);
     }
+
+    public function byLocation($location)
+    {
+        return Stock::with('product')
+            ->where('location', $location)
+            ->get();
+    }
+    public function factoryStock()
+    {
+        return Stock::with('product')
+            ->whereHas('product', function ($q) {
+                $q->where('type', 'baked');
+            })
+            ->get();
+    }
 }

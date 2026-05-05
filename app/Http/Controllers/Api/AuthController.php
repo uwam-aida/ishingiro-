@@ -73,4 +73,46 @@ class AuthController extends Controller
     {
         return strtolower(str_replace([' ', '_'], '', $name));
     }
+
+    // App\Http\Controllers\Api\AuthController.php
+
+    public function impersonate($userId)
+    {
+        $admin = auth()->user();
+
+        // Ensure only marketing manager can do this
+        if (!$admin || $admin->role->name !== 'marketing_manager') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $targetUser = User::findOrFail($userId);
+
+        // Optional: prevent impersonating another marketing manager
+        // if ($targetUser->role->name === 'marketing_manager') {
+        //     return response()->json(['error' => 'Cannot impersonate this role'], 403);
+        // }
+
+        // Revoke previous tokens (optional but safer)
+        $token = $targetUser->createToken('impersonation-token')->plainTextToken;
+
+        // Create new token as the target user
+        $token = $targetUser->createToken('impersonation-token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => $targetUser,
+            'impersonated_by' => $admin->id
+        ]);
+    }
+
+    public function getAllUsers()
+    {
+        $admin = auth()->user();
+
+        if (!$admin || $admin->role->name !== 'marketing_manager') {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        return User::with('role')->select('id', 'name', 'role_id')->get();
+    }
 }
