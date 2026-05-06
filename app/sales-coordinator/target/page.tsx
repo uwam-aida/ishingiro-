@@ -24,7 +24,7 @@ export default function WeeklyTargetsPage() {
   const [isMounted, setIsMounted] = useState(false);
 
   // --- STATE FOR WEEKLY TARGETS ---
-  const [weeklyTargets, setWeeklyTargets] = useState([
+  const [weeklyTargets, setWeeklyTargets] = useState<any[]>([
     { id: 1, item: 'big milk', targetQty: 5000, currentQty: 3200, unit: 'Pieces' },
     { id: 2, item: 'yellow c flour 1kg', targetQty: 200, currentQty: 200, unit: 'Kg' },
     { id: 3, item: 'tea cake', targetQty: 1000, currentQty: 150, unit: 'Pieces' }
@@ -38,26 +38,55 @@ export default function WeeklyTargetsPage() {
     setIsMounted(true);
   }, []);
 
-  if (!isMounted) return null;
-
-  const handleSaveTarget = (e: React.FormEvent) => {
+  // --- RESTORED: EXACT API CALL YOU PROVIDED ---
+  const handleSaveTarget = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetItem || !targetQty) return;
 
-    setWeeklyTargets([
-      { 
-        id: Date.now(), 
-        item: targetItem, 
-        targetQty: Number(targetQty), 
-        currentQty: 0, 
-        unit: targetUnit 
-      },
-      ...weeklyTargets
-    ]);
-    
-    setTargetItem('');
-    setTargetQty('');
-    setTargetUnit('Pieces'); 
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      // We send the placeholder data she expects, plus our real UI data for when she upgrades it
+      const payload = {
+        target_type: "weekly", // Matches your form's intent, using the placeholder structure
+        target_amount: Number(targetQty),
+        product_name: targetItem,
+        unit: targetUnit
+      };
+
+      const response = await fetch(`${baseUrl}/sales`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        // Only update UI if the backend request was successful
+        setWeeklyTargets([
+          { 
+            id: Date.now(), 
+            item: targetItem, 
+            targetQty: Number(targetQty), 
+            currentQty: 0, 
+            unit: targetUnit 
+          },
+          ...weeklyTargets
+        ]);
+        
+        setTargetItem('');
+        setTargetQty('');
+        setTargetUnit('Pieces'); 
+      } else {
+        alert("Failed to save target. Please check your permissions.");
+      }
+    } catch (error) {
+      console.error("Failed to set target:", error);
+      alert("Network error. Please try again.");
+    }
   };
 
   const calculateProgress = (current: number, target: number) => {
@@ -66,11 +95,13 @@ export default function WeeklyTargetsPage() {
     return percentage;
   };
 
+  if (!isMounted) return null;
+
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans">
       <div className="max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-8">
         
-        {/* --- HEADER (No longer sticky!) --- */}
+        {/* --- HEADER --- */}
         <div className="flex items-center gap-4 pb-2">
           <button 
             onClick={() => router.back()}

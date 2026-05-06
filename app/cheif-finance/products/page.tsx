@@ -18,14 +18,14 @@ export default function FinanceProductsPage() {
   const [activeTab, setActiveTab] = useState<'measured' | 'baked'>('measured');
   const [isLoading, setIsLoading] = useState(false);
 
-  // --- MOCK DATA (Now in State for API Updates) ---
-  const [measuredProducts, setMeasuredProducts] = useState([
+  // --- MOCK DATA (Fallback if API fails) ---
+  const [measuredProducts, setMeasuredProducts] = useState<any[]>([
     { id: 1, name: 'Wheat Flour', stock: '450 kg', status: 'Healthy', branch: 'Kabuga', value: '450,000 Frw' },
     { id: 2, name: 'Sugar', stock: '12 kg', status: 'Low Stock', branch: 'Masaka', value: '18,000 Frw' },
     { id: 3, name: 'Baking Powder', stock: '5 kg', status: 'Healthy', branch: 'Kabuga', value: '25,000 Frw' },
   ]);
 
-  const [bakedProducts, setBakedProducts] = useState([
+  const [bakedProducts, setBakedProducts] = useState<any[]>([
     { id: 1, name: 'White Bread', daily: '500 pcs', sold: '480', loss: '2', branch: 'Kabuga' },
     { id: 2, name: 'Milk Bread', daily: '200 pcs', sold: '195', loss: '5', branch: 'Masaka' },
     { id: 3, name: 'Tea Scones', daily: '300 pcs', sold: '290', loss: '0', branch: 'Kabuga' },
@@ -44,21 +44,28 @@ export default function FinanceProductsPage() {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       
       try {
-        // NOTE: Waiting for the backend developer to create these endpoints!
-        // Once she creates them, uncomment this code:
-        /*
         if (activeTab === 'measured') {
           const res = await fetch(`${baseUrl}/finance/inventory/measured`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
-          if (res.ok) setMeasuredProducts(await res.json());
+          if (res.ok) {
+            const data = await res.json();
+            // Map data to ensure the 'value' formats correctly to 'Frw' if backend sends an integer
+            const formattedData = data.map((item: any) => ({
+              ...item,
+              value: typeof item.value === 'number' ? `${item.value.toLocaleString()} Frw` : item.value
+            }));
+            setMeasuredProducts(formattedData);
+          }
         } else {
           const res = await fetch(`${baseUrl}/finance/inventory/baked`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
-          if (res.ok) setBakedProducts(await res.json());
+          if (res.ok) {
+             const data = await res.json();
+             setBakedProducts(data);
+          }
         }
-        */
       } catch (error) {
         console.error("Failed to fetch product inventory data:", error);
       } finally {
@@ -72,7 +79,7 @@ export default function FinanceProductsPage() {
   return (
     <div className="space-y-8 pb-10">
       
-      {/* <-- BACK BUTTON & TITLE (With requested spacing) --> */}
+      {/* <-- BACK BUTTON & TITLE --> */}
       <div className="flex items-center gap-4 md:gap-6 px-4 md:px-0 pt-6">
         <button 
           onClick={() => router.back()}
@@ -156,7 +163,7 @@ export default function FinanceProductsPage() {
                 measuredProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-8 py-5 font-bold text-[#5D4037] uppercase text-sm">{p.name}</td>
-                    <td className="px-8 py-5 text-center font-black text-gray-800">{p.stock}</td>
+                    <td className="px-8 py-5 text-center font-black text-gray-800">{isLoading ? '...' : p.stock}</td>
                     <td className="px-8 py-5 text-center">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${
                         p.status === 'Healthy' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'
@@ -172,9 +179,9 @@ export default function FinanceProductsPage() {
                 bakedProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-8 py-5 font-bold text-[#5D4037] uppercase text-sm">{p.name}</td>
-                    <td className="px-8 py-5 text-center font-bold text-gray-500">{p.daily}</td>
-                    <td className="px-8 py-5 text-center font-black text-green-600">{p.sold}</td>
-                    <td className="px-8 py-5 text-center font-black text-red-500">{p.loss}</td>
+                    <td className="px-8 py-5 text-center font-bold text-gray-500">{isLoading ? '...' : p.daily}</td>
+                    <td className="px-8 py-5 text-center font-black text-green-600">{isLoading ? '...' : p.sold}</td>
+                    <td className="px-8 py-5 text-center font-black text-red-500">{isLoading ? '...' : p.loss}</td>
                     <td className="px-8 py-5 text-right font-bold text-gray-400 text-xs uppercase">{p.branch}</td>
                   </tr>
                 ))

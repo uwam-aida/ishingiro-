@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Cake, Check, X, ArrowLeft } from 'lucide-react'; // <-- ADDED ArrowLeft
+import { Cake, Check, X, ArrowLeft } from 'lucide-react';
 
 // Import the step components from your components folder
 import Step1Purpose from '../../components/cake-form/step1Purpose';
@@ -56,13 +56,50 @@ export default function CakeOrderForm() {
     setStep(step + 1);
   };
 
-  const handleSubmit = () => {
+  // --- UPDATED: API Integration Added Here ---
+  const handleSubmit = async () => {
     if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
         setShowError(true); return;
     }
-    const randomNum = Math.floor(Math.random() * 100);
-    setGeneratedCode(`KS-${randomNum}`);
-    setStep(6); 
+
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      // Map your frontend state to the exact payload the backend expects
+      const payload = {
+        customer_name: formData.customerFullName || "Guest",
+        phone: formData.customerPhoneNumber || "N/A",
+        cake_type: `${formData.purpose} (${formData.flavor})`,
+        quantity: 1, // Defaulting to 1 as form state doesn't track quantity
+        price: Number(formData.totalAmount),
+        location: formData.orderLocation || "kabuga", // fallback to kabuga if empty
+        delivery_date: formData.pickupDate || new Date().toISOString().split('T')[0]
+      };
+
+      const response = await fetch(`${baseUrl}/sales/cake-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.ok) {
+        // Success! Generate UI code and show completion screen
+        const randomNum = Math.floor(Math.random() * 100);
+        setGeneratedCode(`KS-${randomNum}`);
+        setStep(6); 
+      } else {
+        // Handle backend rejection
+        alert("Failed to submit order. Please check your permissions and try again.");
+        setShowError(true);
+      }
+    } catch (error) {
+      console.error("Failed to submit cake order:", error);
+      alert("Network error. Please check your connection.");
+    }
   };
 
   const handlePrev = () => {
@@ -178,7 +215,10 @@ export default function CakeOrderForm() {
             <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center mb-6 shadow-lg"><Check size={40} className="text-white" strokeWidth={4} /></div>
             <h2 className="text-3xl font-black text-[#5D4037] mb-4">Order Submitted!</h2>
             <p className="text-[#A67C37] font-black text-xl mb-8 tracking-widest uppercase">Code: {generatedCode}</p>
-            <button onClick={() => setStep(0)} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
+            <button onClick={() => {
+              // Optional: reset form data here when starting a new order
+              setStep(0);
+            }} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
         </div>
       )}
     </div>

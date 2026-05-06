@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ChefHat, 
   AlertTriangle, 
@@ -14,29 +14,103 @@ import {
   Search,
   ClipboardList,
   History,
-  Cake // <-- ADDED THIS ICON
+  Cake
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function SalesCoordinatorDashboard() {
-  
+  const router = useRouter();
   const [currentView, setCurrentView] = useState('Dashboard');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // --- 1. DATA CONFIGURATION (Updated with your requested categories) ---
+  // --- STATE FOR BACKEND API DATA ---
+  const [apiData, setApiData] = useState({
+    shop_requests: 24,
+    cake_orders: 0,
+    baked_products: 1250,
+    delivered_products: 1100,
+    stock: 850,
+    damaged_products: 12
+  });
+
+  // --- STATE FOR DETAILED CAKE ORDERS ---
+  const [cakeOrdersList, setCakeOrdersList] = useState<any[]>([]);
+
+  // --- FETCH DATA ON LOAD ---
+  useEffect(() => {
+    const fetchSalesData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        
+        // 1. Fetch Dashboard Summary
+        const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (summaryResponse.ok) {
+          const summary = await summaryResponse.json();
+          setApiData({
+            shop_requests: summary.shop_requests || 0,
+            cake_orders: summary.cake_orders || 0,
+            baked_products: summary.baked_products || 0,
+            delivered_products: summary.delivered_products || 0,
+            stock: summary.shop_stock || 0, // Note: DB field is shop_stock
+            damaged_products: summary.damaged_products || 0
+          });
+        }
+
+        // 2. Fetch Detailed Cake Orders List
+        const cakesResponse = await fetch(`${baseUrl}/sales/cake-orders`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (cakesResponse.ok) {
+          const cakesData = await cakesResponse.json();
+          // Map to your UI structure
+          const formattedCakes = cakesData.map((c: any) => ({
+             id: c.id, 
+             item: c.cake_type, 
+             qty: `Code: CK-${c.id}`, 
+             stock: `Customer: ${c.customer_name}`, 
+             time: c.delivery_date, 
+             status: c.status 
+          }));
+          setCakeOrdersList(formattedCakes);
+        }
+
+      } catch (error) {
+        console.error("Failed to fetch sales data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSalesData();
+  }, [router]);
+
+
+  // --- 1. DATA CONFIGURATION (Updated to use live apiData state) ---
   const stats = [
     { 
       label: 'Requests', 
       fullLabel: 'Shop Requests',
-      value: '24', 
+      value: apiData.shop_requests.toString(), 
       sub: 'Pending branch orders', 
       icon: ClipboardList, 
       color: 'text-orange-600', 
       bg: 'bg-orange-50',
     },
-    // <-- ADDED CAKE ORDERS CARD HERE NEXT TO REQUESTS -->
     { 
       label: 'Cake Orders', 
       fullLabel: 'Customers Cake Orders',
-      value: '5', 
+      value: apiData.cake_orders.toString(), 
       sub: 'Pending cake orders', 
       icon: Cake, 
       color: 'text-orange-600', 
@@ -45,7 +119,7 @@ export default function SalesCoordinatorDashboard() {
     { 
       label: 'Baked', 
       fullLabel: 'Baked Products',
-      value: '1,250', 
+      value: apiData.baked_products.toString(), 
       sub: 'Ready from production', 
       icon: ChefHat, 
       color: 'text-amber-600', 
@@ -54,7 +128,7 @@ export default function SalesCoordinatorDashboard() {
     { 
       label: 'Delivered', 
       fullLabel: 'Delivered Products',
-      value: '1,100', 
+      value: apiData.delivered_products.toString(), 
       sub: 'Sent to branches', 
       icon: Truck, 
       color: 'text-blue-600', 
@@ -63,7 +137,7 @@ export default function SalesCoordinatorDashboard() {
     { 
       label: 'Stock', 
       fullLabel: 'Shop Stock',
-      value: '850', 
+      value: apiData.stock.toString(), 
       sub: 'Available in branches', 
       icon: Store, 
       color: 'text-green-600', 
@@ -72,7 +146,7 @@ export default function SalesCoordinatorDashboard() {
     { 
       label: 'Damaged', 
       fullLabel: 'Damaged Products',
-      value: '12', 
+      value: apiData.damaged_products.toString(), 
       sub: 'Recorded losses', 
       icon: AlertTriangle, 
       color: 'text-red-600', 
@@ -81,7 +155,7 @@ export default function SalesCoordinatorDashboard() {
     { 
       label: 'History', 
       fullLabel: 'Full Added Products',
-      value: '3,420', 
+      value: '3,420', // No summary stat provided in API for this
       sub: 'Total lifetime logs', 
       icon: History, 
       color: 'text-purple-600', 
@@ -89,7 +163,7 @@ export default function SalesCoordinatorDashboard() {
     },
   ];
 
-  // --- 2. TABLE DATA GENERATOR (Updated with your requested tracking) ---
+  // --- 2. TABLE DATA GENERATOR ---
   const getDataForView = (view: string) => {
     switch (view) {
       case 'Requests':
@@ -97,9 +171,9 @@ export default function SalesCoordinatorDashboard() {
           { id: 1, item: 'Milk Bread', qty: '50 pcs', stock: 'Kabuga Request', time: '09:00 AM', status: 'Pending' },
           { id: 2, item: 'Tea Cake', qty: '10 pcs', stock: 'Masaka Request', time: '09:15 AM', status: 'Approved' },
         ];
-      // <-- ADDED CAKE ORDERS DATA LIST HERE -->
       case 'Cake Orders':
-        return [
+        // RETURN LIVE API DATA HERE
+        return cakeOrdersList.length > 0 ? cakeOrdersList : [
           { id: 1, item: 'Chocolate Cake', qty: 'Code: KS-01', stock: 'Customer: Jean Paul', time: '10:00 AM', status: 'Pending' },
           { id: 2, item: 'Vanilla Wedding Cake', qty: 'Code: KS-02', stock: 'Customer: Alice', time: '11:30 AM', status: 'Approved' }
         ];
@@ -161,7 +235,9 @@ export default function SalesCoordinatorDashboard() {
                 
                 <div className="relative z-10">
                   <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider">{stat.fullLabel}</h3>
-                  <p className="text-3xl font-black text-gray-900 mt-1">{stat.value}</p>
+                  <p className="text-3xl font-black text-gray-900 mt-1">
+                    {isLoading ? '...' : stat.value}
+                  </p>
                   <p className="text-xs font-medium mt-1 text-gray-400 group-hover:text-gray-600 transition-colors">
                     {stat.sub}
                   </p>

@@ -6,10 +6,12 @@ import { Save, Plus, Trash2, Search, ChevronDown, ChevronUp, Edit2, X, Check, Ar
 
 // --- MOVE INTERFACE AND DATA TO THE TOP (OUTSIDE THE FUNCTION) ---
 interface Product {
+  id?: number; 
   name: string;
   price: number;
   category: string;
   type: string;
+  cost?: number; 
 }
 
 export const defaultProducts: Product[] = [ 
@@ -87,34 +89,49 @@ export default function FinancePricingPage() {
   const unbakedItems = ['ikinyuranyo', 'flour', 'cashnewnuts', 'cornfresh'];
 
   // --- STATE ---
-  const [products, setProducts] = useState(defaultProducts);
-  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'BREAD', type: 'baked' });
+  const [products, setProducts] = useState<Product[]>(defaultProducts);
+  // ✅ ADDED `cost` to newItem state
+  const [newItem, setNewItem] = useState({ name: '', price: '', cost: '', category: 'BREAD', type: 'baked' });
   const [search, setSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({
     'BREAD': true, 'CAKES': true, 'AMANDAZI': true, 'OTHERS': true, 'BIG CAKES': true
   });
 
   const [editingName, setEditingName] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', price: '', type: 'baked' });
+  // ✅ ADDED `cost` to editForm state
+  const [editForm, setEditForm] = useState({ name: '', price: '', cost: '', type: 'baked' });
 
-  // Load Data
+  // --- 1. LOAD DATA FROM API ---
   useEffect(() => {
-    const saved = localStorage.getItem('sellingPrices_FINAL_FIX'); 
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.length > 0) setProducts(parsed);
-        else setProducts(defaultProducts);
-      } catch (e) { setProducts(defaultProducts); }
-    } else {
-      localStorage.setItem('sellingPrices_FINAL_FIX', JSON.stringify(defaultProducts));
+    const token = localStorage.getItem('token');
+    if (!token) {
+        router.push('/login');
+        return;
     }
-  }, []);
 
-  const saveToSystem = (updatedProducts: any[]) => {
-    setProducts(updatedProducts);
-    localStorage.setItem('sellingPrices_FINAL_FIX', JSON.stringify(updatedProducts));
-  };
+    const fetchProducts = async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        const response = await fetch(`${baseUrl}/products`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Map backend categories to match UI uppercase categories
+          const formattedData = data.map((p: any) => ({
+             ...p,
+             category: p.category ? p.category.toUpperCase() : 'OTHERS'
+          }));
+          setProducts(formattedData.length > 0 ? formattedData : defaultProducts);
+        }
+      } catch (error) {
+        console.error("Failed to load products", error);
+      }
+    };
+
+    fetchProducts();
+  }, [router]);
 
   const scrollToCategory = (cat: string) => {
     setExpandedCategories(prev => ({ ...prev, [cat]: true }));
@@ -138,66 +155,130 @@ export default function FinancePricingPage() {
     return true;
   };
 
-  // CRUD
-  const handleAdd = (e: React.FormEvent) => {
+  // --- 2. CREATE (POST) API ---
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItem.name || !newItem.price) return;
-
     if (!validateProductType(newItem.name, newItem.type)) return;
-
     if (products.some(p => p.name.toLowerCase() === newItem.name.toLowerCase())) {
       alert('Product name already exists!'); return;
     }
 
-    const updated = [{ 
-      name: newItem.name, price: Number(newItem.price), category: newItem.category, type: newItem.type
-    }, ...products];
-    saveToSystem(updated);
-    setNewItem({ name: '', price: '', category: 'BREAD', type: 'baked' });
-    scrollToCategory(newItem.category);
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    
+    // ✅ Include the cost from the form
+    const payload = {
+        name: newItem.name,
+        price: Number(newItem.price),
+        cost: Number(newItem.cost) || 0, // Fallback to 0 if left blank
+        category: newItem.category.toLowerCase(), 
+        type: newItem.type
+    };
+
+    try {
+        const response = await fetch(`${baseUrl}/finance/products`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            const addedProduct = await response.json();
+            addedProduct.category = addedProduct.category ? addedProduct.category.toUpperCase() : newItem.category;
+            setProducts([addedProduct, ...products]);
+            
+            // ✅ Reset form, including cost
+            setNewItem({ name: '', price: '', cost: '', category: 'BREAD', type: 'baked' });
+            scrollToCategory(newItem.category);
+        } else {
+            alert("Failed to add product to database.");
+        }
+    } catch (e) {
+        console.error(e);
+    }
   };
 
   const startEdit = (item: any) => {
     setEditingName(item.name);
-    setEditForm({ name: item.name, price: item.price.toString(), type: item.type || 'baked' });
+    // ✅ Load existing cost into edit form
+    setEditForm({ name: item.name, price: item.price.toString(), cost: (item.cost || 0).toString(), type: item.type || 'baked' });
   };
 
-  const saveEdit = () => {
+  // --- 3. UPDATE (PUT) API ---
+  const saveEdit = async () => {
     if (!editForm.name || !editForm.price) return;
     if (!validateProductType(editForm.name, editForm.type)) return;
 
-    const updated = products.map(p => {
-      if (p.name === editingName) {
-        return { ...p, name: editForm.name, price: Number(editForm.price), type: editForm.type };
-      }
-      return p;
-    });
-    saveToSystem(updated);
-    setEditingName(null);
+    const itemToEdit = products.find(p => p.name === editingName);
+    if (!itemToEdit) return;
+
+    if (!itemToEdit.id) {
+        const updated = products.map(p => p.name === editingName ? { ...p, name: editForm.name, price: Number(editForm.price), cost: Number(editForm.cost), type: editForm.type } : p);
+        setProducts(updated);
+        setEditingName(null);
+        return;
+    }
+
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+    try {
+        const response = await fetch(`${baseUrl}/finance/products/${itemToEdit.id}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            // ✅ Send the updated cost
+            body: JSON.stringify({ price: Number(editForm.price), cost: Number(editForm.cost), name: editForm.name, type: editForm.type })
+        });
+
+        if (response.ok) {
+            const updated = products.map(p => p.id === itemToEdit.id ? { ...p, name: editForm.name, price: Number(editForm.price), cost: Number(editForm.cost), type: editForm.type } : p);
+            setProducts(updated);
+            setEditingName(null);
+        } else {
+            alert("Failed to update product in database.");
+        }
+    } catch (e) {
+        console.error(e);
+    }
   };
 
-  const deleteItem = (name: string) => {
+  // --- 4. DELETE API ---
+  const deleteItem = async (name: string) => {
     if(confirm('Delete this item?')) {
+      const itemToDelete = products.find(p => p.name === name);
+      
+      if (itemToDelete && itemToDelete.id) {
+          const token = localStorage.getItem('token');
+          const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+          try {
+              await fetch(`${baseUrl}/finance/products/${itemToDelete.id}`, {
+                  method: 'DELETE',
+                  headers: { 'Authorization': `Bearer ${token}` }
+              });
+          } catch (e) { console.error(e); }
+      }
+      
       const updated = products.filter(p => p.name !== name);
-      saveToSystem(updated);
+      setProducts(updated);
     }
   };
 
   return (
     <div className="space-y-8 pb-10">
       {/* <-- BACK BUTTON & TITLE --> */}
-<div className="flex items-center gap-4 md:gap-6 px-4 md:px-0 pt-6">
-  <button 
-    onClick={() => router.back()}
-    className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
-  >
-    <ArrowLeft size={22} strokeWidth={2} />
-  </button>
-  
-  <h1 className="text-xl md:text-2xl font-black text-[#5D4037] uppercase tracking-tight">
-    Pricing Strategy
-  </h1>
-</div>
+      <div className="flex items-center gap-4 md:gap-6 px-4 md:px-0 pt-6">
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+        
+        <h1 className="text-xl md:text-2xl font-black text-[#5D4037] uppercase tracking-tight">
+          Pricing Strategy
+        </h1>
+      </div>
 
       {/* QUICK NAV */}
       <div className="flex flex-wrap gap-2 sticky top-16 md:top-0 z-30 bg-[#FDFDFD] py-4 border-b border-gray-100">
@@ -210,7 +291,8 @@ export default function FinancePricingPage() {
       {/* ADD FORM */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <h3 className="text-sm font-bold text-[#5D4037] uppercase mb-4 flex items-center gap-2"><Plus size={16} /> Add Product</h3>
-        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        {/* ✅ Changed to md:grid-cols-6 to fit the new field */}
+        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
           <div>
               <label className="text-xs font-bold text-gray-400">Category</label>
               <select value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm">
@@ -229,8 +311,13 @@ export default function FinancePricingPage() {
               </select>
           </div>
           <div>
-              <label className="text-xs font-bold text-gray-400">Price</label>
+              <label className="text-xs font-bold text-gray-400">Price (Sell)</label>
               <input type="number" value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm" />
+          </div>
+          {/* ✅ Added Cost Input */}
+          <div>
+              <label className="text-xs font-bold text-gray-400">Cost (Make)</label>
+              <input type="number" value={newItem.cost} onChange={e => setNewItem({...newItem, cost: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm" />
           </div>
           <button type="submit" className="h-[48px] bg-[#5D4037] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"><Save size={18}/> Save</button>
         </form>
@@ -255,8 +342,8 @@ export default function FinancePricingPage() {
 
                 return (
                   <React.Fragment key={category}>
-                    <tr onClick={() => toggleCategory(category)} className="bg-[#EBE0CC]/40 cursor-pointer hover:bg-[#EBE0CC]/60 transition-colors">
-                      <td colSpan={4} className="px-6 py-4">
+                    <tr onClick={() => toggleCategory(category)} className="bg-[#EBE0CC]/40 cursor-pointer hover:bg-[#EBE0CC]/60 transition-colors" id={`cat-${category}`}>
+                      <td colSpan={5} className="px-6 py-4"> {/* Increased colSpan */}
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-black text-[#5D4037] uppercase tracking-widest">{category} ({categoryProducts.length})</span>
                           {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -277,7 +364,11 @@ export default function FinancePricingPage() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                              <input type="number" value={editForm.price} onChange={e => setEditForm({...editForm, price: e.target.value})} className="w-full bg-white border border-[#A67C37] p-2 rounded-lg text-sm font-bold" />
+                              <input type="number" placeholder="Price" value={editForm.price} onChange={e => setEditForm({...editForm, price: e.target.value})} className="w-full bg-white border border-[#A67C37] p-2 rounded-lg text-sm font-bold" />
+                            </td>
+                            {/* ✅ Added Cost to Edit Row */}
+                            <td className="px-6 py-4">
+                              <input type="number" placeholder="Cost" value={editForm.cost} onChange={e => setEditForm({...editForm, cost: e.target.value})} className="w-full bg-white border border-[#A67C37] p-2 rounded-lg text-sm font-bold" />
                             </td>
                             <td className="px-6 py-4 text-right flex gap-2 justify-end">
                               <button onClick={saveEdit} className="p-2 bg-green-500 text-white rounded-lg"><Check size={16}/></button>
@@ -286,13 +377,15 @@ export default function FinancePricingPage() {
                           </>
                         ) : (
                           <>
-                            <td className="px-6 py-4 pl-10 w-1/2">
+                            <td className="px-6 py-4 pl-10 w-1/3">
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-[#5D4037]">{item.name}</span>
                                 <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${item.type === 'unbaked' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{item.type}</span>
                               </div>
                             </td>
-                            <td className="px-6 py-4 font-black text-[#A67C37]">{item.price.toLocaleString()} RWF</td>
+                            <td className="px-6 py-4 font-black text-[#A67C37]">{item.price.toLocaleString()} RWF <span className="text-[10px] text-gray-400 font-normal ml-1">Sell</span></td>
+                            {/* ✅ Display Cost next to Price */}
+                            <td className="px-6 py-4 font-black text-gray-400">{(item.cost || 0).toLocaleString()} RWF <span className="text-[10px] text-gray-300 font-normal ml-1">Cost</span></td>
                             <td className="px-1"></td>
                             <td className="px-6 py-4 text-right flex gap-2 justify-end opacity-0 group-hover:opacity-100">
                               <button onClick={() => startEdit(item)} className="p-2 hover:bg-[#EBE0CC] rounded-lg text-gray-400 hover:text-[#5D4037]"><Edit2 size={16}/></button>

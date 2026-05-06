@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+// 1. ADDED useEffect for fetching data
+import React, { useState, useEffect } from 'react';
+// 2. ADDED useRouter for security redirect
+import { useRouter } from 'next/navigation'; 
 import { 
   Scale, ChefHat, ShoppingCart, AlertTriangle, ArrowRight,
   ArrowLeft, Edit2, Trash2, Search, Clock, Package, Truck,
@@ -8,56 +11,147 @@ import {
 } from 'lucide-react';
 
 export default function ProductionManagerDashboard() {
+  const router = useRouter();
   const [currentView, setCurrentView] = useState('Dashboard');
   
-  // --- STATE TO MANAGE ALL DATA (INCLUDING STORE KEEPER DISTRIBUTIONS) ---
+  // --- STATE TO MANAGE ALL DATA ---
   const [allData, setAllData] = useState({
     Measured: [
       { id: 1, item: 'White Bread Dough', qty: '50 kg', time: '08:00 AM', status: 'Ready to Bake' },
-      { id: 2, item: 'Cake Batter', qty: '20 kg', time: '08:30 AM', status: 'Ready to Bake' },
     ],
     Delivered: [
       { id: 1, item: 'Brown Bread', qty: '100 pcs', time: '09:00 AM', status: 'In Transit' },
-      { id: 2, item: 'Milk Biscuits', qty: '20 kg', time: '10:30 AM', status: 'Delivered' },
     ],
     Baked: [
       { id: 1, item: 'White Bread', qty: '500 pcs', time: '09:45 AM', status: 'Cooling' },
-      { id: 2, item: 'Tea Scones', qty: '200 pcs', time: '10:00 AM', status: 'Packed' },
     ],
     Orders: [
       { id: 1, item: 'Kabuga Order #101', qty: '300 Bread', time: '10 min ago', status: 'Pending' },
-      { id: 2, item: 'Masaka Order #102', qty: '50 Cakes', time: '1 hour ago', status: 'Approved' },
     ],
-    Distribution: [ // ✅ NEW: Sourced from Store Keeper (AddOtherProduct)
+    Distribution: [
       { id: 1, item: 'big milk', qty: '10 pcs', target: 'Clients', time: '07:00 AM', status: 'Sent' },
-      { id: 2, item: 'salted bread', qty: '5 pcs', target: 'Guests', time: '08:15 AM', status: 'Sent' },
-      { id: 3, item: 'ishingiro', qty: '20 pcs', target: 'Tiku', time: '09:00 AM', status: 'Sent' },
     ],
     Damaged: [
       { id: 1, item: 'Burnt Bread', qty: '12 pcs', time: 'Yesterday', status: 'Reported' },
-      { id: 2, item: 'Expired Yeast', qty: '2 kg', time: 'Today', status: 'Disposed' },
     ]
   });
 
-  const handleEdit = (category: string, id: number) => {
+  // --- NEW: FETCH DATA FROM API ON LOAD ---
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const fetchProductionData = async () => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      try {
+        const response = await fetch(`${baseUrl}/production/details`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Map the backend data into your exact UI structure
+          setAllData({
+            Measured: data.measured?.map((m: any) => ({ id: m.id, item: m.name, qty: `${m.quantity} ${m.unit}`, time: 'Today', status: 'Ready' })) || [],
+            Baked: data.baked?.map((b: any) => ({ id: b.id, item: b.product?.name || `Product #${b.product_id}`, qty: `${b.quantity} pcs`, time: 'Today', status: 'Baked' })) || [],
+            Distribution: data.distribution?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, target: d.to_location, time: 'Today', status: 'Sent' })) || [],
+            Delivered: data.delivered?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, time: 'Today', status: 'Delivered' })) || [],
+            Orders: data.orders?.map((o: any) => ({ id: o.id, item: `${o.location} Order`, qty: '-', time: 'Today', status: o.status })) || [],
+            Damaged: data.damaged?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, time: 'Today', status: 'Reported' })) || []
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch production details", err);
+      }
+    };
+
+    fetchProductionData();
+  }, [router]);
+
+  // --- UPDATED: HANDLE EDIT WITH API (PUT) ---
+  const handleEdit = async (category: string, id: number) => {
     const currentItems = allData[category as keyof typeof allData];
     const itemToEdit = currentItems.find(i => i.id === id);
     
     if (itemToEdit) {
-      const newQty = prompt(`Edit quantity for ${itemToEdit.item}:`, itemToEdit.qty);
-      if (newQty !== null) {
-        const updatedItems = currentItems.map(i => 
-          i.id === id ? { ...i, qty: newQty } : i
-        );
-        setAllData({ ...allData, [category]: updatedItems });
+      // Extract just the number from strings like "500 pcs" so the user just types "600"
+      const currentQtyMatch = itemToEdit.qty.toString().match(/\d+/);
+      const currentQtyNum = currentQtyMatch ? currentQtyMatch[0] : itemToEdit.qty;
+
+      const newQtyStr = prompt(`Edit quantity for ${itemToEdit.item}:`, currentQtyNum);
+      const newQty = parseInt(newQtyStr || '');
+
+      if (newQty && !isNaN(newQty)) {
+        const token = localStorage.getItem('token');
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        
+        // Use the exact PUT endpoints provided in the documentation
+        let endpoint = '';
+        if (category === 'Measured') endpoint = `${baseUrl}/production/stock/${id}`;
+        else if (category === 'Baked') endpoint = `${baseUrl}/production/production/${id}`;
+        
+        try {
+          if (endpoint) {
+             const response = await fetch(endpoint, {
+                 method: 'PUT',
+                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ quantity: newQty })
+             });
+             if (!response.ok) {
+                 alert("Failed to update on server");
+                 return;
+             }
+          }
+
+          // Update local UI state (keeping the 'pcs' or 'kg' text intact)
+          const updatedString = itemToEdit.qty.toString().replace(/\d+/, newQty.toString());
+          const updatedItems = currentItems.map(i => i.id === id ? { ...i, qty: updatedString } : i);
+          setAllData({ ...allData, [category]: updatedItems });
+
+        } catch (e) { console.error(e); }
       }
     }
   };
 
+  // --- NEW: HANDLE DELETE WITH API (DELETE) ---
+  const handleDelete = async (category: string, id: number) => {
+    if (!confirm("Are you sure you want to delete this record?")) return;
+
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    
+    // Use the exact DELETE endpoints provided in the documentation
+    let endpoint = '';
+    if (category === 'Measured') endpoint = `${baseUrl}/production/stock/${id}`;
+    else if (category === 'Baked') endpoint = `${baseUrl}/production/production/${id}`;
+    else if (category === 'Damaged') endpoint = `${baseUrl}/production/damage/${id}`;
+
+    try {
+        if (endpoint) {
+            const response = await fetch(endpoint, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok && response.status !== 204) {
+                alert("Failed to delete from server");
+                return;
+            }
+        }
+        
+        // Remove from local UI state
+        const updatedItems = allData[category as keyof typeof allData].filter(i => i.id !== id);
+        setAllData({ ...allData, [category]: updatedItems });
+    } catch (e) { console.error(e); }
+  };
+
   const stats = [
     { label: 'Measured', fullLabel: 'Measured Products', value: allData.Measured.length.toString(), sub: 'Batches ready to bake', icon: Scale, color: 'text-blue-600', bg: 'bg-blue-50', editable: true },
-    { label: 'Baked', fullLabel: 'Baked Products', value: '1,250', sub: 'Completed today', icon: ChefHat, color: 'text-green-600', bg: 'bg-green-50', editable: true },
-    { label: 'Distribution', fullLabel: 'Other Distributions', value: allData.Distribution.length.toString(), sub: 'Clients, Tiku, Guests', icon: Users, color: 'text-orange-600', bg: 'bg-orange-50', editable: true }, // ✅ NEW STAT CARD
+    { label: 'Baked', fullLabel: 'Baked Products', value: allData.Baked.length.toString(), sub: 'Completed today', icon: ChefHat, color: 'text-green-600', bg: 'bg-green-50', editable: true },
+    { label: 'Distribution', fullLabel: 'Other Distributions', value: allData.Distribution.length.toString(), sub: 'Clients, Tiku, Guests', icon: Users, color: 'text-orange-600', bg: 'bg-orange-50', editable: true },
     { label: 'Delivered', fullLabel: 'Delivered Products', value: allData.Delivered.length.toString(), sub: 'Sent to shops', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50', editable: true },
     { label: 'Orders', fullLabel: 'Shop Orders', value: allData.Orders.length.toString(), sub: 'Incoming requests', icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50', editable: true },
     { label: 'Damaged', fullLabel: 'Total Damaged', value: allData.Damaged.length.toString(), sub: 'Recorded losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', editable: true },
@@ -84,14 +178,7 @@ export default function ProductionManagerDashboard() {
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
-      {/* HEADER */}
-      <div className="md:hidden flex flex-col items-center justify-center mb-6 pt-2">
-        <div className="w-16 h-16 bg-[#5D4037] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-2">
-           <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
-        </div>
-        <h2 className="text-[#5D4037] font-black uppercase tracking-widest text-xs">Ishingiro</h2>
-      </div>
-
+      
       {currentView === 'Dashboard' && (
         <>
           <div>
@@ -179,7 +266,8 @@ export default function ProductionManagerDashboard() {
                       <td className="px-8 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => handleEdit(currentView, row.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Edit2 size={16} /></button>
-                          <button className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button>
+                          {/* UPDATED: Added onClick to the Trash button */}
+                          <button onClick={() => handleDelete(currentView, row.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>

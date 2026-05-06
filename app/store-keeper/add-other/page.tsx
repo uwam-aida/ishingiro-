@@ -127,13 +127,7 @@ export default function AddOtherProduct() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-10 px-4 font-sans text-gray-700">
       
-      {/* MOBILE LOGO HEADER */}
-      <div className="md:hidden flex flex-col items-center justify-center mb-6 pt-2">
-        <div className="w-16 h-16 bg-[#F57C00] rounded-full flex items-center justify-center overflow-hidden shadow-md mb-2">
-           <img src="/logo.png" alt="Ishingiro" className="w-full h-full object-cover" />
-        </div>
-        <h2 className="text-[#F57C00] font-black uppercase tracking-widest text-xs">Ishingiro</h2>
-      </div>
+     
 
       {/* --- VIEW 1: THE CLICKABLE GRID --- */}
       {view === 'grid' && (

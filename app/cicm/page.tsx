@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { 
   AlertTriangle, 
   Package, 
@@ -17,18 +18,64 @@ import {
 } from 'lucide-react';
 
 export default function CICMDashboard() {
+  const router = useRouter();
   
   // State to toggle between Dashboard view and Details view
   const [currentView, setCurrentView] = useState('Dashboard');
 
-  // --- 1. GRID DATA (Removed Branch Delivery Report) ---
+  // --- NEW: STATE FOR BACKEND API DATA ---
+  const [apiData, setApiData] = useState({
+    baked: '1,250',
+    delivered: '1,100',
+    stock: '850', // Fallback: API is missing this field
+    rest: '150',
+    damaged: '12',
+    orders: '3 Active'
+  });
+
+  // --- NEW: FETCH COMBINED REPORT DATA ON LOAD ---
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        const response = await fetch(`${baseUrl}/reports/combined`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Update the cards with live data!
+          setApiData({
+            baked: data.baked ? data.baked.toLocaleString() : '0',
+            delivered: data.delivered ? data.delivered.toLocaleString() : '0',
+            stock: '850', // Keeping fallback until backend adds it
+            rest: data.rest_products ? data.rest_products.toLocaleString() : '0',
+            damaged: data.damage ? data.damage.toLocaleString() : '0',
+            orders: data.orders ? `${data.orders} Active` : '0 Active'
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch CICM dashboard summary:", error);
+      }
+    };
+
+    fetchDashboardData();
+  }, [router]);
+
+  // --- 1. GRID DATA (Updated to use apiData state) ---
   const stats = [
-    { label: 'Baked Items', value: '1,250', sub: 'Completed Production', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { label: 'Delivered Products', value: '1,100', sub: 'Dispatched to Branches', icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Shop Stock', value: '850', sub: 'Currently in Shops', icon: ShoppingBag, color: 'text-green-600', bg: 'bg-green-50' },
-    { label: 'Rest Products', value: '150', sub: 'From Store Keeper', icon: Store, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { label: 'Damaged Items', value: '12', sub: 'Total Losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
-    { label: 'Live Cake Orders', value: '3 Active', sub: 'Custom Orders', icon: Cake, color: 'text-pink-600', bg: 'bg-pink-50' },
+    { label: 'Baked Items', value: apiData.baked, sub: 'Completed Production', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { label: 'Delivered Products', value: apiData.delivered, sub: 'Dispatched to Branches', icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Shop Stock', value: apiData.stock, sub: 'Currently in Shops', icon: ShoppingBag, color: 'text-green-600', bg: 'bg-green-50' },
+    { label: 'Rest Products', value: apiData.rest, sub: 'From Store Keeper', icon: Store, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { label: 'Damaged Items', value: apiData.damaged, sub: 'Total Losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
+    { label: 'Live Cake Orders', value: apiData.orders, sub: 'Custom Orders', icon: Cake, color: 'text-pink-600', bg: 'bg-pink-50' },
   ];
 
   // --- 2. REPORTS DATA ---

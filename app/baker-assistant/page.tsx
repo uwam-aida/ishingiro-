@@ -18,15 +18,39 @@ export default function BakerDashboard() {
   const router = useRouter(); // Initialize router
   const [currentView, setCurrentView] = useState('Dashboard');
 
-  // --- NEW: AUTHENTICATION CHECK ---
+  // --- NEW: STATE TO HOLD FETCHED API DATA ---
+  const [bakedProducts, setBakedProducts] = useState<any[]>([]);
+  const [damagedItems, setDamagedItems] = useState<any[]>([]);
+
+  // --- AUTHENTICATION CHECK & API FETCH ---
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login'); // Kick them out if not logged in
+      return;
     }
+
+    // --- FETCH DATA FROM APIS ---
+    const fetchBakerData = async () => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+
+      try {
+        // Note: Backend needs to ensure these GET endpoints exist
+        const prodRes = await fetch(`${baseUrl}/baker/production`, { headers });
+        if (prodRes.ok) setBakedProducts(await prodRes.json());
+
+        const damRes = await fetch(`${baseUrl}/baker/damage`, { headers });
+        if (damRes.ok) setDamagedItems(await damRes.json());
+      } catch (error) {
+        console.error("Failed to fetch baker data", error);
+      }
+    };
+
+    fetchBakerData();
   }, [router]);
 
-  // --- NEW: LOGOUT FUNCTION ---
+  // --- LOGOUT FUNCTION ---
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -45,33 +69,41 @@ export default function BakerDashboard() {
     }
   };
 
-  // --- 1. THE THREE MAIN CATEGORIES ---
+  // --- 1. THE THREE MAIN CATEGORIES (Updated to use fetched data lengths) ---
   const stats = [
-    { label: 'Baked Products', value: '850', icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
-    { label: 'Damaged Items', value: '14', icon: Trash2, color: 'bg-red-50 text-red-600' },
-    { label: 'Full Added Products', value: '24', icon: History, color: 'bg-gray-100 text-black' },
+    { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
+    { label: 'Damaged Items', value: damagedItems.length.toString(), icon: Trash2, color: 'bg-red-50 text-red-600' },
+    { label: 'Full Added Products', value: (bakedProducts.length + damagedItems.length).toString(), icon: History, color: 'bg-gray-100 text-black' },
   ];
 
-  // --- 2. LIST DATA (Products inside each grid) ---
+  // --- 2. LIST DATA (Updated to map fetched API data into your exact table format) ---
   const getGridData = (view: string) => {
     switch (view) {
       case 'Baked Products':
-        return [
-          { id: 'BK-001', item: 'Milk Bread', qty: '200 pcs', time: '08:30 AM', status: 'In Stock' },
-          { id: 'BK-002', item: 'Tea Cake', qty: '50 pcs', time: '09:15 AM', status: 'In Stock' },
-          { id: 'BK-003', item: 'Baguette', qty: '120 pcs', time: '10:00 AM', status: 'In Stock' },
-        ];
+        return bakedProducts.map(p => ({
+          id: `BK-${p.id}`, 
+          item: p.product?.name || `Product #${p.product_id}`, 
+          qty: `${p.quantity} pcs`, 
+          time: 'Today', // API needs to return created_at for real time
+          status: 'In Stock'
+        }));
       case 'Damaged Items':
-        return [
-          { id: 'DM-05', item: 'Burnt Baguette', qty: '8 pcs', reason: 'Oven Overheat', status: 'Waste' },
-          { id: 'DM-06', item: 'Broken Cookies', qty: '2 kg', reason: 'Handling', status: 'Waste' },
-        ];
+        return damagedItems.map(d => ({
+          id: `DM-${d.id}`, 
+          item: d.product?.name || `Product #${d.product_id}`, 
+          qty: `${d.quantity} pcs`, 
+          reason: d.reason, 
+          status: 'Waste'
+        }));
       case 'Full Added Products':
-        return [
-          { id: 'LOG-1', item: 'Standard Loaf', qty: '300 pcs', date: 'Today', status: 'Verified' },
-          { id: 'LOG-2', item: 'Small Milk', qty: '150 pcs', date: 'Today', status: 'Verified' },
-          { id: 'LOG-3', item: 'Meat Sambusa', qty: '80 pcs', date: 'Today', status: 'Verified' },
-        ];
+        const combined = [...bakedProducts, ...damagedItems].sort((a, b) => b.id - a.id);
+        return combined.map(log => ({
+          id: `LOG-${log.id}`, 
+          item: log.product?.name || `Product #${log.product_id}`, 
+          qty: `${log.quantity} pcs`, 
+          date: 'Today', 
+          status: log.reason ? 'Waste' : 'Verified'
+        }));
       default: return [];
     }
   };

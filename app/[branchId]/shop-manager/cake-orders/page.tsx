@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Cake, Check, X, ArrowLeft } from 'lucide-react'; // <-- ADDED ArrowLeft
+import { Cake, Check, X, ArrowLeft } from 'lucide-react'; 
 
 // Import the step components from your components folder
 import Step1Purpose from '../../../components/cake-form/step1Purpose';
@@ -56,13 +56,52 @@ export default function CakeOrderForm() {
     setStep(step + 1);
   };
 
-  const handleSubmit = () => {
+  // --- UPDATED: BACKEND INTEGRATION FOR CAKE ORDERS ---
+  const handleSubmit = async () => {
     if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
         setShowError(true); return;
     }
-    const randomNum = Math.floor(Math.random() * 100);
-    setGeneratedCode(`KS-${randomNum}`);
-    setStep(6); 
+
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+    try {
+        const response = await fetch(`${baseUrl}/shop/cake-orders`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify({
+                customer_name: formData.customerFullName || formData.payerName,
+                phone: formData.customerPhoneNumber || "0000000000",
+                cake_type: `${formData.purpose} - ${formData.flavor}`,
+                quantity: 1,
+                price: Number(formData.totalAmount) || 7000,
+                location: formData.orderLocation.toLowerCase() || 'kabuga', // Defaulting to kabuga if not set
+                delivery_date: formData.pickupDate || new Date().toISOString().split('T')[0],
+                status: 'pending'
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            // Use the real ID from the database to create the order code
+            setGeneratedCode(`CK-${data.id}`);
+            setStep(6); 
+        } else {
+            console.error("Backend error saving cake order");
+            // Fallback just in case the server fails so the user isn't stuck
+            const randomNum = Math.floor(Math.random() * 1000);
+            setGeneratedCode(`KS-ERR-${randomNum}`);
+            setStep(6);
+        }
+    } catch (e) { 
+        console.error("API connection failed", e); 
+        const randomNum = Math.floor(Math.random() * 1000);
+        setGeneratedCode(`KS-ERR-${randomNum}`);
+        setStep(6);
+    }
   };
 
   const handlePrev = () => {
@@ -178,7 +217,7 @@ export default function CakeOrderForm() {
             <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center mb-6 shadow-lg"><Check size={40} className="text-white" strokeWidth={4} /></div>
             <h2 className="text-3xl font-black text-[#5D4037] mb-4">Order Submitted!</h2>
             <p className="text-[#A67C37] font-black text-xl mb-8 tracking-widest uppercase">Code: {generatedCode}</p>
-            <button onClick={() => setStep(0)} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
+            <button onClick={() => { setStep(0); setGeneratedCode(''); }} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
         </div>
       )}
     </div>

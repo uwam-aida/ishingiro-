@@ -41,10 +41,7 @@ export default function StoreKeeperNotifications() {
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-10 relative">
       
-      {/* --- MOBILE LOGO --- */}
-      <div className="md:hidden flex items-center justify-center mb-6">
-         <img src="/logo.png" alt="Shop Logo" className="h-16 w-auto object-contain" />
-      </div>
+      
 
       {/* Page Header with Back Arrow */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-6">

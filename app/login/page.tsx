@@ -14,7 +14,7 @@ export default function LoginPage() {
     setStatusMessage('Connecting to server...');
 
     try {
-      // 1. Updated to the correct live backend URL
+      // 1. URL points to your live backend login endpoint
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
       const response = await fetch(`${baseUrl}/login`, {
@@ -33,22 +33,37 @@ export default function LoginPage() {
       console.log("Server Response:", data);
 
       if (response.ok) {
-        // 2. Store data using the fields found in your console log
+        // 2. Store the token and user details from the new API response
         localStorage.setItem('token', data.token);
         localStorage.setItem('userName', data.user.name);
+        localStorage.setItem('userId', data.user.id.toString());
+        localStorage.setItem('roleId', data.user.role_id.toString());
         
-        // Using normalized_name because data.user.role was missing
-        const role = data.user.normalized_name; 
-        localStorage.setItem('userRole', role);
+        // 3. Extract Role and Location based on the API name (e.g., "shop_manager_kabuga")
+        let role = data.user.normalized_name; // Keep as fallback if backend adds it later
+        let userLoc = data.user.location;
 
-        const userLoc = data.user.location || 'kabuga';
-        localStorage.setItem('userLocation', userLoc);
+        if (!role && data.user.name) {
+            // Split "shop_manager_kabuga" into parts
+            const nameParts = data.user.name.split('_'); 
+            if (nameParts.length >= 3) {
+                userLoc = nameParts.pop(); // Gets the last part (e.g., "kabuga")
+                role = nameParts.join(''); // Joins the rest (e.g., "shopmanager")
+            } else {
+                // For roles without locations like "cicm"
+                role = data.user.name.replace(/_/g, ''); 
+            }
+        }
+
+        // Save to local storage for the rest of the app to use
+        localStorage.setItem('userRole', role || '');
+        localStorage.setItem('userLocation', userLoc || 'kabuga');
 
         setStatusMessage(`Login successful! Redirecting...`);
 
-        const branchId = userLoc.toLowerCase();
+        const branchId = (userLoc || 'kabuga').toLowerCase();
 
-        // 3. Redirect based on the Role names found in your console
+        // 4. Role-based Redirects
         switch (role) {
           case 'marketingmanager': 
             router.push('/marketing-manager');
@@ -78,6 +93,7 @@ export default function LoginPage() {
             router.push('/');
         }
       } else {
+        // Handle incorrect passwords or missing users
         setStatusMessage(data.message || 'Invalid username or password.');
       }
     } catch (error) {

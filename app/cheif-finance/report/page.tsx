@@ -24,7 +24,7 @@ export default function MeasuredProductsReport() {
   const isoDate = new Date().toISOString().split('T')[0];
 
   // --- STATE WITH MOCK DATA FALLBACK ---
-  const [productData, setProductData] = useState([
+  const [productData, setProductData] = useState<any[]>([
     { id: 1, branch: 'Kabuga', name: 'White Bread', unit: 'Piece', price: 1000, sold: 500, damaged: 10 },
     { id: 2, branch: 'Kabuga', name: 'Brown Bread', unit: 'Piece', price: 1200, sold: 300, damaged: 5 },
     { id: 3, branch: 'Kabuga', name: 'Tea Scones', unit: 'Kg', price: 3000, sold: 50, damaged: 2 },
@@ -46,17 +46,24 @@ export default function MeasuredProductsReport() {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       
       try {
-        // NOTE: Waiting for the backend developer to create the aggregated endpoint!
-        // Once she creates it, uncomment this code:
-        /*
         const response = await fetch(`${baseUrl}/finance/measured-products`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+
         if (response.ok) {
           const data = await response.json();
-          setProductData(data);
+          // Map backend response to match the exact structure expected by your UI
+          const formattedData = data.map((item: any) => ({
+             id: item.id,
+             branch: item.branch.charAt(0).toUpperCase() + item.branch.slice(1), // e.g., 'kabuga' -> 'Kabuga'
+             name: item.name,
+             unit: item.name.toLowerCase().includes('flour') || item.name.toLowerCase().includes('sugar') ? 'Kg' : 'Piece', // API fallback
+             price: item.price,
+             sold: item.sold || 0,
+             damaged: item.damaged || 0
+          }));
+          setProductData(formattedData);
         }
-        */
       } catch (error) {
         console.error("Failed to fetch report data:", error);
       } finally {
@@ -70,7 +77,7 @@ export default function MeasuredProductsReport() {
 
   const filteredData = selectedBranch === 'All' 
     ? productData 
-    : productData.filter(item => item.branch === selectedBranch);
+    : productData.filter(item => item.branch.toLowerCase() === selectedBranch.toLowerCase() || item.branch === 'All');
 
   const totalRevenue = filteredData.reduce((acc, curr) => acc + (curr.sold * curr.price), 0);
   const totalLoss = filteredData.reduce((acc, curr) => acc + (curr.damaged * curr.price), 0);
@@ -176,7 +183,7 @@ export default function MeasuredProductsReport() {
            </div>
            <div>
              <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Branch Revenue</p>
-             <h3 className="text-2xl font-black text-[#5D4037]">{formatMoney(totalRevenue)}</h3>
+             <h3 className="text-2xl font-black text-[#5D4037]">{isLoading ? '...' : formatMoney(totalRevenue)}</h3>
            </div>
         </div>
 
@@ -186,7 +193,7 @@ export default function MeasuredProductsReport() {
            </div>
            <div>
              <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Branch Losses</p>
-             <h3 className="text-2xl font-black text-red-600">{formatMoney(totalLoss)}</h3>
+             <h3 className="text-2xl font-black text-red-600">{isLoading ? '...' : formatMoney(totalLoss)}</h3>
            </div>
         </div>
       </div>

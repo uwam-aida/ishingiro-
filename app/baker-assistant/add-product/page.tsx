@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation'; // <-- ADDED THIS
+import { useRouter } from 'next/navigation'; 
 import { 
   Scale, 
   PlusCircle, 
   Package, 
   CheckCircle,
-  ArrowLeft // <-- ADDED THIS
+  ArrowLeft 
 } from 'lucide-react';
 
 export default function AddProductPage() {
-  const router = useRouter(); // <-- ADDED THIS
+  const router = useRouter(); 
 
   const [productName, setProductName] = useState('');
   const [weight, setWeight] = useState('');
@@ -22,23 +22,51 @@ export default function AddProductPage() {
     { id: 2, name: 'Sugar Mix', weight: '25', unit: 'Kg', time: '09:15 AM' },
   ]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // --- UPDATED: WIRED TO API DOCUMENTATION ---
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const newEntry = {
-      id: Date.now(),
-      name: productName,
-      weight: weight,
-      unit: 'Kg',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    
-    setHistory([newEntry, ...history]);
-    setProductName('');
-    setWeight('');
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-    setShowSuccess(true);
-    setTimeout(() => setShowSuccess(false), 3000);
+    try {
+      // Fetching the API from the documentation
+      const response = await fetch(`${baseUrl}/baker/ingredients`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          name: productName,
+          quantity: Number(weight),
+          unit: 'kg'
+        })
+      });
+
+      if (response.ok) {
+        // If the backend accepts it, update the local UI history
+        const newEntry = {
+          id: Date.now(),
+          name: productName,
+          weight: weight,
+          unit: 'Kg',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        
+        setHistory([newEntry, ...history]);
+        setProductName('');
+        setWeight('');
+
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        console.error("Failed to save to database");
+        alert("Error saving to database. Please try again.");
+      }
+    } catch (error) {
+      console.error("API connection error", error);
+    }
   };
 
   return (

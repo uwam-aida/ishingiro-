@@ -23,8 +23,8 @@ export default function ChiefFinanceDashboard() {
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 2. DATA STATE (Initialized with your Mock Data so the UI doesn't break!)
-  const [allData, setAllData] = useState([
+  // 2. DATA STATE (Initialized with Mock Data as a fallback)
+  const [allData, setAllData] = useState<any[]>([
     { id: 1, item: 'White Bread', branch: 'Kabuga', baked: 200, sold: 150, damaged: 5, price: 1000, cost: 600, day: 'Mon', reason: 'Overbaked' },
     { id: 2, item: 'Vanilla Cake', branch: 'Kabuga', baked: 50, sold: 40, damaged: 2, price: 5000, cost: 3000, day: 'Fri', reason: 'Icing Smudged' },
     { id: 3, item: 'White Bread', branch: 'Masaka', baked: 150, sold: 130, damaged: 0, price: 1000, cost: 600, day: 'Fri', reason: 'None' },
@@ -32,7 +32,7 @@ export default function ChiefFinanceDashboard() {
     { id: 5, item: 'Tea Scones', branch: 'Kabuga', baked: 100, sold: 90, damaged: 1, price: 200, cost: 100, day: 'Sun', reason: 'Dropped' },
   ]);
 
-  const [chartData, setChartData] = useState([
+  const [chartData, setChartData] = useState<any[]>([
     { day: 'Mon', height: 45, amount: 450000 },
     { day: 'Tue', height: 30, amount: 300000 },
     { day: 'Wed', height: 60, amount: 600000 },
@@ -54,24 +54,58 @@ export default function ChiefFinanceDashboard() {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       
       try {
-        // Once the backend dev creates the ledger endpoint, you will uncomment this:
-        /*
+        // Fetch Ledger Data
         const ledgerRes = await fetch(`${baseUrl}/finance/ledger`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        
         if (ledgerRes.ok) {
           const fetchedData = await ledgerRes.json();
-          setAllData(fetchedData);
+          if (fetchedData && fetchedData.length > 0) {
+            // Map backend data to fit the frontend table structure
+            const mappedLedger = fetchedData.map((d: any) => ({
+              id: d.id,
+              item: d.product?.name || `Product #${d.product_id}`,
+              branch: d.location ? d.location.charAt(0).toUpperCase() + d.location.slice(1) : 'Kabuga',
+              baked: d.baked || 0, // Fallback (API missing baked count per ledger line)
+              sold: d.reason ? 0 : d.quantity, // If there's a reason, it's a loss, not a sale
+              damaged: d.reason ? d.quantity : 0,
+              price: d.product?.price || 0,
+              cost: d.product?.cost || 0,
+              day: 'Today', // Fallback (API missing timestamp per ledger line)
+              reason: d.reason || 'None'
+            }));
+            setAllData(mappedLedger);
+          }
         }
 
+        // Fetch Chart Data
         const chartRes = await fetch(`${baseUrl}/finance/chart`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        
         if (chartRes.ok) {
           const fetchedChart = await chartRes.json();
-          setChartData(fetchedChart);
+          if (fetchedChart && fetchedChart.length > 0) {
+            // Find max total to calculate dynamic bar heights
+            const maxTotal = Math.max(...fetchedChart.map((c: any) => c.total));
+            
+            const mappedChart = fetchedChart.map((c: any) => {
+              // Convert "2026-05-01" to "Fri"
+              const dateObj = new Date(c.day);
+              const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              const dayName = isNaN(dateObj.getTime()) ? c.day : days[dateObj.getDay()];
+
+              return {
+                day: dayName,
+                height: maxTotal > 0 ? (c.total / maxTotal) * 100 : 0,
+                amount: c.total
+              };
+            });
+            setChartData(mappedChart);
+          }
         }
-        */
+
       } catch (error) {
         console.error("Failed to load live finance data", error);
       } finally {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation'; // <-- ADDED THIS
+import { useRouter } from 'next/navigation'; 
 import { 
   TrendingUp, 
   Package, 
@@ -12,52 +12,63 @@ import {
   ChefHat,
   Store,
   ArrowDownRight,
-  ArrowLeft // <-- ADDED THIS
+  ArrowLeft 
 } from 'lucide-react';
 
 export default function FinanceAnalytics() {
-  const router = useRouter(); // <-- ADDED THIS
+  const router = useRouter(); 
   
   const [activeCategory, setActiveCategory] = useState<'sales' | 'production' | 'inventory' | 'damage'>('sales');
   
-  // State for Dynamic Activities
+  // --- NEW: STATE FOR API DATA ---
+  const [summary, setSummary] = useState<any>(null);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Refs for smooth scrolling
   const performanceRef = useRef<HTMLDivElement>(null);
   const activitiesRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. GENERATE DYNAMIC TIMES ON LOAD ---
+  // --- 1. FETCH DATA FROM BACKEND ---
   useEffect(() => {
-    // Helper to get time relative to now
-    const getTimeAgo = (minutes: number) => {
-      const date = new Date();
-      date.setMinutes(date.getMinutes() - minutes);
-      return date.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit', 
-        hour12: true 
-      }) + `, ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    const fetchAnalytics = async () => {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      try {
+        // 1. Fetch Summary Stats
+        const summaryRes = await fetch(`${baseUrl}/finance/analytics/summary`, { headers });
+        if (summaryRes.ok) setSummary(await summaryRes.json());
+
+        // 2. Fetch Product Performance
+        const perfRes = await fetch(`${baseUrl}/finance/analytics/performance`, { headers });
+        if (perfRes.ok) setAllProducts(await perfRes.json());
+
+        // 3. Fetch Recent Activities
+        const actRes = await fetch(`${baseUrl}/finance/analytics/activities`, { headers });
+        if (actRes.ok) setActivities(await actRes.json());
+
+      } catch (error) {
+        console.error("Analytics fetch error:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    // Base Data with Dynamic Times
-    const dynamicData = [
-      { id: 1, user: 'Baker assistant', role: 'Production', category: 'production', action: 'Added measured ingredients', item: 'Bread flour', quantity: '50', time: getTimeAgo(5) }, // 5 mins ago
-      { id: 2, user: 'Baker assistant', role: 'Production', category: 'production', action: 'Baked products', item: 'Bread', quantity: '100', time: getTimeAgo(25) }, // 25 mins ago
-      { id: 3, user: 'Shop manager', role: 'Sales', category: 'sales', action: 'Created order', item: 'Bread Order', quantity: '50', time: getTimeAgo(60) }, // 1 hour ago
-      { id: 4, user: 'Shop manager', role: 'Sales', category: 'damage', action: 'Reported damaged', item: 'Burnt Cookies', quantity: '3', time: getTimeAgo(120) }, // 2 hours ago
-      { id: 5, user: 'Shop manager', role: 'Sales', category: 'damage', action: 'Reported damaged', item: 'Stale Mandazi', quantity: '2', time: getTimeAgo(180) }, // 3 hours ago
-      { id: 6, user: 'Shop manager', role: 'Sales', category: 'orders', action: 'Created order', item: 'Birthday cake', quantity: '1', time: getTimeAgo(240) }, // 4 hours ago
-    ];
-
-    setActivities(dynamicData);
-  }, []);
+    fetchAnalytics();
+  }, [router]);
 
   // Function to handle grid clicks
   const handleCardClick = (category: 'sales' | 'production' | 'inventory' | 'damage') => {
     setActiveCategory(category);
     
-    // Smooth scroll based on category
     if (category === 'production' || category === 'damage') {
       setTimeout(() => activitiesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } else {
@@ -65,15 +76,15 @@ export default function FinanceAnalytics() {
     }
   };
 
-  // 2. TOP STATS
+  // 2. TOP STATS (Wired to Summary API)
   const stats = [
     { 
       id: 'sales',
       label: 'Weekly Sales Volume', 
-      value: '150', 
+      value: summary?.sales?.value?.toLocaleString() || '0', 
       unit: 'Units sold',
       icon: TrendingUp, 
-      trend: '+12%', 
+      trend: summary?.sales?.trend || '0%', 
       trendColor: 'text-emerald-600',
       bg: 'bg-emerald-50', 
       iconColor: 'text-emerald-600'
@@ -81,10 +92,10 @@ export default function FinanceAnalytics() {
     { 
       id: 'production',
       label: 'Currently Baking', 
-      value: '2', 
+      value: summary?.production?.value?.toLocaleString() || '0', 
       unit: 'Active products',
       icon: ChefHat, 
-      trend: 'Stable', 
+      trend: summary?.production?.trend || 'Stable', 
       trendColor: 'text-gray-500',
       bg: 'bg-orange-50', 
       iconColor: 'text-orange-600'
@@ -92,10 +103,10 @@ export default function FinanceAnalytics() {
     { 
       id: 'inventory',
       label: 'In the Shop', 
-      value: '1,200', 
+      value: summary?.inventory?.value?.toLocaleString() || '0', 
       unit: 'Items ready',
       icon: Store, 
-      trend: '+50', 
+      trend: summary?.inventory?.trend || '+0', 
       trendColor: 'text-emerald-600',
       bg: 'bg-blue-50', 
       iconColor: 'text-blue-600'
@@ -103,22 +114,14 @@ export default function FinanceAnalytics() {
     { 
       id: 'damage',
       label: 'Damaged / Waste', 
-      value: '5', 
+      value: summary?.damage?.value?.toLocaleString() || '0', 
       unit: 'Items lost',
       icon: AlertTriangle, 
-      trend: '+2', 
+      trend: summary?.damage?.trend || '+0', 
       trendColor: 'text-red-600',
       bg: 'bg-red-50', 
       iconColor: 'text-red-600'
     },
-  ];
-
-  // 3. PRODUCT PERFORMANCE DATA
-  const allProducts = [
-    { id: 1, name: 'Bread', totalSold: '150', stock: '50', damaged: '0', popularity: 80, trend: 'Increasing', recommendation: 'Increase production' },
-    { id: 2, name: 'Birthday Cake', totalSold: '1', stock: '2', damaged: '0', popularity: 10, trend: 'Stable', recommendation: 'Maintain current level' },
-    { id: 3, name: 'Mandazi', totalSold: '500', stock: '200', damaged: '2', popularity: 95, trend: 'Increasing', recommendation: 'High priority' },
-    { id: 4, name: 'Cookies', totalSold: '45', stock: '100', damaged: '3', popularity: 40, trend: 'Declining', recommendation: 'Reduce production' },
   ];
 
   // FILTER LOGIC
@@ -129,9 +132,8 @@ export default function FinanceAnalytics() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-12">
       
-      {/* --- HEADER - UPDATED WITH BACK ARROW --- */}
+      {/* --- HEADER --- */}
       <div className="flex items-center gap-4">
-        {/* <-- ADDED THIS BACK BUTTON --> */}
         <button 
           onClick={() => router.back()}
           className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
@@ -162,7 +164,6 @@ export default function FinanceAnalytics() {
                 }`}>
                    <stat.icon size={20} strokeWidth={2.5} />
                 </div>
-                {/* Trend Badge */}
                 <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-lg ${
                   activeCategory === stat.id ? 'bg-gray-800 text-white' : `bg-gray-50 ${stat.trendColor}`
                 }`}>
@@ -179,7 +180,7 @@ export default function FinanceAnalytics() {
                 <span className={`text-3xl font-extrabold ${
                   activeCategory === stat.id ? 'text-white' : 'text-gray-900'
                 }`}>
-                  {stat.value}
+                  {isLoading ? '...' : stat.value}
                 </span>
                 <span className={`text-xs font-medium ${
                   activeCategory === stat.id ? 'text-gray-400' : 'text-gray-400'
@@ -213,7 +214,6 @@ export default function FinanceAnalytics() {
                <thead>
                   <tr className="border-b border-gray-100 text-xs font-extrabold text-gray-400 uppercase tracking-wider">
                      <th className="pb-5 pl-4">Products</th>
-                     {/* Dynamic Column */}
                      <th className="pb-5 text-center">
                        {activeCategory === 'inventory' ? 'In Stock' : 
                         activeCategory === 'damage' ? 'Damaged Qty' : 'Total Sold'}
@@ -227,8 +227,6 @@ export default function FinanceAnalytics() {
                   {allProducts.map((product) => (
                      <tr key={product.id} className="group hover:bg-gray-50/50 transition-colors">
                         <td className="py-5 pl-4 font-bold text-gray-900">{product.name}</td>
-                        
-                        {/* Dynamic Data Cell */}
                         <td className="py-5 text-center">
                            <span className={`font-bold px-3 py-1 rounded-lg text-sm ${
                              activeCategory === 'inventory' ? 'bg-blue-50 text-blue-700' : 
@@ -239,7 +237,6 @@ export default function FinanceAnalytics() {
                               activeCategory === 'damage' ? product.damaged : product.totalSold}
                            </span>
                         </td>
-
                         <td className="py-5">
                            <div className="flex items-center gap-3">
                               <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">

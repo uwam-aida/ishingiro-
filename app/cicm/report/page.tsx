@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react'; 
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { 
@@ -17,10 +17,11 @@ export default function CICMReportPage() {
   const router = useRouter();
   
   const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedBranch, setSelectedBranch] = useState('All'); // ✅ Set 'All' as default or added option
+  const [selectedBranch, setSelectedBranch] = useState('All'); 
+  const [isLoading, setIsLoading] = useState(false); 
 
-  // --- 1. DATA SOURCE (Structured by Branch) ---
-  const branchData: any = {
+  // --- 1. DATA SOURCE (Changed to state with your fallback data) ---
+  const [branchData, setBranchData] = useState<any>({
     Kabuga: {
       bread: [
         { item: 'big milk', qty: 215, price: 1300 },
@@ -43,7 +44,62 @@ export default function CICMReportPage() {
         { item: 'salt big', qty: 0, price: 1100 },
       ]
     }
-  };
+  });
+
+  const [apiGrandTotal, setApiGrandTotal] = useState<number>(0);
+
+  // --- NEW: FETCH HER DETAILED API ---
+  useEffect(() => {
+    const fetchDetailedData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        
+        // Fetching the detailed API she provided to get the raw transactions
+        const branchParam = selectedBranch.toLowerCase();
+        const response = await fetch(`${baseUrl}/reports/revenue?date=${reportDate}&branch=${branchParam}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Use the verified grand_total from the backend
+          setApiGrandTotal(data.grand_total || 0);
+          
+          // Map the API categories into your UI state
+          const mappedData = {
+            bread: data.categories?.bread_sales?.map((i: any) => ({ item: i.item, qty: i.qty, price: i.price })) || [],
+            tiku: data.categories?.tiku_others?.map((i: any) => ({ item: i.item, qty: i.qty, price: i.price })) || []
+          };
+
+          if (selectedBranch === 'All') {
+            setBranchData({
+                Kabuga: mappedData, 
+                Masaka: { bread: [], tiku: [] } 
+            });
+          } else {
+            setBranchData((prev: any) => ({
+              ...prev,
+              [selectedBranch]: mappedData
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch detailed reports:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDetailedData();
+  }, [reportDate, selectedBranch, router]);
 
   // --- 2. LOGIC TO COMBINE DATA FOR "ALL" ---
   const currentData = useMemo(() => {
@@ -51,7 +107,7 @@ export default function CICMReportPage() {
       const combine = (key: string) => {
         const result: any = {};
         ['Kabuga', 'Masaka'].forEach(b => {
-          branchData[b][key].forEach((row: any) => {
+          branchData[b][key]?.forEach((row: any) => {
             if (result[row.item]) {
               result[row.item].qty += row.qty;
             } else {
@@ -63,8 +119,8 @@ export default function CICMReportPage() {
       };
       return { bread: combine('bread'), tiku: combine('tiku') };
     }
-    return branchData[selectedBranch];
-  }, [selectedBranch]);
+    return branchData[selectedBranch] || { bread: [], tiku: [] };
+  }, [selectedBranch, branchData]);
 
   const calculateTotal = (data: any[]) => data?.reduce((sum, row) => sum + (row.qty * row.price), 0) || 0;
 
@@ -83,7 +139,7 @@ export default function CICMReportPage() {
 
     csv += formatSection("Bread Section", currentData.bread);
     csv += formatSection("Tiku (Store Keeper)", currentData.tiku);
-    csv += `GRAND TOTAL,,, ${calculateTotal(currentData.bread) + calculateTotal(currentData.tiku)}`;
+    csv += `GRAND TOTAL,,, ${apiGrandTotal || (calculateTotal(currentData.bread) + calculateTotal(currentData.tiku))}`;
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -213,7 +269,7 @@ export default function CICMReportPage() {
           <div>
             <p className="text-xs font-bold opacity-80 uppercase tracking-widest">Grand Total Revenue ({selectedBranch})</p>
             <h2 className="text-4xl font-black">
-              RWF {(calculateTotal(currentData.bread) + calculateTotal(currentData.tiku)).toLocaleString()}
+              RWF {isLoading ? '...' : (apiGrandTotal || calculateTotal(currentData.bread) + calculateTotal(currentData.tiku)).toLocaleString()}
             </h2>
           </div>
         </div>
