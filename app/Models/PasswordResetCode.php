@@ -10,6 +10,5 @@ class PasswordResetCode extends Model
     use HasFactory;
     protected $fillable = [
         'user_id',
-        'expires_at'
     ];
 }
