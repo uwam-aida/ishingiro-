@@ -2,21 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Target, Plus, ArrowLeft, TrendingUp, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Target, Plus, ArrowLeft, TrendingUp, AlertCircle, CheckCircle2, Trash2, Edit2 } from 'lucide-react';
 
-// --- OFFICIAL PRODUCT LIST (For Dropdown) ---
+// --- OFFICIAL PRODUCT LIST (For Dropdown & ID Mapping) ---
+// Using an array of objects to map names to dummy IDs for the POST request
+// In a real app, this list would likely be fetched from a /products endpoint
 const MARKETING_PRODUCTS = [
-  'big milk', 'small milk', 'pcpn', 'sen', 'salted bread', 'baguette', 
-  'milk slice bread', 'crubes', 'sen pieces', 'brown sanduich', 'mult graine', 
-  'milk mult graine', 'brown bread', 'tea cake', 'marble cake', 'brown cake', 
-  'oliver corn cake', 'muffin cake', 'ishingiro', 's.begne', 'dark donut', 
-  'choc donuts', 'kk donuts', 'triangle', 'meat sambusa', 'biscuits',  
-  'ISH.MILK Cookie', 'butter biscuits', 'chocolate biscuits', 'ubunyobwa', 
-  'ikinyuranyo 1kg', 'ikinyuranyo 3kg', 'ikinyuranyo 5kg', 'ikinyuranyo (0.5)kg', 
-  'yellow c flour 1kg', 'yellow c flour 3kg', 'cashnewnuts', 'cornfresh cream', 
-  'cake 38000', 'cake 20000', 'cakes 24000', 'cake 19000', 'cake18000', 
-  'cakes 15000', 'cakes 14000', 'cakes 13000', 'cake 12000', 'cakes 10000', 
-  'cakes 9000', 'cakes 8000', 'cakes 7000', 'cakes 6000', 'cake 5000', 'ADDCAKE'
+  { id: 1, name: 'big milk' }, { id: 2, name: 'small milk' }, { id: 3, name: 'pcpn' }, { id: 4, name: 'sen' }, 
+  { id: 5, name: 'salted bread' }, { id: 6, name: 'baguette' }, { id: 7, name: 'milk slice bread' }, { id: 8, name: 'crubes' }, 
+  { id: 9, name: 'sen pieces' }, { id: 10, name: 'brown sanduich' }, { id: 11, name: 'mult graine' }, { id: 12, name: 'milk mult graine' }, 
+  { id: 13, name: 'brown bread' }, { id: 14, name: 'tea cake' }, { id: 15, name: 'marble cake' }, { id: 16, name: 'brown cake' }, 
+  { id: 17, name: 'oliver corn cake' }, { id: 18, name: 'muffin cake' }, { id: 19, name: 'ishingiro' }, { id: 20, name: 's.begne' }, 
+  { id: 21, name: 'dark donut' }, { id: 22, name: 'choc donuts' }, { id: 23, name: 'kk donuts' }, { id: 24, name: 'triangle' }, 
+  { id: 25, name: 'meat sambusa' }, { id: 26, name: 'biscuits' }, { id: 27, name: 'ISH.MILK Cookie' }, { id: 28, name: 'butter biscuits' }, 
+  { id: 29, name: 'chocolate biscuits' }, { id: 30, name: 'ubunyobwa' }, { id: 31, name: 'ikinyuranyo 1kg' }, { id: 32, name: 'ikinyuranyo 3kg' }, 
+  { id: 33, name: 'ikinyuranyo 5kg' }, { id: 34, name: 'ikinyuranyo (0.5)kg' }, { id: 35, name: 'yellow c flour 1kg' }, { id: 36, name: 'yellow c flour 3kg' }, 
+  { id: 37, name: 'cashnewnuts' }, { id: 38, name: 'cornfresh cream' }, { id: 39, name: 'cake 38000' }, { id: 40, name: 'cake 20000' }, 
+  { id: 41, name: 'cakes 24000' }, { id: 42, name: 'cake 19000' }, { id: 43, name: 'cake18000' }, { id: 44, name: 'cakes 15000' }, 
+  { id: 45, name: 'cakes 14000' }, { id: 46, name: 'cakes 13000' }, { id: 47, name: 'cake 12000' }, { id: 48, name: 'cakes 10000' }, 
+  { id: 49, name: 'cakes 9000' }, { id: 50, name: 'cakes 8000' }, { id: 51, name: 'cakes 7000' }, { id: 52, name: 'cakes 6000' }, 
+  { id: 53, name: 'cake 5000' }, { id: 54, name: 'ADDCAKE' }
 ];
 
 export default function WeeklyTargetsPage() {
@@ -24,21 +29,51 @@ export default function WeeklyTargetsPage() {
   const [isMounted, setIsMounted] = useState(false);
 
   // --- STATE FOR WEEKLY TARGETS ---
-  const [weeklyTargets, setWeeklyTargets] = useState<any[]>([
-    { id: 1, item: 'big milk', targetQty: 5000, currentQty: 3200, unit: 'Pieces' },
-    { id: 2, item: 'yellow c flour 1kg', targetQty: 200, currentQty: 200, unit: 'Kg' },
-    { id: 3, item: 'tea cake', targetQty: 1000, currentQty: 150, unit: 'Pieces' }
-  ]);
+  const [weeklyTargets, setWeeklyTargets] = useState<any[]>([]);
 
   const [targetItem, setTargetItem] = useState('');
   const [targetQty, setTargetQty] = useState('');
-  const [targetUnit, setTargetUnit] = useState('Pieces'); 
+  const [targetUnit, setTargetUnit] = useState('pieces'); 
 
+  // --- FETCH TARGETS ON LOAD ---
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    
+    const fetchTargets = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-  // --- RESTORED: EXACT API CALL YOU PROVIDED ---
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      try {
+        const response = await fetch(`${baseUrl}/sales/targets`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Map backend response to UI structure
+          setWeeklyTargets(data.map((t: any) => ({
+             id: t.id,
+             item: t.product_name,
+             targetQty: t.target_volume,
+             currentQty: t.actual_volume || 0, // Fallback if API is missing this field temporarily
+             unit: t.unit,
+             status: t.status || 'On Track'
+          })));
+        }
+      } catch (error) {
+        console.error("Failed to load targets:", error);
+      }
+    };
+
+    fetchTargets();
+  }, [router]);
+
+  // --- SAVE NEW TARGET (POST) ---
   const handleSaveTarget = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetItem || !targetQty) return;
@@ -47,15 +82,24 @@ export default function WeeklyTargetsPage() {
       const token = localStorage.getItem('token');
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-      // We send the placeholder data she expects, plus our real UI data for when she upgrades it
+      // Find the ID for the selected product name
+      const selectedProduct = MARKETING_PRODUCTS.find(p => p.name === targetItem);
+      const productId = selectedProduct ? selectedProduct.id : 1;
+
+      // Define default start/end dates for the "Weekly" target payload
+      const today = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(today.getDate() + 7);
+
       const payload = {
-        target_type: "weekly", // Matches your form's intent, using the placeholder structure
-        target_amount: Number(targetQty),
-        product_name: targetItem,
-        unit: targetUnit
+        product_id: productId,
+        target_volume: Number(targetQty),
+        unit: targetUnit.toLowerCase(), // API expects 'pieces' or 'kg'
+        start_date: today.toISOString().split('T')[0],
+        end_date: nextWeek.toISOString().split('T')[0]
       };
 
-      const response = await fetch(`${baseUrl}/sales`, {
+      const response = await fetch(`${baseUrl}/sales/targets`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -65,27 +109,87 @@ export default function WeeklyTargetsPage() {
       });
 
       if (response.ok) {
-        // Only update UI if the backend request was successful
+        const newTarget = await response.json();
+        
+        // Optimistically update UI
         setWeeklyTargets([
           { 
-            id: Date.now(), 
+            id: newTarget.id || Date.now(), 
             item: targetItem, 
             targetQty: Number(targetQty), 
             currentQty: 0, 
-            unit: targetUnit 
+            unit: targetUnit,
+            status: 'On Track'
           },
           ...weeklyTargets
         ]);
         
         setTargetItem('');
         setTargetQty('');
-        setTargetUnit('Pieces'); 
+        setTargetUnit('pieces'); 
       } else {
         alert("Failed to save target. Please check your permissions.");
       }
     } catch (error) {
       console.error("Failed to set target:", error);
       alert("Network error. Please try again.");
+    }
+  };
+
+  // --- EDIT TARGET (PUT) ---
+  const handleEditTarget = async (id: number, currentTargetQty: number, currentUnit: string) => {
+    const newQtyStr = prompt(`Enter new target volume:`, currentTargetQty.toString());
+    const newQty = parseInt(newQtyStr || '');
+    if (!newQty || isNaN(newQty)) return;
+
+    const newUnit = prompt(`Enter unit (pieces or kg):`, currentUnit);
+    if (!newUnit) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      const response = await fetch(`${baseUrl}/sales/targets/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ target_volume: newQty, unit: newUnit.toLowerCase() })
+      });
+
+      if (response.ok) {
+        setWeeklyTargets(prev => prev.map(t => 
+          t.id === id ? { ...t, targetQty: newQty, unit: newUnit } : t
+        ));
+      } else {
+        alert("Failed to update target.");
+      }
+    } catch (error) {
+      console.error("Update error:", error);
+    }
+  };
+
+  // --- DELETE TARGET (DELETE) ---
+  const handleDeleteTarget = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this target?")) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      const response = await fetch(`${baseUrl}/sales/targets/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok || response.status === 204) {
+        setWeeklyTargets(prev => prev.filter(t => t.id !== id));
+      } else {
+        alert("Failed to delete target.");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
     }
   };
 
@@ -130,8 +234,8 @@ export default function WeeklyTargetsPage() {
                 className="w-full bg-gray-50 border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm text-[#5D4037] outline-none focus:border-[#F57C00] mt-1 transition-all uppercase"
               >
                 <option value="" disabled hidden>-- Choose a Product --</option>
-                {MARKETING_PRODUCTS.map((prod, i) => (
-                  <option key={i} value={prod}>{prod}</option>
+                {MARKETING_PRODUCTS.map((prod) => (
+                  <option key={prod.id} value={prod.name}>{prod.name}</option>
                 ))}
               </select>
             </div>
@@ -151,8 +255,8 @@ export default function WeeklyTargetsPage() {
                   onChange={(e) => setTargetUnit(e.target.value)}
                   className="bg-gray-100 border-2 border-gray-200 p-4 rounded-r-2xl font-bold text-sm text-gray-600 outline-none focus:border-[#F57C00] transition-all uppercase cursor-pointer"
                 >
-                  <option value="Pieces">Pieces</option>
-                  <option value="Kg">Kg</option>
+                  <option value="pieces">Pieces</option>
+                  <option value="kg">Kg</option>
                 </select>
               </div>
             </div>
@@ -181,6 +285,7 @@ export default function WeeklyTargetsPage() {
                   <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase border-b border-gray-100 text-center">Progress</th>
                   <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase border-b border-gray-100 text-center">Target Volume</th>
                   <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase border-b border-gray-100 text-right">Status</th>
+                  <th className="px-8 py-4 text-[10px] font-black text-gray-400 uppercase border-b border-gray-100 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -222,11 +327,11 @@ export default function WeeklyTargetsPage() {
 
                       {/* Status Badge */}
                       <td className="px-8 py-6 text-right">
-                        {isComplete ? (
+                        {isComplete || target.status === 'Completed' ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-50 text-green-600 border border-green-100 shadow-sm">
                             <CheckCircle2 size={14} /> Target Met
                           </span>
-                        ) : isWarning ? (
+                        ) : isWarning || target.status === 'Falling Behind' ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 shadow-sm">
                             <AlertCircle size={14} /> Falling Behind
                           </span>
@@ -237,13 +342,33 @@ export default function WeeklyTargetsPage() {
                         )}
                       </td>
                       
+                      {/* Action Buttons (Edit & Delete) */}
+                      <td className="px-8 py-6 text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                             onClick={() => handleEditTarget(target.id, target.targetQty, target.unit)} 
+                             className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                             title="Edit Target"
+                          >
+                             <Edit2 size={16} />
+                          </button>
+                          <button 
+                             onClick={() => handleDeleteTarget(target.id)} 
+                             className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                             title="Delete Target"
+                          >
+                             <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+
                     </tr>
                   );
                 })}
                 
                 {weeklyTargets.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-8 py-12 text-center text-gray-400 text-sm font-bold uppercase tracking-widest">
+                    <td colSpan={5} className="px-8 py-12 text-center text-gray-400 text-sm font-bold uppercase tracking-widest">
                       No targets set for this week yet.
                     </td>
                   </tr>

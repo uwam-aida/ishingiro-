@@ -58,7 +58,7 @@ export default function ProductionManagerDashboard() {
           setAllData({
             Measured: data.measured?.map((m: any) => ({ id: m.id, item: m.name, qty: `${m.quantity} ${m.unit}`, time: 'Today', status: 'Ready' })) || [],
             Baked: data.baked?.map((b: any) => ({ id: b.id, item: b.product?.name || `Product #${b.product_id}`, qty: `${b.quantity} pcs`, time: 'Today', status: 'Baked' })) || [],
-            Distribution: data.distribution?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, target: d.to_location, time: 'Today', status: 'Sent' })) || [],
+            Distribution: data.distribution?.map((d: any) => ({ id: d.id, item: d.product?.name || `Product #${d.product_id}`, qty: `${d.quantity} pcs`, target: d.category, time: 'Today', status: 'Sent' })) || [],
             Delivered: data.delivered?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, time: 'Today', status: 'Delivered' })) || [],
             Orders: data.orders?.map((o: any) => ({ id: o.id, item: `${o.location} Order`, qty: '-', time: 'Today', status: o.status })) || [],
             Damaged: data.damaged?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, time: 'Today', status: 'Reported' })) || []
@@ -78,42 +78,79 @@ export default function ProductionManagerDashboard() {
     const itemToEdit = currentItems.find(i => i.id === id);
     
     if (itemToEdit) {
-      // Extract just the number from strings like "500 pcs" so the user just types "600"
-      const currentQtyMatch = itemToEdit.qty.toString().match(/\d+/);
-      const currentQtyNum = currentQtyMatch ? currentQtyMatch[0] : itemToEdit.qty;
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      let endpoint = '';
+      let payload = {};
 
-      const newQtyStr = prompt(`Edit quantity for ${itemToEdit.item}:`, currentQtyNum);
-      const newQty = parseInt(newQtyStr || '');
+      if (category === 'Orders') {
+         // Orders edit status, not quantity
+         const newStatus = prompt(`Edit status for ${itemToEdit.item}:`, itemToEdit.status);
+         if (!newStatus) return;
+         endpoint = `${baseUrl}/production/orders/${id}`;
+         payload = { status: newStatus };
+      } else if (category === 'Distribution') {
+         // Distribution edits quantity and category
+         const currentQtyMatch = itemToEdit.qty.toString().match(/\d+/);
+         const currentQtyNum = currentQtyMatch ? currentQtyMatch[0] : itemToEdit.qty;
+         const newQtyStr = prompt(`Edit quantity for ${itemToEdit.item}:`, currentQtyNum);
+         const newQty = parseInt(newQtyStr || '');
+         if (!newQty || isNaN(newQty)) return;
+         
+         const newTarget = prompt(`Edit Target Category (e.g. Events, Tiku) for ${itemToEdit.item}:`, itemToEdit.target);
+         if (!newTarget) return;
 
-      if (newQty && !isNaN(newQty)) {
-        const token = localStorage.getItem('token');
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-        
-        // Use the exact PUT endpoints provided in the documentation
-        let endpoint = '';
-        if (category === 'Measured') endpoint = `${baseUrl}/production/stock/${id}`;
-        else if (category === 'Baked') endpoint = `${baseUrl}/production/production/${id}`;
-        
-        try {
-          if (endpoint) {
-             const response = await fetch(endpoint, {
-                 method: 'PUT',
-                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ quantity: newQty })
-             });
-             if (!response.ok) {
-                 alert("Failed to update on server");
-                 return;
-             }
-          }
+         endpoint = `${baseUrl}/production/distribution/${id}`;
+         payload = { quantity: newQty, category: newTarget };
+      } else {
+         // Everything else (Measured, Baked, Delivered) edits quantity
+         const currentQtyMatch = itemToEdit.qty.toString().match(/\d+/);
+         const currentQtyNum = currentQtyMatch ? currentQtyMatch[0] : itemToEdit.qty;
+         const newQtyStr = prompt(`Edit quantity for ${itemToEdit.item}:`, currentQtyNum);
+         const newQty = parseInt(newQtyStr || '');
+         if (!newQty || isNaN(newQty)) return;
 
-          // Update local UI state (keeping the 'pcs' or 'kg' text intact)
-          const updatedString = itemToEdit.qty.toString().replace(/\d+/, newQty.toString());
-          const updatedItems = currentItems.map(i => i.id === id ? { ...i, qty: updatedString } : i);
-          setAllData({ ...allData, [category]: updatedItems });
-
-        } catch (e) { console.error(e); }
+         payload = { quantity: newQty };
+         
+         if (category === 'Measured') endpoint = `${baseUrl}/production/stock/${id}`;
+         else if (category === 'Baked') endpoint = `${baseUrl}/production/production/${id}`;
+         else if (category === 'Delivered') endpoint = `${baseUrl}/production/delivery/${id}`;
       }
+
+      try {
+        if (endpoint) {
+           const response = await fetch(endpoint, {
+               method: 'PUT',
+               headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+               body: JSON.stringify(payload)
+           });
+           if (!response.ok) {
+               alert("Failed to update on server");
+               return;
+           }
+        }
+
+        // Update local UI state
+        const updatedItems = currentItems.map(i => {
+           if (i.id === id) {
+              let updatedI = { ...i };
+              if (category === 'Orders') {
+                 updatedI.status = (payload as any).status;
+              } else if (category === 'Distribution') {
+                 updatedI.qty = i.qty.toString().replace(/\d+/, (payload as any).quantity.toString());
+                 updatedI.target = (payload as any).category;
+              } else {
+                 updatedI.qty = i.qty.toString().replace(/\d+/, (payload as any).quantity.toString());
+              }
+              return updatedI;
+           }
+           return i;
+        });
+        
+        setAllData({ ...allData, [category]: updatedItems });
+
+      } catch (e) { console.error(e); }
     }
   };
 
@@ -128,6 +165,9 @@ export default function ProductionManagerDashboard() {
     let endpoint = '';
     if (category === 'Measured') endpoint = `${baseUrl}/production/stock/${id}`;
     else if (category === 'Baked') endpoint = `${baseUrl}/production/production/${id}`;
+    else if (category === 'Distribution') endpoint = `${baseUrl}/production/distribution/${id}`;
+    else if (category === 'Delivered') endpoint = `${baseUrl}/production/delivery/${id}`;
+    else if (category === 'Orders') endpoint = `${baseUrl}/production/orders/${id}`;
     else if (category === 'Damaged') endpoint = `${baseUrl}/production/damage/${id}`;
 
     try {

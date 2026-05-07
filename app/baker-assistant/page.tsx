@@ -10,43 +10,61 @@ import {
   History, 
   ArrowLeft,
   Search,
-  Package
-  
+  Package,
+  PlusCircle,
+  X
 } from 'lucide-react';
 
 export default function BakerDashboard() {
   const router = useRouter(); // Initialize router
   const [currentView, setCurrentView] = useState('Dashboard');
 
-  // --- NEW: STATE TO HOLD FETCHED API DATA ---
+  // --- STATE TO HOLD FETCHED API DATA ---
   const [bakedProducts, setBakedProducts] = useState<any[]>([]);
   const [damagedItems, setDamagedItems] = useState<any[]>([]);
+  const [ingredients, setIngredients] = useState<any[]>([]);
+  const [realProducts, setRealProducts] = useState<any[]>([]);
+
+  // --- MODAL STATES ---
+  const [showModal, setShowModal] = useState<'production' | 'damage' | 'ingredient' | null>(null);
+  
+  // --- FORM STATES ---
+  const [formProduct, setFormProduct] = useState('');
+  const [formQty, setFormQty] = useState('');
+  const [formReason, setFormReason] = useState('');
+  const [formUnit, setFormUnit] = useState('kg');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // --- AUTHENTICATION CHECK & API FETCH ---
+  const fetchBakerData = async () => {
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+
+    try {
+      const prodRes = await fetch(`${baseUrl}/baker/production`, { headers });
+      if (prodRes.ok) setBakedProducts(await prodRes.json());
+
+      const damRes = await fetch(`${baseUrl}/baker/damage`, { headers });
+      if (damRes.ok) setDamagedItems(await damRes.json());
+
+      const ingRes = await fetch(`${baseUrl}/baker/ingredients`, { headers });
+      if (ingRes.ok) setIngredients(await ingRes.json());
+
+      const productsRes = await fetch(`${baseUrl}/products`, { headers });
+      if (productsRes.ok) setRealProducts(await productsRes.json());
+
+    } catch (error) {
+      console.error("Failed to fetch baker data", error);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
-      router.push('/login'); // Kick them out if not logged in
+      router.push('/login');
       return;
     }
-
-    // --- FETCH DATA FROM APIS ---
-    const fetchBakerData = async () => {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-      const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
-
-      try {
-        // Note: Backend needs to ensure these GET endpoints exist
-        const prodRes = await fetch(`${baseUrl}/baker/production`, { headers });
-        if (prodRes.ok) setBakedProducts(await prodRes.json());
-
-        const damRes = await fetch(`${baseUrl}/baker/damage`, { headers });
-        if (damRes.ok) setDamagedItems(await damRes.json());
-      } catch (error) {
-        console.error("Failed to fetch baker data", error);
-      }
-    };
-
     fetchBakerData();
   }, [router]);
 
@@ -69,14 +87,66 @@ export default function BakerDashboard() {
     }
   };
 
-  // --- 1. THE THREE MAIN CATEGORIES (Updated to use fetched data lengths) ---
+  // --- POST APIS ---
+  const handlePostSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    try {
+      if (showModal === 'ingredient') {
+        await fetch(`${baseUrl}/baker/ingredients`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ name: formProduct, quantity: parseInt(formQty), unit: formUnit })
+        });
+      } else {
+        // Find real DB ID
+        const realDbProduct = realProducts.find(p => p.name.toLowerCase() === formProduct.toLowerCase());
+        const dbProductId = realDbProduct ? realDbProduct.id : 1; 
+
+        if (showModal === 'production') {
+          await fetch(`${baseUrl}/baker/production`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(formQty), location: 'kabuga' })
+          });
+        } else if (showModal === 'damage') {
+          await fetch(`${baseUrl}/baker/damage`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(formQty), reason: formReason, location: 'kabuga' })
+          });
+        }
+      }
+
+      // Reset and refresh
+      setShowModal(null);
+      setFormProduct('');
+      setFormQty('');
+      setFormReason('');
+      setFormUnit('kg');
+      fetchBakerData();
+
+    } catch (error) {
+      console.error("Submission failed", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // --- 1. THE THREE MAIN CATEGORIES ---
   const stats = [
     { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
     { label: 'Damaged Items', value: damagedItems.length.toString(), icon: Trash2, color: 'bg-red-50 text-red-600' },
+    { label: 'Ingredient Store', value: ingredients.length.toString(), icon: Package, color: 'bg-gray-100 text-black' },
     { label: 'Full Added Products', value: (bakedProducts.length + damagedItems.length).toString(), icon: History, color: 'bg-gray-100 text-black' },
   ];
 
-  // --- 2. LIST DATA (Updated to map fetched API data into your exact table format) ---
+  // --- 2. LIST DATA ---
   const getGridData = (view: string) => {
     switch (view) {
       case 'Baked Products':
@@ -84,7 +154,7 @@ export default function BakerDashboard() {
           id: `BK-${p.id}`, 
           item: p.product?.name || `Product #${p.product_id}`, 
           qty: `${p.quantity} pcs`, 
-          time: 'Today', // API needs to return created_at for real time
+          time: 'Logged', 
           status: 'In Stock'
         }));
       case 'Damaged Items':
@@ -95,13 +165,21 @@ export default function BakerDashboard() {
           reason: d.reason, 
           status: 'Waste'
         }));
+      case 'Ingredient Store':
+        return ingredients.map(i => ({
+          id: `ING-${i.id}`, 
+          item: i.name, 
+          qty: `${i.quantity} ${i.unit}`, 
+          time: 'Available', 
+          status: 'Stock'
+        }));
       case 'Full Added Products':
         const combined = [...bakedProducts, ...damagedItems].sort((a, b) => b.id - a.id);
         return combined.map(log => ({
           id: `LOG-${log.id}`, 
           item: log.product?.name || `Product #${log.product_id}`, 
           qty: `${log.quantity} pcs`, 
-          date: 'Today', 
+          date: 'Logged', 
           status: log.reason ? 'Waste' : 'Verified'
         }));
       default: return [];
@@ -111,21 +189,65 @@ export default function BakerDashboard() {
   const currentData = getGridData(currentView);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10 px-4 pt-4">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10 px-4 pt-4 relative">
       
+      {/* --- FORMS MODAL --- */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+           <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+              <button onClick={() => setShowModal(null)} className="absolute top-6 right-6 text-gray-400 hover:text-black">
+                 <X size={24} />
+              </button>
+              <h2 className="text-2xl font-black uppercase mb-6 text-[#F57C00]">
+                 {showModal === 'production' ? 'Log Production' : showModal === 'damage' ? 'Report Damage' : 'Add Ingredient'}
+              </h2>
+              
+              <form onSubmit={handlePostSubmit} className="space-y-4">
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      {showModal === 'ingredient' ? 'Ingredient Name' : 'Product Name'}
+                    </label>
+                    <input required type="text" value={formProduct} onChange={(e) => setFormProduct(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
+                 </div>
+
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantity</label>
+                    <input required type="number" value={formQty} onChange={(e) => setFormQty(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
+                 </div>
+
+                 {showModal === 'ingredient' && (
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Unit</label>
+                      <input required type="text" placeholder="e.g. kg, liters" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
+                   </div>
+                 )}
+
+                 {showModal === 'damage' && (
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Reason</label>
+                      <input required type="text" placeholder="e.g. Burned, Dropped" value={formReason} onChange={(e) => setFormReason(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
+                   </div>
+                 )}
+
+                 <button disabled={isSubmitting} type="submit" className="w-full bg-black text-white font-black uppercase tracking-widest py-4 rounded-2xl mt-4 hover:bg-[#F57C00] transition-colors disabled:opacity-50">
+                    {isSubmitting ? 'Saving...' : 'Submit'}
+                 </button>
+              </form>
+           </div>
+        </div>
+      )}
+
       {/* --- DASHBOARD VIEW --- */}
       {currentView === 'Dashboard' ? (
         <>
-          {/* UPDATED HEADER: Now includes the Log Out button */}
           <div className="mb-8 flex justify-between items-start">
             <div>
               <h1 className="text-4xl font-black text-black tracking-tighter uppercase">Baker Assistant</h1>
               <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Production Management</p>
             </div>
-           
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
               <button 
                 key={index} 
@@ -166,13 +288,20 @@ export default function BakerDashboard() {
                 <h2 className="text-4xl font-black text-black uppercase tracking-tighter">{currentView}</h2>
                 <p className="text-[#F57C00] text-[10px] font-black uppercase tracking-[0.2em] mt-1">Current Shift Records</p>
               </div>
-              <div className="relative w-full md:w-80">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder="SEARCH PRODUCTS..." 
-                    className="w-full pl-14 pr-8 py-5 bg-gray-50 border-none rounded-3xl outline-none focus:ring-2 focus:ring-[#F57C00]/20 font-bold text-[10px] uppercase tracking-widest text-black" 
-                />
+              
+              <div className="flex items-center gap-4 w-full md:w-auto">
+                {currentView === 'Baked Products' && <button onClick={() => setShowModal('production')} className="bg-black text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-colors flex-shrink-0"><PlusCircle size={16}/> Log Batch</button>}
+                {currentView === 'Damaged Items' && <button onClick={() => setShowModal('damage')} className="bg-red-600 text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-red-700 transition-colors flex-shrink-0"><Trash2 size={16}/> Report Waste</button>}
+                {currentView === 'Ingredient Store' && <button onClick={() => setShowModal('ingredient')} className="bg-black text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-colors flex-shrink-0"><PlusCircle size={16}/> Add Supply</button>}
+
+                <div className="relative w-full md:w-64">
+                  <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input 
+                      type="text" 
+                      placeholder="SEARCH..." 
+                      className="w-full pl-14 pr-8 py-4 bg-gray-50 border-none rounded-3xl outline-none focus:ring-2 focus:ring-[#F57C00]/20 font-bold text-[10px] uppercase tracking-widest text-black" 
+                  />
+                </div>
               </div>
             </div>
 
@@ -196,7 +325,7 @@ export default function BakerDashboard() {
                             </div>
                             <div>
                                 <p className="font-black text-black uppercase text-sm tracking-tight">{row.item}</p>
-                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Ref: {row.id}</p>
+                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Ref: {row.id} {row.reason ? `| ${row.reason}` : ''}</p>
                             </div>
                         </div>
                       </td>
@@ -205,7 +334,7 @@ export default function BakerDashboard() {
                       </td>
                       <td className="px-12 py-8 text-right">
                         <span className={`px-5 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-[0.15em] shadow-sm ${
-                            currentView === 'Damaged Items' ? 'bg-red-600 text-white' : 'bg-black text-white'
+                            row.status === 'Waste' ? 'bg-red-600 text-white' : 'bg-black text-white'
                         }`}>
                           {row.status}
                         </span>

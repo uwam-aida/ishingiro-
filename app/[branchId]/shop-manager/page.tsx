@@ -73,12 +73,9 @@ export default function DynamicShopDashboard() {
     item: p.name, quantity: 100, unit: p.name.includes('kg') ? 'Kg' : 'Pieces', entryTime: '06:00 AM' 
   })));
   const [requestQty, setRequestQty] = useState('');
-  const [myRequests, setMyRequests] = useState<any[]>([{ id: 1, item: 'big milk', quantity: 20, status: 'Pending Dispatch', time: '08:30 AM' }]);
-  const [receivedStock, setReceivedStock] = useState<any[]>([
-    { id: 101, item: 'brown bread', quantity: 50, unit: 'Pieces', arrivalTime: '07:00 AM' },
-    { id: 102, item: 'tea cake', quantity: 15, unit: 'Pieces', arrivalTime: '09:15 AM' },
-    { id: 103, item: 'yellow c flour 1kg', quantity: 10, unit: 'Kg', arrivalTime: '10:00 AM' }
-  ]);
+  
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+  const [receivedStock, setReceivedStock] = useState<any[]>([]);
 
   const [editingReceivedId, setEditingReceivedId] = useState<number | null>(null);
   const [editReceivedQty, setEditReceivedQty] = useState('');
@@ -94,21 +91,15 @@ export default function DynamicShopDashboard() {
   const [notFound, setNotFound] = useState(false);
   const [showDamagedSuggestions, setShowDamagedSuggestions] = useState(false);
 
-  const [myStock] = useState([
-    { item: 'Wheat Flour', quantity: 250, unit: 'Kg' },
-    { item: 'Dry Yeast', quantity: 5, unit: 'Kg' },
-    { item: 'Sugar', quantity: 50, unit: 'Kg' },
-    { item: 'Cooking Oil', quantity: 20, unit: 'Liters' },
-  ]);
+  const [myStock, setMyStock] = useState<any[]>([]);
 
   const [productSearch, setProductSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
-  const [cakeOrders, setCakeOrders] = useState<any[]>([
-    { id: 501, item: 'Chocolate Cake', code: 'KS-01', customer: 'Jean Paul', time: '10:00 AM' }
-  ]);
+  const [cakeOrders, setCakeOrders] = useState<any[]>([]);
+  const [realProducts, setRealProducts] = useState<any[]>([]);
 
   // --- 2. BACKEND WIRING: AUTH & INITIAL LOAD ---
   useEffect(() => {
@@ -117,17 +108,104 @@ export default function DynamicShopDashboard() {
         router.push('/login');
         return;
     }
-    // Logic to sync with backend could go here if you want to pull existing orders on load
-  }, [router]);
+    
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-  // --- 3. LOGIC CALCULATIONS (KEPT ALL YOUR ORIGINAL LOGIC) ---
+    const fetchAllData = async () => {
+        try {
+            const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+
+            // Fetch Products (for ID mapping)
+            const prodRes = await fetch(`${baseUrl}/products`, { headers });
+            if (prodRes.ok) setRealProducts(await prodRes.json());
+
+            // --- FETCH FACTORY STOCK (API ENDPOINT UPDATED HERE) ---
+            const factRes = await fetch(`${baseUrl}/factory/stock`, { headers });
+            if (factRes.ok) {
+                const factData = await factRes.json();
+                if(factData.length > 0) {
+                   setFactoryStock(factData.map((s:any) => ({ 
+                       item: s.product?.name || 'Unknown', 
+                       quantity: s.quantity, 
+                       unit: s.product?.type === 'unbaked' ? 'Kg' : 'Pieces', 
+                       entryTime: 'Latest' 
+                    })));
+                }
+            }
+
+            // Fetch My Stock
+            const stockRes = await fetch(`${baseUrl}/stock/${branchIdString}`, { headers });
+            if (stockRes.ok) {
+                const stockData = await stockRes.json();
+                if(stockData.length > 0) {
+                   setMyStock(stockData.map((s:any) => ({ item: s.product?.name || 'Unknown', quantity: s.quantity, unit: 'Pieces' })));
+                }
+            }
+
+            // Fetch Orders
+            const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
+            if (ordRes.ok) {
+                const ordData = await ordRes.json();
+                if(ordData.length > 0) {
+                   const pendingOrders: any[] = [];
+                   const dispatchedOrders: any[] = [];
+                   
+                   ordData.forEach((o: any) => {
+                     o.items?.forEach((i: any) => {
+                       const mappedItem = {
+                         id: o.id, 
+                         item: i.product?.name || `Order #${o.id}`,
+                         quantity: i.quantity,
+                         status: o.status,
+                         time: 'Latest',
+                         unit: 'Pieces',
+                         arrivalTime: 'Latest'
+                       };
+
+                       if (o.status === 'pending') {
+                         pendingOrders.push(mappedItem);
+                       } else {
+                         dispatchedOrders.push(mappedItem);
+                       }
+                     });
+                   });
+
+                   setMyRequests(pendingOrders);
+                   setReceivedStock(dispatchedOrders);
+                }
+            }
+
+            // Fetch Damages
+            const damRes = await fetch(`${baseUrl}/shop/damages/${branchIdString}`, { headers });
+            if (damRes.ok) {
+                const damData = await damRes.json();
+                if(damData.length > 0) {
+                   setDamagedReports(damData.map((d:any) => ({ id: d.id, item: d.product?.name || 'Unknown', qty: d.quantity, state: 'Reported', unit: 'Pieces', time: 'Latest' })));
+                }
+            }
+
+            // Fetch Cake Orders
+            const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
+            if (cakeRes.ok) {
+                const cakeData = await cakeRes.json();
+                if(cakeData.length > 0) {
+                   setCakeOrders(cakeData.map((c:any) => ({ id: c.id, item: c.cake_type, code: `CK-${c.id}`, customer: c.customer_name, time: c.delivery_date || 'Pending' })));
+                }
+            }
+        } catch(e) { console.error("Failed to fetch shop data", e); }
+    };
+
+    fetchAllData();
+  }, [router, branchIdString]);
+
+  // --- 3. LOGIC CALCULATIONS ---
   const filteredProducts = factoryStock.filter(p => p.item.toLowerCase().includes(productSearch.toLowerCase()));
   const damagedFiltered = MARKETING_PRODUCTS.filter(p => p.name.toLowerCase().includes(damagedItem.toLowerCase()));
   
   const isRequestNotFound = productSearch.length > 0 && filteredProducts.length === 0;
   const isDamagedSearchNotFound = damagedItem.length > 0 && damagedFiltered.length === 0;
 
-  // --- DYNAMIC VALIDATION (KEPT YOURS) ---
+  // --- DYNAMIC VALIDATION ---
   useEffect(() => {
     const product = MARKETING_PRODUCTS.find(p => p.name.toLowerCase() === damagedItem.toLowerCase());
     if (damagedItem.length > 0 && !product && !showDamagedSuggestions) {
@@ -155,37 +233,28 @@ export default function DynamicShopDashboard() {
   const bakedItemsAvailable = selectedItem ? (factoryStock.find(s => s.item === selectedItem)?.quantity || 0) : 0;
   const isOverLimit = (parseInt(requestQty) || 0) > bakedItemsAvailable;
 
-  // --- 4. UPDATED: BACKEND INTEGRATION FOR ADD REQUEST ---
+  // --- 4. BACKEND INTEGRATION FOR ADD REQUEST ---
   const handleAddRequest = async () => {
     if (!requestQty || isOverLimit || !selectedItem) return;
     
-    // BACKEND CALL - Connecting to the exact endpoint from the docs
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
+    const realDbProduct = realProducts.find(p => p.name.toLowerCase() === selectedItem.toLowerCase());
+    const dbProductId = realDbProduct ? realDbProduct.id : 1; 
+
     try {
         const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
             method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json' 
-            },
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                // Note: The API requires a product_id. Since we only have a string name in selectedItem right now, 
-                // we are passing 1 as a placeholder until the frontend has full product IDs.
-                items: [{ product_id: 1, quantity: parseInt(requestQty) }]
+                items: [{ product_id: dbProductId, quantity: parseInt(requestQty) }]
             })
         });
         
-        if (response.ok) {
-            const data = await response.json();
-            console.log("Order saved to backend", data);
-        } else {
-            console.error("Backend error saving order");
-        }
+        if (response.ok) { console.log("Order saved to backend"); }
     } catch (e) { console.error(e); }
 
-    // KEEPING YOUR LOCAL UI UPDATE
     const qtyToDeduct = parseInt(requestQty);
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
@@ -193,36 +262,31 @@ export default function DynamicShopDashboard() {
     setRequestQty(''); setProductSearch(''); setSelectedItem(null);
   };
 
-  // --- 5. UPDATED: BACKEND INTEGRATION FOR REPORT DAMAGE ---
+  // --- 5. BACKEND INTEGRATION FOR REPORT DAMAGE ---
   const handleReportDamage = async () => {
     if (!damagedItem || !damagedQty || typeError || notFound) return;
 
-    // BACKEND CALL - Connecting to the exact endpoint from the docs
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
+    const realDbProduct = realProducts.find(p => p.name.toLowerCase() === damagedItem.toLowerCase());
+    const dbProductId = realDbProduct ? realDbProduct.id : 1;
+
     try {
         const response = await fetch(`${baseUrl}/shop/damages`, {
             method: 'POST',
-            headers: { 
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json' 
-            },
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                // Note: Similar to orders, we pass 1 as a placeholder product_id.
-                product_id: 1,
+                product_id: dbProductId,
                 quantity: parseInt(damagedQty),
                 reason: `Reported by Manager. State: ${damagedState}`,
                 location: branchIdString
             })
         });
 
-        if (response.ok) {
-           console.log("Damage reported to backend successfully.");
-        }
+        if (response.ok) { console.log("Damage reported to backend successfully."); }
     } catch (e) { console.error(e); }
 
-    // KEEPING YOUR LOCAL UI UPDATE
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setDamagedReports([{ id: Date.now(), item: damagedItem, qty: damagedQty, state: damagedState, unit: damagedUnit, time: currentTime }, ...damagedReports]);
     setDamagedItem(''); setDamagedQty(''); setTypeError(false);
@@ -253,8 +317,8 @@ export default function DynamicShopDashboard() {
   ].sort((a, b) => b.time.localeCompare(a.time));
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12 font-sans">
-      <div className="max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-6">
+    <div className="min-h-screen bg-gray-50 pb-12 font-sans w-full overflow-x-hidden">
+      <div className="w-full max-w-full md:max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-6">
         <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md py-4 border-b border-gray-200/50 flex justify-between items-center">
             <div className="flex items-center gap-3">
               <h1 className="text-xl md:text-2xl font-black text-black uppercase">{branchName} MANAGER</h1>
@@ -262,7 +326,7 @@ export default function DynamicShopDashboard() {
         </div>
 
         {/* --- STATS BUTTONS --- */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 w-full">
           {stats.map((stat) => (
             <div 
                 key={stat.id} 
@@ -285,11 +349,11 @@ export default function DynamicShopDashboard() {
           ))}
         </div>
 
-        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px]">
+        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px] w-full max-w-full">
           {/* TAB: STOCK */}
           {activeFilter === 'stock' && (
-            <div className="overflow-x-auto animate-in fade-in">
-              <table className="w-full text-left font-bold border-collapse">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Ingredient/Product</th><th className="px-8 py-4 text-center">In Store</th><th className="px-8 py-4 text-right">Unit</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {myStock.map((s, idx) => (
@@ -306,9 +370,9 @@ export default function DynamicShopDashboard() {
 
           {/* TAB: HISTORY */}
           {activeFilter === 'history' && (
-            <div className="overflow-x-auto animate-in fade-in p-8">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
-               <table className="w-full text-left border-collapse">
+               <table className="w-full min-w-[800px] whitespace-nowrap text-left border-collapse">
                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Type</th><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Quantity</th><th className="px-8 py-4 text-right">Time Added</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {fullHistory.map((log, idx) => (
@@ -354,22 +418,24 @@ export default function DynamicShopDashboard() {
                 </div>
                 <button disabled={typeError || isDamagedSearchNotFound} onClick={handleReportDamage} className={`mt-4 px-8 py-4 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${typeError || isDamagedSearchNotFound ? 'bg-gray-200 text-gray-400' : 'bg-red-600 text-white shadow-lg active:scale-95'}`}>Submit Damage</button>
               </div>
-              <table className="w-full mt-8 text-left font-bold">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
-                <tbody className="divide-y divide-gray-100">
-                  {damagedReports.map((d) => (
-                    <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td></tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="w-full max-w-full overflow-x-auto scrollbar-hide">
+                <table className="w-full min-w-[800px] whitespace-nowrap mt-8 text-left font-bold">
+                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {damagedReports.map((d) => (
+                      <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
           {/* TAB: CAKE ORDERS */}
           {activeFilter === 'cake_orders' && (
-            <div className="animate-in fade-in p-8">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">CUSTOM CAKE ORDERS</h2>
-               <table className="w-full text-left font-bold border-collapse mt-2">
+               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-2">
                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
                    <tr>
                      <th className="px-8 py-4 text-gray-900">Cake Name</th>
@@ -396,7 +462,7 @@ export default function DynamicShopDashboard() {
 
           {/* TAB: ORDERS */}
           {activeFilter === 'orders' && (
-            <div className="animate-in fade-in p-8">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                 <div className="max-w-2xl">
                   <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">REQUEST FOR PRODUCTS</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -417,7 +483,7 @@ export default function DynamicShopDashboard() {
                   </div>
                   <button disabled={!requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Add Request</button>
                 </div>
-              <table className="w-full text-left font-bold border-collapse mt-8">
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-8">
                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {myRequests.map((req) => (
@@ -430,8 +496,8 @@ export default function DynamicShopDashboard() {
 
           {/* TAB: BAKED */}
           {activeFilter === 'baked' && (
-            <div className="overflow-x-auto animate-in fade-in">
-              <table className="w-full text-left font-bold border-collapse">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50">
                   <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Global Stock</th><th className="px-8 py-4 text-right">Entry Time</th></tr>
                 </thead>
@@ -450,8 +516,8 @@ export default function DynamicShopDashboard() {
 
           {/* TAB: RECEIVED */}
           {activeFilter === 'received' && (
-            <div className="overflow-x-auto animate-in fade-in">
-              <table className="w-full text-left font-bold border-collapse">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50">
                   <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Item Received</th><th className="px-8 py-4 text-center">Qty</th><th className="px-8 py-4 text-right">Action</th></tr>
                 </thead>

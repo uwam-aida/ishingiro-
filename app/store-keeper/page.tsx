@@ -78,6 +78,31 @@ export default function StoreKeeperDashboard() {
   const params = useParams();
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
+  // --- STATE INITIALIZATION ---
+  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests'>('requests');  
+  const [deliveryNote, setDeliveryNote] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editQty, setEditQty] = useState('');
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+
+  // Live API States
+  const [myStock, setMyStock] = useState<any[]>([]);
+  const [shopRequests, setShopRequests] = useState<any[]>([]);
+  const [cakeOrders, setCakeOrders] = useState<any[]>([]);
+  const [cakeRequests, setCakeRequests] = useState<any[]>([]);
+  const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
+
+  // Mocked States (APIs missing from doc)
+  const [issuedNotes, setIssuedNotes] = useState([
+    { id: 'DN-9921', date: '02.04.2026', time: '10:30 AM', items: [{ name: 'Bread', quantity: 100, destination: 'KABUGA SHOP' }] },
+  ]);
+  const [damagedProducts, setDamagedProducts] = useState([
+    { id: 1, item: 'Special Flour', quantity: 5, unit: 'kg', date: '2026-03-27', time: '09:00 AM' },
+  ]);
+  const [bakedProducts, setBakedProducts] = useState([
+    { id: 1, item: 'Milk Bread', quantity: 300, time: '07:00 AM' },
+  ]);
+
   // --- 1. INITIAL FETCH LOGIC ---
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -86,33 +111,125 @@ export default function StoreKeeperDashboard() {
       return;
     }
 
-    const fetchInventory = async () => {
+    const fetchAllData = async () => {
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json' 
+      };
+
       try {
-        const response = await fetch(`${baseUrl}/storekeeper`, {
-          method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json' 
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          // Mapping API results to your 'myStock' format
-          const mappedStock = data.map((item: any) => ({
+        // Fetch 1: My Stock
+        const stockRes = await fetch(`${baseUrl}/storekeeper`, { headers });
+        if (stockRes.ok) {
+          const data = await stockRes.json();
+          setMyStock(data.map((item: any) => ({
             id: item.id,
             product_id: item.product_id,
             item: item.product?.name || 'Unknown',
             quantity: item.quantity,
-            unit: 'pcs' // default unit
-          }));
-          setMyStock(mappedStock); 
+            unit: item.unit || 'pcs'
+          })));
         }
+
+        // Fetch 2: Shop Requests
+        const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
+        if (reqRes.ok) {
+          const data = await reqRes.json();
+          const flattenedRequests: any[] = [];
+          data.forEach((order: any) => {
+             order.items?.forEach((item: any) => {
+                flattenedRequests.push({
+                   id: order.id, 
+                   product_id: item.product_id,
+                   item: item.product?.name || 'Unknown Product',
+                   quantity: item.quantity,
+                   unit: 'pcs',
+                   time: 'Pending', 
+                   branch: order.location,
+                   isEdited: false
+                });
+             });
+          });
+          setShopRequests(flattenedRequests);
+        }
+
+        // Fetch 3: Delivery History
+        const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
+        if (histRes.ok) {
+          const data = await histRes.json();
+          setDeliveryHistory(data.map((h: any) => ({
+             id: h.id,
+             item: h.product?.name || 'Unknown',
+             quantity: h.quantity,
+             date: 'Logged', 
+             receiver: h.to_location
+          })));
+        }
+
+        // Fetch 4: Cake Orders
+        const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
+        if (cakeOrderRes.ok) {
+          const data = await cakeOrderRes.json();
+          setCakeOrders(data.map((c: any) => ({
+             id: c.id,
+             customer: c.customer_name,
+             details: c.cake_type,
+             pickupTime: c.location,
+             status: c.status
+          })));
+        }
+
+        // Fetch 5: Cake Requests
+        const cakeReqRes = await fetch(`${baseUrl}/storekeeper/cake-requests`, { headers });
+        if (cakeReqRes.ok) {
+          const data = await cakeReqRes.json();
+          setCakeRequests(data.map((c: any) => ({
+             id: c.id,
+             branch: c.location || 'Branch',
+             details: c.cake_type,
+             pickupTime: 'Pending'
+          })));
+        }
+
+        // -------------------------------------------------------------
+        // 🚨 PLACEHOLDERS FOR MISSING APIS 🚨
+        // Uncomment these lines when your backend developer adds them!
+        // -------------------------------------------------------------
+        
+        /* // Fetch 6: Damaged Log
+        const damageRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
+        if (damageRes.ok) {
+          const data = await damageRes.json();
+          setDamagedProducts(data.map((d: any) => ({
+             id: d.id,
+             item: d.product?.name || 'Unknown',
+             quantity: d.quantity,
+             unit: d.unit || 'pcs',
+             time: d.created_at || 'Logged'
+          })));
+        }
+        */
+
+        /*
+        // Fetch 7: Baked Products Log
+        const bakedRes = await fetch(`${baseUrl}/storekeeper/baked-log`, { headers });
+        if (bakedRes.ok) {
+          const data = await bakedRes.json();
+          setBakedProducts(data.map((b: any) => ({
+             id: b.id,
+             item: b.product?.name || 'Unknown',
+             quantity: b.quantity,
+             time: b.created_at || 'Logged'
+          })));
+        }
+        */
+
       } catch (err) {
-        console.error("Failed to fetch inventory", err);
+        console.error("Failed to fetch storekeeper data", err);
       }
     };
 
-    fetchInventory();
+    fetchAllData();
   }, [router, baseUrl]);
 
   const rawBranchId = params?.branchId;
@@ -122,46 +239,6 @@ export default function StoreKeeperDashboard() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests'>('requests');  
-  const [deliveryNote, setDeliveryNote] = useState<any>(null);
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [editQty, setEditQty] = useState('');
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
-
-  const [myStock, setMyStock] = useState<any[]>([]);
-
-  const [shopRequests, setShopRequests] = useState([
-    { id: 101, item: 'Bread', quantity: 100, unit: 'pcs', time: '08:30 AM', branch: 'kabuga', isEdited: false, product_id: 1 },
-    { id: 102, item: 'Milk', quantity: 10, unit: 'liters', time: '09:15 AM', branch: 'masaka', isEdited: false, product_id: 2 },
-    { id: 103, item: 'Bread', quantity: 600, unit: 'pcs', time: '10:45 AM', branch: 'masaka', isEdited: false, product_id: 1 },
-  ]);
-
-  const [cakeOrders, setCakeOrders] = useState([
-    { id: 1, customer: "John Doe", details: "Vanilla - Stage 1", pickupTime: "10:30 AM", status: "Ready" },
-    { id: 2, customer: "Mary Smith", details: "Chocolate - 10kg", pickupTime: "08:00 AM", status: "Pending" },
-  ]);
-
-  const [cakeRequests, setCakeRequests] = useState([
-    { id: 10, branch: "KABUGA", details: "Birthday Cake", pickupTime: "02:00 PM" },
-    { id: 11, branch: "MASAKA", details: "Wedding Cake", pickupTime: "09:00 AM" },
-  ]);
-
-  const [deliveryHistory, setDeliveryHistory] = useState([
-    { id: 55, item: 'Donuts', quantity: 50, date: 'Yesterday', receiver: 'MASAKA' }
-  ]);
-
-  const [issuedNotes, setIssuedNotes] = useState([
-    { id: 'DN-9921', date: '02.04.2026', time: '10:30 AM', items: [{ name: 'Bread', quantity: 100, destination: 'KABUGA SHOP' }] },
-  ]);
-
-  const [damagedProducts, setDamagedProducts] = useState([
-    { id: 1, item: 'Special Flour', quantity: 5, unit: 'kg', date: '2026-03-27', time: '09:00 AM' },
-  ]);
-
-  const [bakedProducts, setBakedProducts] = useState([
-    { id: 1, item: 'Milk Bread', quantity: 300, time: '07:00 AM' },
-  ]);
-
   const handlePrint = () => { window.print(); };
 
   const toggleSelection = (id: number) => {
@@ -170,7 +247,7 @@ export default function StoreKeeperDashboard() {
 
   const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
 
-  // --- 2. UPDATED: BULK DELIVERY (POST /api/storekeeper/delivery) ---
+  // --- 2. BULK DELIVERY (POST /api/storekeeper/delivery) ---
   const handleBulkDelivery = async () => {
     if (selectedProductIds.length === 0) return;
     const token = localStorage.getItem('token');
@@ -203,7 +280,7 @@ export default function StoreKeeperDashboard() {
     }
   };
 
-  // --- 3. UPDATED: EDIT REQUEST (PUT /api/storekeeper/stock/{id}) ---
+  // --- 3. EDIT REQUEST (PUT /api/storekeeper/stock/{id}) ---
   const handleEditRequest = async () => {
     const qty = parseInt(editQty);
     if (isNaN(qty) || qty < 0 || !editingItem) return;
@@ -221,6 +298,8 @@ export default function StoreKeeperDashboard() {
 
       if (response.ok) {
         setShopRequests(prev => prev.map(req => req.id === editingItem.id ? { ...req, quantity: qty, isEdited: true } : req));
+        // Also update myStock if they edit from that tab
+        setMyStock(prev => prev.map(s => s.id === editingItem.id ? { ...s, quantity: qty } : s));
         setEditingItem(null);
         setEditQty('');
       }

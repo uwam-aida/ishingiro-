@@ -56,7 +56,7 @@ export default function CakeOrderForm() {
     setStep(step + 1);
   };
 
-  // --- UPDATED: BACKEND INTEGRATION FOR CAKE ORDERS ---
+  // --- UPDATED: BACKEND INTEGRATION FOR CAKE ORDERS (SECOND DOC) ---
   const handleSubmit = async () => {
     if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
         setShowError(true); return;
@@ -73,14 +73,24 @@ export default function CakeOrderForm() {
                 'Content-Type': 'application/json' 
             },
             body: JSON.stringify({
+                // Required Core Fields
                 customer_name: formData.customerFullName || formData.payerName,
                 phone: formData.customerPhoneNumber || "0000000000",
                 cake_type: `${formData.purpose} - ${formData.flavor}`,
                 quantity: 1,
                 price: Number(formData.totalAmount) || 7000,
-                location: formData.orderLocation.toLowerCase() || 'kabuga', // Defaulting to kabuga if not set
+                location: formData.orderLocation.toLowerCase() || 'kabuga',
                 delivery_date: formData.pickupDate || new Date().toISOString().split('T')[0],
-                status: 'pending'
+                status: 'pending',
+                
+                // NEW: Detailed Form Fields from Second Documentation
+                cake_message: formData.cakeMessage || "None",
+                cake_size: formData.size || "Standard",
+                frosting_cream: formData.frostingCream || "Standard",
+                frosting_color: formData.frostingColor || "Standard",
+                special_instructions: formData.specialInstructions || "None",
+                reception_location: formData.receptionLocation || formData.orderLocation,
+                needs_sample: formData.needsSample === 'yes' ? true : false
             })
         });
 

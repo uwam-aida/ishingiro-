@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Send, 
@@ -14,8 +14,16 @@ import {
   ArrowLeft 
 } from 'lucide-react';
 
-// --- OFFICIAL PRODUCT LIST ---
-const MARKETING_PRODUCTS = [
+interface Product {
+  id?: number;
+  name: string;
+  price?: number;
+  category?: string;
+  type?: string;
+}
+
+// --- OFFICIAL PRODUCT LIST (FALLBACK) ---
+const MARKETING_PRODUCTS: Product[] = [
     { name: 'big milk', type: 'Baked' },
     { name: 'small milk', type: 'Baked' },
     { name: 'pcpn', type: 'Baked' },
@@ -84,51 +92,135 @@ export default function AddOtherProduct() {
   const [quantity, setQuantity] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // NEW STATE: For suggestions dropdown
+  // NEW STATE: For live products and dynamic categories
+  const [liveProducts, setLiveProducts] = useState<Product[]>(MARKETING_PRODUCTS);
   const [showSuggestions, setShowSuggestions] = useState(false);
-
-  // Filter products based on input
-  const filteredProducts = MARKETING_PRODUCTS.filter(p => 
-    p.name.toLowerCase().includes(productName.toLowerCase())
-  );
-
-  // Validation Check: Returns true if there is text but it doesn't match any product name exactly
-  const isInvalidProduct = productName.trim().length > 0 && !MARKETING_PRODUCTS.some(p => p.name.toLowerCase() === productName.toLowerCase());
-
-  const categories = [
+  
+  // Fallback categories if API fails
+  const [dynamicCategories, setDynamicCategories] = useState([
     { id: 'Tiku', icon: Star },
     { id: 'Clients', icon: UserCircle },
     { id: 'Guests', icon: Users },
     { id: 'Events', icon: Calendar },
     { id: 'Ingaruka', icon: UtensilsCrossed }
-  ];
+  ]);
+
+  // --- 1. FETCH LIVE PRODUCTS & CATEGORIES ON MOUNT ---
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      try {
+        // Fetch 1: Products
+        const prodRes = await fetch(`${baseUrl}/products`, { headers });
+        if (prodRes.ok) {
+          const data = await prodRes.json();
+          if (data && data.length > 0) setLiveProducts(data);
+        }
+
+        // Fetch 2: Categories (New from API Documentation)
+        const catRes = await fetch(`${baseUrl}/distribution/categories`, { headers });
+        if (catRes.ok) {
+           const data: string[] = await catRes.json();
+           
+           // Map the plain text strings from the backend to your UI icons
+           const mappedCategories = data.map((catName) => {
+              let IconToUse = PlusCircle; // Default icon
+              if (catName.toLowerCase() === 'tiku') IconToUse = Star;
+              else if (catName.toLowerCase() === 'events') IconToUse = Calendar;
+              else if (catName.toLowerCase() === 'guests') IconToUse = Users;
+              else if (catName.toLowerCase() === 'clients') IconToUse = UserCircle;
+              else if (catName.toLowerCase() === 'ingaruka') IconToUse = UtensilsCrossed;
+              
+              return { id: catName, icon: IconToUse };
+           });
+           
+           if(mappedCategories.length > 0) {
+             setDynamicCategories(mappedCategories);
+           }
+        }
+      } catch (error) {
+        console.error("Failed to load initial data", error);
+      }
+    };
+
+    fetchData();
+  }, [router]);
+
+  // Filter products based on input (using live data if available)
+  const filteredProducts = liveProducts.filter(p => 
+    p.name.toLowerCase().includes(productName.toLowerCase())
+  );
+
+  // Validation Check
+  const isInvalidProduct = productName.trim().length > 0 && !liveProducts.some(p => p.name.toLowerCase() === productName.toLowerCase());
 
   const handleCategoryClick = (id: string) => {
     setCategory(id);
     setView('form');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // --- 2. SUBMIT TO DISTRIBUTION API ---
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isInvalidProduct || !productName) return;
     setIsSubmitting(true);
     
-    console.log({ category, productName, quantity, unit, source: 'Store Keeper' });
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-    setTimeout(() => {
-      alert(`Success: ${category} distribution sent to CICM.`);
+    // Find the actual database ID of the selected product
+    const selectedProd = liveProducts.find(p => p.name.toLowerCase() === productName.toLowerCase());
+    const productId = selectedProd?.id;
+
+    if (!productId) {
+      alert("Product ID not found. Please select a valid product.");
       setIsSubmitting(false);
-      setProductName('');
-      setQuantity('');
-      setView('grid'); 
-    }, 1000);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}/distribution`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          product_id: productId,
+          quantity: Number(quantity),
+          category: category,
+          location: 'kabuga', // Defaulting to kabuga based on UI note for Tiku
+          notes: `Unit: ${unit}` 
+        })
+      });
+
+      if (response.ok) {
+        alert(`Success: ${category} distribution sent to CICM.`);
+        setProductName('');
+        setQuantity('');
+        setView('grid'); 
+      } else {
+        alert("Failed to record distribution.");
+      }
+    } catch (error) {
+      console.error("Distribution API error:", error);
+      alert("Network error.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-10 px-4 font-sans text-gray-700">
       
-     
-
       {/* --- VIEW 1: THE CLICKABLE GRID --- */}
       {view === 'grid' && (
         <div className="animate-in fade-in zoom-in-95 duration-300">
@@ -148,7 +240,7 @@ export default function AddOtherProduct() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {categories.map((item) => (
+            {dynamicCategories.map((item) => (
               <button
                 key={item.id}
                 onClick={() => handleCategoryClick(item.id)}

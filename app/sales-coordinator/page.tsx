@@ -25,16 +25,25 @@ export default function SalesCoordinatorDashboard() {
 
   // --- STATE FOR BACKEND API DATA ---
   const [apiData, setApiData] = useState({
-    shop_requests: 24,
+    shop_requests: 0,
     cake_orders: 0,
-    baked_products: 1250,
-    delivered_products: 1100,
-    stock: 850,
-    damaged_products: 12
+    baked_products: 0,
+    delivered_products: 0,
+    stock: 0,
+    damaged_products: 0,
+    history: 0
   });
 
-  // --- STATE FOR DETAILED CAKE ORDERS ---
-  const [cakeOrdersList, setCakeOrdersList] = useState<any[]>([]);
+  // --- STATE FOR DETAILED LISTS ---
+  const [detailedLists, setDetailedLists] = useState({
+    Requests: [] as any[],
+    CakeOrders: [] as any[],
+    Baked: [] as any[],
+    Delivered: [] as any[],
+    Stock: [] as any[],
+    Damaged: [] as any[],
+    History: [] as any[]
+  });
 
   // --- FETCH DATA ON LOAD ---
   useEffect(() => {
@@ -48,12 +57,10 @@ export default function SalesCoordinatorDashboard() {
       setIsLoading(true);
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        const headers = { 'Authorization': `Bearer ${token}` };
         
         // 1. Fetch Dashboard Summary
-        const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
+        const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, { headers });
         if (summaryResponse.ok) {
           const summary = await summaryResponse.json();
           setApiData({
@@ -61,29 +68,58 @@ export default function SalesCoordinatorDashboard() {
             cake_orders: summary.cake_orders || 0,
             baked_products: summary.baked_products || 0,
             delivered_products: summary.delivered_products || 0,
-            stock: summary.shop_stock || 0, // Note: DB field is shop_stock
-            damaged_products: summary.damaged_products || 0
+            stock: summary.shop_stock || 0, 
+            damaged_products: summary.damaged_products || 0,
+            history: summary.history || 0
           });
         }
 
-        // 2. Fetch Detailed Cake Orders List
-        const cakesResponse = await fetch(`${baseUrl}/sales/cake-orders`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // 2. Fetch All Detailed Logs Concurrently
+        const [
+          reqRes, bakedRes, delRes, stockRes, damRes, histRes, cakeRes
+        ] = await Promise.all([
+          fetch(`${baseUrl}/sales/requests`, { headers }),
+          fetch(`${baseUrl}/sales/baked`, { headers }),
+          fetch(`${baseUrl}/sales/delivered`, { headers }),
+          fetch(`${baseUrl}/sales/stock`, { headers }),
+          fetch(`${baseUrl}/sales/damaged`, { headers }),
+          fetch(`${baseUrl}/sales/history`, { headers }),
+          fetch(`${baseUrl}/sales/cake-orders`, { headers })
+        ]);
 
-        if (cakesResponse.ok) {
-          const cakesData = await cakesResponse.json();
-          // Map to your UI structure
-          const formattedCakes = cakesData.map((c: any) => ({
-             id: c.id, 
-             item: c.cake_type, 
-             qty: `Code: CK-${c.id}`, 
-             stock: `Customer: ${c.customer_name}`, 
-             time: c.delivery_date, 
-             status: c.status 
-          }));
-          setCakeOrdersList(formattedCakes);
-        }
+        const newLists = {
+          Requests: reqRes.ok ? await reqRes.json() : [],
+          Baked: bakedRes.ok ? await bakedRes.json() : [],
+          Delivered: delRes.ok ? await delRes.json() : [],
+          Stock: stockRes.ok ? await stockRes.json() : [],
+          Damaged: damRes.ok ? await damRes.json() : [],
+          History: histRes.ok ? await histRes.json() : [],
+          CakeOrders: cakeRes.ok ? await cakeRes.json() : []
+        };
+
+        setDetailedLists({
+          Requests: newLists.Requests.flatMap((r: any) => r.items.map((i: any) => ({
+            id: r.id, item: i.product?.name || 'Unknown', qty: `${i.quantity} pcs`, stock: `${r.location} Request`, time: 'Latest', status: r.status
+          }))),
+          CakeOrders: newLists.CakeOrders.map((c: any) => ({
+             id: c.id, item: c.cake_type, qty: `Code: CK-${c.id}`, stock: `Customer: ${c.customer_name}`, time: c.delivery_date || 'N/A', status: c.status 
+          })),
+          Baked: newLists.Baked.map((b: any) => ({
+             id: b.id, item: b.product?.name || 'Unknown', qty: `${b.quantity} pcs`, stock: `Factory - ${b.location}`, time: 'Latest', status: 'Ready'
+          })),
+          Delivered: newLists.Delivered.map((d: any) => ({
+             id: d.id, item: d.product?.name || 'Unknown', qty: `${d.quantity} pcs`, stock: `To: ${d.to_location}`, time: 'Latest', status: 'Delivered'
+          })),
+          Stock: newLists.Stock.map((s: any) => ({
+             id: s.id, item: s.product?.name || 'Unknown', qty: `${s.quantity} pcs`, stock: `${s.location} Shop`, time: 'Latest', status: 'In Stock'
+          })),
+          Damaged: newLists.Damaged.map((d: any) => ({
+             id: d.id, item: d.product?.name || 'Unknown', qty: `${d.quantity} pcs`, stock: d.reason || 'Reported', time: 'Latest', status: 'Disposed'
+          })),
+          History: newLists.History.map((h: any) => ({
+             id: h.id, item: h.product?.name || 'Unknown', qty: `${h.quantity} pcs`, stock: `${h.type.toUpperCase()} - ${h.location}`, time: 'Logged', status: 'Archived'
+          }))
+        });
 
       } catch (error) {
         console.error("Failed to fetch sales data:", error);
@@ -96,7 +132,7 @@ export default function SalesCoordinatorDashboard() {
   }, [router]);
 
 
-  // --- 1. DATA CONFIGURATION (Updated to use live apiData state) ---
+  // --- 1. DATA CONFIGURATION ---
   const stats = [
     { 
       label: 'Requests', 
@@ -155,7 +191,7 @@ export default function SalesCoordinatorDashboard() {
     { 
       label: 'History', 
       fullLabel: 'Full Added Products',
-      value: '3,420', // No summary stat provided in API for this
+      value: apiData.history.toString(), 
       sub: 'Total lifetime logs', 
       icon: History, 
       color: 'text-purple-600', 
@@ -166,44 +202,14 @@ export default function SalesCoordinatorDashboard() {
   // --- 2. TABLE DATA GENERATOR ---
   const getDataForView = (view: string) => {
     switch (view) {
-      case 'Requests':
-        return [
-          { id: 1, item: 'Milk Bread', qty: '50 pcs', stock: 'Kabuga Request', time: '09:00 AM', status: 'Pending' },
-          { id: 2, item: 'Tea Cake', qty: '10 pcs', stock: 'Masaka Request', time: '09:15 AM', status: 'Approved' },
-        ];
-      case 'Cake Orders':
-        // RETURN LIVE API DATA HERE
-        return cakeOrdersList.length > 0 ? cakeOrdersList : [
-          { id: 1, item: 'Chocolate Cake', qty: 'Code: KS-01', stock: 'Customer: Jean Paul', time: '10:00 AM', status: 'Pending' },
-          { id: 2, item: 'Vanilla Wedding Cake', qty: 'Code: KS-02', stock: 'Customer: Alice', time: '11:30 AM', status: 'Approved' }
-        ];
-      case 'Baked':
-        return [
-          { id: 1, item: 'White Bread', qty: '500 pcs', stock: 'Factory', time: '06:30 AM', status: 'Ready' },
-          { id: 2, item: 'Brown Bread', qty: '200 pcs', stock: 'Factory', time: '07:15 AM', status: 'Ready' },
-        ];
-      case 'Delivered':
-        return [
-          { id: 1, item: 'White Bread', qty: '300 pcs', stock: 'Kabuga Branch', time: '10:00 AM', status: 'Delivered' },
-          { id: 2, item: 'Donuts', qty: '600 pcs', stock: 'Kicukiro', time: '11:15 AM', status: 'In Transit' },
-        ];
-      case 'Stock':
-        return [
-          { id: 1, item: 'White Bread', qty: '120 pcs', stock: 'Kabuga Shop', time: 'Updated 5m ago', status: 'Selling' },
-          { id: 2, item: 'Cakes', qty: '15 pcs', stock: 'Masaka Shop', time: 'Updated 10m ago', status: 'Selling' },
-        ];
-      case 'Damaged':
-        return [
-          { id: 1, item: 'Burnt Bread', qty: '10 pcs', stock: 'Production', time: '06:45 AM', status: 'Disposed' },
-          { id: 2, item: 'Smashed Cake', qty: '2 pcs', stock: 'Transport', time: '11:20 AM', status: 'Returned' },
-        ];
-      case 'History':
-        return [
-          { id: 1, item: 'Full Batch - Bread', qty: '2000 pcs', stock: 'System Log', time: 'Yesterday', status: 'Archived' },
-          { id: 2, item: 'New Flour Entry', qty: '500 kg', stock: 'Store Entry', time: '2 days ago', status: 'Archived' },
-        ];
-      default:
-        return [];
+      case 'Requests': return detailedLists.Requests;
+      case 'Cake Orders': return detailedLists.CakeOrders;
+      case 'Baked': return detailedLists.Baked;
+      case 'Delivered': return detailedLists.Delivered;
+      case 'Stock': return detailedLists.Stock;
+      case 'Damaged': return detailedLists.Damaged;
+      case 'History': return detailedLists.History;
+      default: return [];
     }
   };
 
@@ -303,9 +309,9 @@ export default function SalesCoordinatorDashboard() {
                       </td>
                       <td className="px-8 py-5 text-right">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          row.status === 'Ready' || row.status === 'Approved' || row.status === 'Selling' ? 'bg-green-100 text-green-700' :
+                          row.status === 'Ready' || row.status === 'Approved' || row.status === 'Selling' || row.status === 'In Stock' ? 'bg-green-100 text-green-700' :
                           row.status === 'Delivered' || row.status === 'Archived' ? 'bg-blue-100 text-blue-700' :
-                          row.status === 'Disposed' || row.status === 'Returned' ? 'bg-red-100 text-red-700' :
+                          row.status === 'Disposed' || row.status === 'Returned' || row.status === 'Waste' ? 'bg-red-100 text-red-700' :
                           'bg-orange-100 text-orange-700'
                         }`}>
                           {row.status}
@@ -316,6 +322,12 @@ export default function SalesCoordinatorDashboard() {
                 </tbody>
               </table>
             </div>
+            
+            {getDataForView(currentView).length === 0 && !isLoading && (
+               <div className="p-20 text-center uppercase font-black text-gray-300 tracking-widest">
+                  No records found
+               </div>
+            )}
           </div> 
         </div>
       )}

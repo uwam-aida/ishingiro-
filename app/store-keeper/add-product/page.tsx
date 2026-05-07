@@ -3,7 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
-import { Package, Bell, ArrowRight, ShoppingBag, AlertCircle, Eye, FileText, Search, X, ArrowLeft, CheckCheck, ClipboardList, PenLine, Printer, Edit3, CheckSquare, Square, Clock, MapPin, Download, Trash2, ShieldAlert, ChefHat, PackageCheck } from 'lucide-react';
+import { 
+  Package, Bell, ShoppingBag, AlertCircle, FileText, X, ArrowLeft, 
+  CheckCheck, ClipboardList, Edit3, CheckSquare, Square, Printer, 
+  ChefHat, ShieldAlert,PackageCheck 
+} from 'lucide-react';
 
 interface Product {
   name: string;
@@ -12,7 +16,7 @@ interface Product {
   type: string;
 }
 
-// --- OFFICIAL PRODUCT LIST (COMPLETE LIST) ---
+// --- OFFICIAL PRODUCT LIST (KEPT EXACTLY AS PROVIDED) ---
 const FINANCE_PRODUCTS: Product[] = [
     { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
@@ -78,20 +82,147 @@ const FINANCE_PRODUCTS: Product[] = [
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
     { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
-  ];
-
+];
 
 export default function StoreKeeperDashboard() {
   const router = useRouter(); 
   const params = useParams();
-  
-  // --- 1. NEW: AUTHENTICATION CHECK (We keep this so the page is protected!) ---
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+  // --- STATE INITIALIZATION ---
+  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests'>('requests');  
+  const [deliveryNote, setDeliveryNote] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editQty, setEditQty] = useState('');
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+
+  // Live API States
+  const [myStock, setMyStock] = useState<any[]>([]);
+  const [shopRequests, setShopRequests] = useState<any[]>([]);
+  const [cakeOrders, setCakeOrders] = useState<any[]>([]);
+  const [cakeRequests, setCakeRequests] = useState<any[]>([]);
+  const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
+
+  // Mocked States (APIs missing from doc)
+  const [issuedNotes, setIssuedNotes] = useState([
+    { id: 'DN-9921', date: '02.04.2026', time: '10:30 AM', items: [{ name: 'Bread', quantity: 100, destination: 'KABUGA SHOP' }] },
+  ]);
+  const [damagedProducts, setDamagedProducts] = useState([
+    { id: 1, item: 'Special Flour', quantity: 5, unit: 'kg', date: '2026-03-27', time: '09:00 AM' },
+  ]);
+  const [bakedProducts, setBakedProducts] = useState([
+    { id: 1, item: 'Milk Bread', quantity: 300, time: '07:00 AM' },
+  ]);
+
+  // --- 1. INITIAL FETCH LOGIC ---
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
+      return;
     }
-  }, [router]);
+
+    const fetchAllData = async () => {
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json' 
+      };
+
+      try {
+        // Fetch 1: My Stock
+        const stockRes = await fetch(`${baseUrl}/storekeeper`, { headers });
+        if (stockRes.ok) {
+          const data = await stockRes.json();
+          setMyStock(data.map((item: any) => ({
+            id: item.id,
+            product_id: item.product_id,
+            item: item.product?.name || 'Unknown',
+            quantity: item.quantity,
+            unit: item.unit || 'pcs'
+          })));
+        }
+
+        // Fetch 2: Shop Requests
+        const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
+        if (reqRes.ok) {
+          const data = await reqRes.json();
+          const flattenedRequests: any[] = [];
+          data.forEach((order: any) => {
+             order.items?.forEach((item: any) => {
+                flattenedRequests.push({
+                   id: order.id, 
+                   product_id: item.product_id,
+                   item: item.product?.name || 'Unknown Product',
+                   quantity: item.quantity,
+                   unit: 'pcs',
+                   time: 'Pending', 
+                   branch: order.location,
+                   isEdited: false
+                });
+             });
+          });
+          setShopRequests(flattenedRequests);
+        }
+
+        // Fetch 3: Delivery History
+        const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
+        if (histRes.ok) {
+          const data = await histRes.json();
+          setDeliveryHistory(data.map((h: any) => ({
+             id: h.id,
+             item: h.product?.name || 'Unknown',
+             quantity: h.quantity,
+             date: 'Logged', 
+             receiver: h.to_location
+          })));
+        }
+
+        // Fetch 4: Cake Orders
+        const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
+        if (cakeOrderRes.ok) {
+          const data = await cakeOrderRes.json();
+          setCakeOrders(data.map((c: any) => ({
+             id: c.id,
+             customer: c.customer_name,
+             details: c.cake_type,
+             pickupTime: c.location,
+             status: c.status
+          })));
+        }
+
+        // Fetch 5: Pending Cake Requests
+        const cakeReqRes = await fetch(`${baseUrl}/storekeeper/cake-requests`, { headers });
+        if (cakeReqRes.ok) {
+          const data = await cakeReqRes.json();
+          setCakeRequests(data.map((c: any) => ({
+             id: c.id,
+             branch: c.location || 'Branch',
+             details: c.cake_type,
+             pickupTime: 'Pending'
+          })));
+        }
+
+        // Placeholder: When backend adds GET /api/storekeeper/damage
+        // const damageRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
+        // if (damageRes.ok) {
+        //   const data = await damageRes.json();
+        //   setDamagedProducts(data.map((d: any) => ({ ... })));
+        // }
+
+        // Placeholder: When backend adds GET /api/storekeeper/baked-log
+        // const bakedRes = await fetch(`${baseUrl}/storekeeper/baked-log`, { headers });
+        // if (bakedRes.ok) {
+        //   const data = await bakedRes.json();
+        //   setBakedProducts(data.map((b: any) => ({ ... })));
+        // }
+
+      } catch (err) {
+        console.error("Failed to fetch storekeeper data", err);
+      }
+    };
+
+    fetchAllData();
+  }, [router, baseUrl]);
 
   const rawBranchId = params?.branchId;
   const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
@@ -99,49 +230,6 @@ export default function StoreKeeperDashboard() {
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'sales_log' | 'cake_orders' | 'cake_requests'>('requests');  
-  const [deliveryNote, setDeliveryNote] = useState<any>(null);
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [editQty, setEditQty] = useState('');
-
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
-
-  const [myStock, setMyStock] = useState([
-    { id: 1, item: 'Bread', quantity: 500, unit: 'pcs' },
-    { id: 2, item: 'Donuts', quantity: 200, unit: 'pcs' },
-    { id: 3, item: 'Milk', quantity: 50, unit: 'liters' },
-  ]);
-
-  const [shopRequests, setShopRequests] = useState([
-    { id: 101, item: 'Bread', quantity: 100, unit: 'pcs', time: '08:30 AM', branch: 'kabuga', isEdited: false },
-    { id: 102, item: 'Milk', quantity: 10, unit: 'liters', time: '09:15 AM', branch: 'masaka', isEdited: false },
-    { id: 103, item: 'Bread', quantity: 600, unit: 'pcs', time: '10:45 AM', branch: 'masaka', isEdited: false },
-  ]);
-  const [cakeOrders, setCakeOrders] = useState([
-    { id: 1, customer: "John Doe", details: "Vanilla - Stage 1", pickupTime: "10:30 AM", status: "Ready" },
-    { id: 2, customer: "Mary Smith", details: "Chocolate - 10kg", pickupTime: "08:00 AM", status: "Pending" },
- ]);
- const [cakeRequests, setCakeRequests] = useState([
-    { id: 10, branch: "KABUGA", details: "Birthday Cake", pickupTime: "02:00 PM" },
-    { id: 11, branch: "MASAKA", details: "Wedding Cake", pickupTime: "09:00 AM" },
-  ]);
-
-  const [deliveryHistory, setDeliveryHistory] = useState([
-    { id: 55, item: 'Donuts', quantity: 50, date: 'Yesterday', receiver: 'MASAKA' }
-  ]);
-
-  const [issuedNotes, setIssuedNotes] = useState([
-    { id: 'DN-9921', date: '02.04.2026', time: '10:30 AM', items: [{ name: 'Bread', quantity: 100, destination: 'KABUGA SHOP' }] },
-  ]);
-
-  const [damagedProducts, setDamagedProducts] = useState([
-    { id: 1, item: 'Special Flour', quantity: 5, unit: 'kg', date: '2026-03-27', time: '09:00 AM' },
-  ]);
-
-  const [bakedProducts, setBakedProducts] = useState([
-    { id: 1, item: 'Milk Bread', quantity: 300, time: '07:00 AM' },
-  ]);
 
   const handlePrint = () => { window.print(); };
 
@@ -155,22 +243,64 @@ export default function StoreKeeperDashboard() {
 
   const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
 
-  const handleBulkDelivery = () => {
+  // --- 2. BULK DELIVERY (POST /api/storekeeper/delivery) ---
+  const handleBulkDelivery = async () => {
     if (selectedProductIds.length === 0) return;
-    const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
-    const noteData = { id: newNoteId, date: '02.04.2026', time: getCurrentTime(), items: selectedItems.map(item => ({ name: item.item, quantity: item.quantity, destination: `${item.branch.toUpperCase()} SHOP` })) };
-    setDeliveryNote(noteData);
-    setIssuedNotes(prev => [noteData, ...prev]);
-    setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
-    setSelectedProductIds([]);
+    const token = localStorage.getItem('token');
+
+    try {
+      await Promise.all(selectedItems.map(item => {
+        return fetch(`${baseUrl}/storekeeper/delivery`, {
+          method: 'POST',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json' 
+          },
+          body: JSON.stringify({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            from_location: 'factory',
+            to_location: item.branch
+          })
+        });
+      }));
+
+      const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
+      const noteData = { id: newNoteId, date: new Date().toLocaleDateString(), time: getCurrentTime(), items: selectedItems.map(item => ({ name: item.item, quantity: item.quantity, destination: `${item.branch.toUpperCase()} SHOP` })) };
+      setDeliveryNote(noteData);
+      setIssuedNotes(prev => [noteData, ...prev]);
+      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
+      setSelectedProductIds([]);
+    } catch (err) {
+      console.error("Delivery recording failed", err);
+    }
   };
 
-  const handleEditRequest = () => {
+  // --- 3. EDIT REQUEST (PUT /api/storekeeper/stock/{id}) ---
+  const handleEditRequest = async () => {
     const qty = parseInt(editQty);
-    if (isNaN(qty) || qty < 0) return;
-    setShopRequests(prev => prev.map(req => req.id === editingItem.id ? { ...req, quantity: qty, isEdited: true } : req));
-    setEditingItem(null);
-    setEditQty('');
+    if (isNaN(qty) || qty < 0 || !editingItem) return;
+
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/storekeeper/stock/${editingItem.id}`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ quantity: qty })
+      });
+
+      if (response.ok) {
+        setShopRequests(prev => prev.map(req => req.id === editingItem.id ? { ...req, quantity: qty, isEdited: true } : req));
+        setMyStock(prev => prev.map(s => s.id === editingItem.id ? { ...s, quantity: qty } : s));
+        setEditingItem(null);
+        setEditQty('');
+      }
+    } catch (err) {
+      console.error("Update failed", err);
+    }
   };
 
   const stats = [
@@ -390,10 +520,26 @@ export default function StoreKeeperDashboard() {
           </div>
         )}
 
-        {/* Baked Products Log View */}
+        {activeFilter === 'my_stock' && (
+          <div className="overflow-x-auto text-black">
+            <table className="w-full text-left font-bold">
+              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Item Name</th><th className="px-8 py-4 text-center">Qty In Store</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {myStock.map((s) => (
+                  <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
+                    <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
+                    <td className="px-8 py-6 text-right"><button onClick={() => { setEditingItem(s); setEditQty(s.quantity.toString()); }} className="text-gray-300 hover:text-[#F57C00] p-2 bg-gray-50 rounded-xl transition-all"><Edit3 size={18} /></button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {activeFilter === 'baked_log' && (
-          <div className="w-full max-w-full overflow-x-auto">
-            <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-bold">
               <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Product Item</th><th className="px-8 py-4 text-center">Batch Qty</th><th className="px-8 py-4 text-right">Recorded Time</th></tr></thead>
               <tbody className="divide-y divide-gray-100 font-bold">
                 {bakedProducts.map((b) => (

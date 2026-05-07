@@ -20,35 +20,35 @@ export default function CICMReportPage() {
   const [selectedBranch, setSelectedBranch] = useState('All'); 
   const [isLoading, setIsLoading] = useState(false); 
 
-  // --- 1. DATA SOURCE (Changed to state with your fallback data) ---
+  // --- 1. DATA SOURCE (Updated to match the new API 'total' structure) ---
   const [branchData, setBranchData] = useState<any>({
     Kabuga: {
       bread: [
-        { item: 'big milk', qty: 215, price: 1300 },
-        { item: 'small milk', qty: 40, price: 600 },
-        { item: 'pcpn', qty: 31, price: 1100 },
+        { item: 'big milk', total: 279500 },
+        { item: 'small milk', total: 24000 },
+        { item: 'pcpn', total: 34100 },
       ],
       tiku: [
-        { item: 'ishingiro', qty: 12, price: 150 },
-        { item: 'salt big', qty: 1, price: 1100 },
+        { item: 'ishingiro', total: 1800 },
+        { item: 'salt big', total: 1100 },
       ]
     },
     Masaka: {
       bread: [
-        { item: 'big milk', qty: 150, price: 1300 },
-        { item: 'small milk', qty: 20, price: 600 },
-        { item: 'pcpn', qty: 10, price: 1100 },
+        { item: 'big milk', total: 195000 },
+        { item: 'small milk', total: 12000 },
+        { item: 'pcpn', total: 11000 },
       ],
       tiku: [
-        { item: 'ishingiro', qty: 5, price: 150 },
-        { item: 'salt big', qty: 0, price: 1100 },
+        { item: 'ishingiro', total: 750 },
+        { item: 'salt big', total: 0 },
       ]
     }
   });
 
   const [apiGrandTotal, setApiGrandTotal] = useState<number>(0);
 
-  // --- NEW: FETCH HER DETAILED API ---
+  // --- 2. FETCH DETAILED REVENUE API ---
   useEffect(() => {
     const fetchDetailedData = async () => {
       const token = localStorage.getItem('token');
@@ -61,7 +61,6 @@ export default function CICMReportPage() {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
         
-        // Fetching the detailed API she provided to get the raw transactions
         const branchParam = selectedBranch.toLowerCase();
         const response = await fetch(`${baseUrl}/reports/revenue?date=${reportDate}&branch=${branchParam}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -70,13 +69,12 @@ export default function CICMReportPage() {
         if (response.ok) {
           const data = await response.json();
           
-          // Use the verified grand_total from the backend
           setApiGrandTotal(data.grand_total || 0);
           
-          // Map the API categories into your UI state
+          // Map the API categories using the new 'total' field
           const mappedData = {
-            bread: data.categories?.bread_sales?.map((i: any) => ({ item: i.item, qty: i.qty, price: i.price })) || [],
-            tiku: data.categories?.tiku_others?.map((i: any) => ({ item: i.item, qty: i.qty, price: i.price })) || []
+            bread: data.categories?.bread_sales?.map((i: any) => ({ item: i.item, total: i.total })) || [],
+            tiku: data.categories?.tiku_others?.map((i: any) => ({ item: i.item, total: i.total })) || []
           };
 
           if (selectedBranch === 'All') {
@@ -101,7 +99,7 @@ export default function CICMReportPage() {
     fetchDetailedData();
   }, [reportDate, selectedBranch, router]);
 
-  // --- 2. LOGIC TO COMBINE DATA FOR "ALL" ---
+  // --- 3. LOGIC TO COMBINE DATA FOR "ALL" ---
   const currentData = useMemo(() => {
     if (selectedBranch === 'All') {
       const combine = (key: string) => {
@@ -109,7 +107,7 @@ export default function CICMReportPage() {
         ['Kabuga', 'Masaka'].forEach(b => {
           branchData[b][key]?.forEach((row: any) => {
             if (result[row.item]) {
-              result[row.item].qty += row.qty;
+              result[row.item].total += row.total;
             } else {
               result[row.item] = { ...row };
             }
@@ -122,24 +120,25 @@ export default function CICMReportPage() {
     return branchData[selectedBranch] || { bread: [], tiku: [] };
   }, [selectedBranch, branchData]);
 
-  const calculateTotal = (data: any[]) => data?.reduce((sum, row) => sum + (row.qty * row.price), 0) || 0;
+  // Updated to just sum the totals instead of multiplying qty * price
+  const calculateTotal = (data: any[]) => data?.reduce((sum, row) => sum + row.total, 0) || 0;
 
-  // --- 3. UPDATED EXCEL EXPORT ---
+  // --- 4. EXCEL EXPORT ---
   const handleExportExcel = () => {
     let csv = `ISHINGIRO SHOP\n`;
     csv += `REVENUE REPORT: ${selectedBranch.toUpperCase()} BRANCHES\n`;
     csv += `DATE: ${reportDate}\n\n`;
     
     const formatSection = (title: string, data: any[]) => {
-      let content = `${title.toUpperCase()}\nItem,Qty,Price,Total\n`;
-      data.forEach(d => content += `${d.item},${d.qty},${d.price},${d.qty * d.price}\n`);
-      content += `TOTAL,,, ${calculateTotal(data)}\n\n`;
+      let content = `${title.toUpperCase()}\nItem,Total Revenue\n`;
+      data.forEach(d => content += `${d.item},${d.total}\n`);
+      content += `TOTAL, ${calculateTotal(data)}\n\n`;
       return content;
     };
 
     csv += formatSection("Bread Section", currentData.bread);
     csv += formatSection("Tiku (Store Keeper)", currentData.tiku);
-    csv += `GRAND TOTAL,,, ${apiGrandTotal || (calculateTotal(currentData.bread) + calculateTotal(currentData.tiku))}`;
+    csv += `GRAND TOTAL, ${apiGrandTotal || (calculateTotal(currentData.bread) + calculateTotal(currentData.tiku))}`;
 
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -149,6 +148,7 @@ export default function CICMReportPage() {
     a.click();
   };
 
+  // Updated Table to reflect only Item and Total Revenue
   const ReportTable = ({ title, data, colorClass = "bg-[#5D4037]" }: any) => (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden h-fit break-inside-avoid">
       <div className={`${colorClass} px-4 py-2 text-white flex justify-between items-center`}>
@@ -159,23 +159,19 @@ export default function CICMReportPage() {
         <thead className="bg-gray-50 text-gray-400 font-bold uppercase">
           <tr>
             <th className="px-4 py-2">Item</th>
-            <th className="px-4 py-2 text-center">Qty</th>
-            <th className="px-4 py-2 text-right">Price</th>
-            <th className="px-4 py-2 text-right">Total</th>
+            <th className="px-4 py-2 text-right">Total Revenue (RWF)</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
           {data?.map((row: any, i: number) => (
             <tr key={i} className="hover:bg-gray-50/50">
-              <td className="px-4 py-1.5 font-bold text-[#5D4037] uppercase">{row.item}</td>
-              <td className="px-4 py-1.5 text-center font-medium">{row.qty}</td>
-              <td className="px-4 py-1.5 text-right text-gray-500">{row.price.toLocaleString()}</td>
-              <td className="px-4 py-1.5 text-right font-black">{(row.qty * row.price).toLocaleString()}</td>
+              <td className="px-4 py-3 font-bold text-[#5D4037] uppercase">{row.item}</td>
+              <td className="px-4 py-3 text-right font-black text-gray-700">{row.total?.toLocaleString()}</td>
             </tr>
           ))}
           <tr className="bg-gray-50/80 font-black">
-            <td colSpan={3} className="px-4 py-2 text-[#5D4037] text-right uppercase">Total:</td>
-            <td className="px-4 py-2 text-right text-[#5D4037]">
+            <td className="px-4 py-3 text-[#5D4037] text-right uppercase">Total:</td>
+            <td className="px-4 py-3 text-right text-[#5D4037]">
               {calculateTotal(data).toLocaleString()}
             </td>
           </tr>
@@ -226,7 +222,7 @@ export default function CICMReportPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {/* ✅ BRANCH SELECTOR WITH 'ALL' */}
+          {/* BRANCH SELECTOR */}
           <div className="bg-white border-2 border-[#5D4037]/10 rounded-xl px-3 py-2 flex items-center gap-2 shadow-sm">
             <Store size={14} className="text-[#5D4037]" />
             <select 

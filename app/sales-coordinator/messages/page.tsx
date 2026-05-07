@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation'; // <-- ADDED THIS
-import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft } from 'lucide-react'; // <-- ADDED ArrowLeft
+import { useRouter } from 'next/navigation'; 
+import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft } from 'lucide-react'; 
 
 export default function SalesBroadcastPage() {
-  const router = useRouter(); // <-- ADDED THIS
+  const router = useRouter(); 
   
   const [message, setMessage] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
@@ -15,27 +15,51 @@ export default function SalesBroadcastPage() {
   // --- THE TARGET ROLES ---
   const targetRoles = [
     { id: 'all', label: 'All Staff (Allowed Roles)' },
-    { id: 'kabuga-shop-manager', label: 'Kabuga Shop Manager' },
-    { id: 'masaka-shop-manager', label: 'Masaka Shop Manager' },
-    { id: 'store-keeper', label: 'Store Keeper' },
-    { id: 'baker-assistant', label: 'Baker Assistant' },
-    { id: 'production-manager', label: 'Production Manager' },
+    { id: 'shop_manager_kabuga', label: 'Kabuga Shop Manager' }, // Updated ID to match API doc example
+    { id: 'shop_manager_masaka', label: 'Masaka Shop Manager' }, // Updated ID to match standard convention
+    { id: 'store_keeper', label: 'Store Keeper' },               // Updated ID to match standard convention
+    { id: 'baker_assistant', label: 'Baker Assistant' },         // Updated ID to match standard convention
+    { id: 'operations_manager', label: 'Production Manager' },   // Updated ID to match standard convention
     { id: 'cicm', label: 'CICM (Audit)' },
   ];
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  // --- UPDATED: HANDLE REAL API REQUEST ---
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
 
     setIsSending(true);
-    
-    setTimeout(() => {
+    setSuccess(false);
+
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      const response = await fetch(`${baseUrl}/sales/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          recipient_role: selectedRole,
+          message: message
+        })
+      });
+
+      if (response.ok) {
+        setSuccess(true);
+        setMessage('');
+        setTimeout(() => setSuccess(false), 3000);
+      } else {
+        alert("Failed to send message. Please check your permissions.");
+      }
+    } catch (error) {
+      console.error("Failed to broadcast message:", error);
+      alert("Network error. Please try again.");
+    } finally {
       setIsSending(false);
-      setSuccess(true);
-      setMessage('');
-      
-      setTimeout(() => setSuccess(false), 3000);
-    }, 1500);
+    }
   };
 
   return (
@@ -43,7 +67,6 @@ export default function SalesBroadcastPage() {
       {/* HEADER - UPDATED WITH BACK ARROW */}
       <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
         
-        {/* <-- ADDED THIS BACK BUTTON --> */}
         <button 
           onClick={() => router.back()}
           className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
@@ -126,7 +149,7 @@ export default function SalesBroadcastPage() {
 
           {success && (
             <div className="mt-6 p-4 bg-green-50 border border-green-100 rounded-2xl flex items-center gap-3 text-green-600 font-bold text-sm animate-bounce">
-              <CheckCircle2 size={20} /> Message dispatched to {selectedRole.replace(/-/g, ' ')}!
+              <CheckCircle2 size={20} /> Message dispatched successfully!
             </div>
           )}
         </div>

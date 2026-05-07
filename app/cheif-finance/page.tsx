@@ -23,6 +23,11 @@ export default function ChiefFinanceDashboard() {
   const [activeDay, setActiveDay] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // --- NEW: MISSING API STATES ---
+  const [financeSummary, setFinanceSummary] = useState<any>(null);
+  const [analyticsSummary, setAnalyticsSummary] = useState<any>(null);
+  const [measuredProducts, setMeasuredProducts] = useState<any[]>([]);
+
   // 2. DATA STATE (Initialized with Mock Data as a fallback)
   const [allData, setAllData] = useState<any[]>([
     { id: 1, item: 'White Bread', branch: 'Kabuga', baked: 200, sold: 150, damaged: 5, price: 1000, cost: 600, day: 'Mon', reason: 'Overbaked' },
@@ -63,18 +68,25 @@ export default function ChiefFinanceDashboard() {
           const fetchedData = await ledgerRes.json();
           if (fetchedData && fetchedData.length > 0) {
             // Map backend data to fit the frontend table structure
-            const mappedLedger = fetchedData.map((d: any) => ({
-              id: d.id,
-              item: d.product?.name || `Product #${d.product_id}`,
-              branch: d.location ? d.location.charAt(0).toUpperCase() + d.location.slice(1) : 'Kabuga',
-              baked: d.baked || 0, // Fallback (API missing baked count per ledger line)
-              sold: d.reason ? 0 : d.quantity, // If there's a reason, it's a loss, not a sale
-              damaged: d.reason ? d.quantity : 0,
-              price: d.product?.price || 0,
-              cost: d.product?.cost || 0,
-              day: 'Today', // Fallback (API missing timestamp per ledger line)
-              reason: d.reason || 'None'
-            }));
+            const mappedLedger = fetchedData.map((d: any) => {
+              
+              // --- FIX: Using the newly added date fields from API to get the Day of the Week ---
+              const dateObj = new Date(d.date || d.created_at);
+              const dayStr = isNaN(dateObj.getTime()) ? 'Today' : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dateObj.getDay()];
+
+              return {
+                id: d.id,
+                item: d.product?.name || `Product #${d.product_id}`,
+                branch: d.location ? d.location.charAt(0).toUpperCase() + d.location.slice(1) : 'Kabuga',
+                baked: d.baked || 0, 
+                sold: d.reason ? 0 : d.quantity, 
+                damaged: d.reason ? d.quantity : 0,
+                price: d.product?.price || 0,
+                cost: d.product?.cost || 0,
+                day: dayStr, // Automatically formatted day
+                reason: d.reason || 'None'
+              };
+            });
             setAllData(mappedLedger);
           }
         }
@@ -104,6 +116,21 @@ export default function ChiefFinanceDashboard() {
             });
             setChartData(mappedChart);
           }
+        }
+
+        // --- NEW: FETCH MISSING APIs ---
+        try {
+          const [summaryRes, analyticsRes, measuredRes] = await Promise.all([
+            fetch(`${baseUrl}/finance`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${baseUrl}/finance/analytics/summary`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${baseUrl}/finance/measured-products`, { headers: { 'Authorization': `Bearer ${token}` } })
+          ]);
+
+          if (summaryRes.ok) setFinanceSummary(await summaryRes.json());
+          if (analyticsRes.ok) setAnalyticsSummary(await analyticsRes.json());
+          if (measuredRes.ok) setMeasuredProducts(await measuredRes.json());
+        } catch (e) {
+          console.error("Failed to fetch additional finance APIs", e);
         }
 
       } catch (error) {
