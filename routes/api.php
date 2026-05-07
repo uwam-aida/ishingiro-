@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BakerAssistantController;
+use App\Http\Controllers\Api\DistributionController;
 use App\Http\Controllers\Api\FinanceController;
 use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\OrderController;
@@ -61,7 +62,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/stock', [StoreKeeperController::class, 'store']);
         Route::put('/stock/{id}', [StoreKeeperController::class, 'update']);
         Route::post('/delivery', [StoreKeeperController::class, 'storeDelivery']);
+        Route::get('/history', [StoreKeeperController::class, 'deliveryHistory']);
         Route::post('/damage', [StoreKeeperController::class, 'storeDamage']);
+        Route::get('/requests', [StoreKeeperController::class, 'requests']);
+        Route::get('/cake-orders', [StoreKeeperController::class, 'cakeOrders']);
+        Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
     });
 
 
@@ -99,14 +104,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:baker_assistant')->prefix('baker')->group(function () {
         Route::get('/ingredients', [BakerAssistantController::class, 'index']);
         Route::post('/ingredients', [BakerAssistantController::class, 'storeIngredient']);
+        Route::get('/production', [BakerAssistantController::class, 'productionHistory']);
         Route::post('/production', [BakerAssistantController::class, 'storeProduction']);
+        Route::get('/damage', [BakerAssistantController::class, 'damageHistory']);
         Route::post('/damage', [BakerAssistantController::class, 'storeDamage']);
     });
 
 
     /*
     |--------------------------------------------------------------------------
-    | PRODUCTION MANAGER (formerly Operations)
+    | PRODUCTION MANAGER
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:operations_manager')->prefix('production')->group(function () {
@@ -119,7 +126,28 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/production/{id}', [OperationsController::class, 'updateProduction']);
         Route::delete('/production/{id}', [OperationsController::class, 'deleteProduction']);
 
+        Route::put('/distribution/{id}', [OperationsController::class, 'updateDistribution']);
+        Route::delete('/distribution/{id}', [OperationsController::class, 'deleteDistribution']);
+
+        Route::put('/delivery/{id}', [OperationsController::class, 'updateDelivery']);
+        Route::delete('/delivery/{id}', [OperationsController::class, 'deleteDelivery']);
+
+        Route::put('/orders/{id}', [OperationsController::class, 'updateOrder']);
+        Route::delete('/orders/{id}', [OperationsController::class, 'deleteOrder']);
+
         Route::delete('/damage/{id}', [OperationsController::class, 'deleteDamage']);
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | DISTRIBUTION (shared — store keeper + operations manager can write)
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:store_keeper,operations_manager,cicm,finance_chief')->group(function () {
+        Route::post('/distribution', [DistributionController::class, 'store']);
+        Route::get('/distribution', [DistributionController::class, 'index']);
+        Route::get('/distribution/categories', [DistributionController::class, 'categories']);
     });
 
 
@@ -130,11 +158,27 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::middleware('role:sales_coordinator')->prefix('sales')->group(function () {
         Route::get('/dashboard', [SalesController::class, 'dashboard']);
+
+        // Detail list pages
+        Route::get('/requests', [SalesController::class, 'requests']);
+        Route::get('/baked', [SalesController::class, 'baked']);
+        Route::get('/delivered', [SalesController::class, 'delivered']);
+        Route::get('/stock', [SalesController::class, 'stock']);
+        Route::get('/damaged', [SalesController::class, 'damaged']);
+        Route::get('/history', [SalesController::class, 'history']);
+
+        // Cake orders
         Route::get('/cake-orders', [SalesController::class, 'cakeOrders']);
         Route::post('/cake-order', [SalesController::class, 'storeCakeOrder']);
+
+        // Messaging
         Route::post('/messages', [SalesController::class, 'sendMessage']);
+
+        // Targets — full CRUD
         Route::get('/targets', [SalesController::class, 'targets']);
         Route::post('/targets', [SalesController::class, 'storeTarget']);
+        Route::put('/targets/{id}', [SalesController::class, 'updateTarget']);
+        Route::delete('/targets/{id}', [SalesController::class, 'destroyTarget']);
     });
 
 
@@ -147,7 +191,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [FinanceController::class, 'index']);
         Route::post('/revenue', [FinanceController::class, 'store']);
 
-        // Product CRUD (CFO owns pricing strategy)
+        // Product CRUD
         Route::post('/products', [ProductController::class, 'store']);
         Route::put('/products/{product}', [ProductController::class, 'update']);
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);

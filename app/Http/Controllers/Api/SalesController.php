@@ -12,11 +12,12 @@ use App\Models\OrderItem;
 use App\Models\Production;
 use App\Models\SalesTarget;
 use App\Models\Stock;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 
 class SalesController extends Controller
 {
-    // DASHBOARD — all 6 cards
+    // DASHBOARD — all 6 summary cards + history count
     public function dashboard()
     {
         return [
@@ -26,10 +27,52 @@ class SalesController extends Controller
             'delivered_products' => Delivery::sum('quantity'),
             'shop_stock'         => Stock::sum('quantity'),
             'damaged_products'   => Damage::sum('quantity'),
+            'history'            => StockMovement::count(),
         ];
     }
 
-    // GET CAKE ORDERS
+    // DETAILED LISTS — individual page data
+
+    // Pending shop requests
+    public function requests()
+    {
+        return Order::with('items.product')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+    }
+
+    // Finished goods from factory
+    public function baked()
+    {
+        return Production::with('product')->latest()->get();
+    }
+
+    // Delivered products (in transit / delivered to shops)
+    public function delivered()
+    {
+        return Delivery::with('product')->latest()->get();
+    }
+
+    // Branch inventory
+    public function stock()
+    {
+        return Stock::with('product')->get();
+    }
+
+    // Recorded losses
+    public function damaged()
+    {
+        return Damage::with('product')->latest()->get();
+    }
+
+    // Lifetime stock movement log
+    public function history()
+    {
+        return StockMovement::with('product')->latest()->get();
+    }
+
+    // ALL CAKE ORDERS
     public function cakeOrders()
     {
         return CakeOrder::latest()->get();
@@ -73,15 +116,16 @@ class SalesController extends Controller
                 ->sum('quantity');
 
             $status = match (true) {
-                $actual >= $target->target_volume              => 'Completed',
-                $actual >= ($target->target_volume * 0.7)     => 'On Track',
-                default                                        => 'Behind',
+                $actual >= $target->target_volume          => 'Completed',
+                $actual >= ($target->target_volume * 0.7) => 'On Track',
+                default                                    => 'Behind',
             };
 
             return [
                 'id'            => $target->id,
                 'product_name'  => $target->product->name,
                 'target_volume' => $target->target_volume,
+                'unit'          => $target->unit,
                 'actual_volume' => $actual,
                 'status'        => $status,
             ];
@@ -94,10 +138,36 @@ class SalesController extends Controller
         $request->validate([
             'product_id'    => 'required|exists:products,id',
             'target_volume' => 'required|integer|min:1',
+            'unit'          => 'required|in:pieces,kg',
             'start_date'    => 'required|date',
             'end_date'      => 'required|date|after:start_date',
         ]);
 
         return SalesTarget::create($request->all());
+    }
+
+    // UPDATE TARGET
+    public function updateTarget(Request $request, $id)
+    {
+        $target = SalesTarget::findOrFail($id);
+
+        $request->validate([
+            'target_volume' => 'sometimes|integer|min:1',
+            'unit'          => 'sometimes|in:pieces,kg',
+            'start_date'    => 'sometimes|date',
+            'end_date'      => 'sometimes|date|after:start_date',
+        ]);
+
+        $target->update($request->only(['target_volume', 'unit', 'start_date', 'end_date']));
+
+        return $target;
+    }
+
+    // DELETE TARGET
+    public function destroyTarget($id)
+    {
+        SalesTarget::findOrFail($id)->delete();
+
+        return response()->noContent();
     }
 }

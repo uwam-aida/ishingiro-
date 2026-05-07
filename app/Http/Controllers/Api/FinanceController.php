@@ -11,7 +11,6 @@ use App\Models\Product;
 use App\Models\Production;
 use App\Models\Revenue;
 use App\Models\Stock;
-use App\Models\StockMovement;
 use Illuminate\Http\Request;
 
 class FinanceController extends Controller
@@ -46,42 +45,86 @@ class FinanceController extends Controller
             ->get();
     }
 
-    // DAMAGE AUDIT LOG
+    // DAMAGE AUDIT LOG — includes created_at timestamp for day-of-week filtering
     public function ledger()
     {
-        return Damage::with('product')->latest()->get();
+        return Damage::with('product')
+            ->latest()
+            ->get()
+            ->map(fn($d) => [
+                'id'         => $d->id,
+                'product'    => optional($d->product)->name,
+                'quantity'   => $d->quantity,
+                'reason'     => $d->reason,
+                'location'   => $d->location,
+                'date'       => $d->created_at->toDateString(),
+                'created_at' => $d->created_at->toISOString(),
+            ]);
     }
 
-    // SALES VS DAMAGE PER PRODUCT (grouped on DB side)
-    public function measuredProducts()
+    // SALES VS DAMAGE PER PRODUCT
+    // Supports: ?start_date=  ?end_date=  ?branch=
+    public function measuredProducts(Request $request)
     {
-        return Product::with(['damages'])
-            ->get()
-            ->map(function ($product) {
-                return [
-                    'id'      => $product->id,
-                    'name'    => $product->name,
-                    'price'   => $product->price,
-                    'sold'    => OrderItem::where('product_id', $product->id)->sum('quantity'),
-                    'damaged' => $product->damages->sum('quantity'),
-                    'branch'  => 'all',
-                ];
-            });
+        $start  = $request->query('start_date');
+        $end    = $request->query('end_date');
+        $branch = $request->query('branch'); // kabuga | masaka | null = all
+
+        return Product::all()->map(function ($product) use ($start, $end, $branch) {
+            $soldQuery = OrderItem::where('product_id', $product->id);
+            $damageQuery = Damage::where('product_id', $product->id);
+            $bakedQuery = Production::where('product_id', $product->id);
+
+            if ($branch) {
+                // Filter order items via their order's location
+                $soldQuery->whereHas('order', fn($q) => $q->where('location', $branch));
+                $damageQuery->where('location', $branch);
+                $bakedQuery->where('location', $branch);
+            }
+
+            if ($start) {
+                $soldQuery->whereDate('created_at', '>=', $start);
+                $damageQuery->whereDate('created_at', '>=', $start);
+                $bakedQuery->whereDate('created_at', '>=', $start);
+            }
+
+            if ($end) {
+                $soldQuery->whereDate('created_at', '<=', $end);
+                $damageQuery->whereDate('created_at', '<=', $end);
+                $bakedQuery->whereDate('created_at', '<=', $end);
+            }
+
+            $sold         = $soldQuery->sum('quantity');
+            $damaged      = $damageQuery->sum('quantity');
+            $bakedQty     = $bakedQuery->sum('quantity');
+            $damageCost   = $damaged * ($product->cost ?? 0);
+
+            return [
+                'id'             => $product->id,
+                'name'           => $product->name,
+                'unit'           => $product->unit ?? 'Piece',
+                'price'          => $product->price,
+                'cost'           => $product->cost,
+                'sold'           => $sold,
+                'damaged'        => $damaged,
+                'baked_quantity' => $bakedQty,
+                'damage_cost'    => $damageCost,
+                'branch'         => $branch ?? 'all',
+            ];
+        });
     }
 
     // INVENTORY — RAW INGREDIENTS (with financial valuation)
     public function inventoryMeasured()
     {
         return Ingredient::all()->map(function ($ingredient) {
-            $value = $ingredient->quantity * 1000; // adjust unit cost as needed
-
             return [
                 'id'     => $ingredient->id,
                 'name'   => $ingredient->name,
                 'stock'  => $ingredient->quantity . ' ' . $ingredient->unit,
                 'status' => $ingredient->quantity > 50 ? 'Healthy' : 'Low',
                 'branch' => 'All',
-                'value'  => $value,
+                'value'  => $ingredient->quantity * 1000, // adjust unit cost as needed
             ];
         });
     }
@@ -90,16 +133,12 @@ class FinanceController extends Controller
     public function inventoryBaked()
     {
         return Product::where('type', 'baked')->get()->map(function ($product) {
-            $daily  = Production::where('product_id', $product->id)->sum('quantity');
-            $sold   = OrderItem::where('product_id', $product->id)->sum('quantity');
-            $loss   = Damage::where('product_id', $product->id)->sum('quantity');
-
             return [
                 'id'     => $product->id,
                 'name'   => $product->name,
-                'daily'  => $daily . ' pcs',
-                'sold'   => (string) $sold,
-                'loss'   => (string) $loss,
+                'daily'  => Production::where('product_id', $product->id)->sum('quantity') . ' pcs',
+                'sold'   => (string) OrderItem::where('product_id', $product->id)->sum('quantity'),
+                'loss'   => (string) Damage::where('product_id', $product->id)->sum('quantity'),
                 'branch' => 'All',
             ];
         });
@@ -108,16 +147,11 @@ class FinanceController extends Controller
     // ANALYTICS — TOP KPI CARDS
     public function analyticsSummary()
     {
-        $currentRevenue  = Revenue::sum('amount');
-        $currentDamage   = Damage::sum('quantity');
-        $currentStock    = Stock::sum('quantity');
-        $currentProduced = Production::sum('quantity');
-
         return [
-            'sales'      => ['value' => $currentRevenue,  'trend' => '+12%'],
-            'production' => ['value' => $currentProduced, 'trend' => 'Stable'],
-            'inventory'  => ['value' => $currentStock,    'trend' => '+50'],
-            'damage'     => ['value' => $currentDamage,   'trend' => '+2'],
+            'sales'      => ['value' => Revenue::sum('amount'),       'trend' => '+12%'],
+            'production' => ['value' => Production::sum('quantity'),   'trend' => 'Stable'],
+            'inventory'  => ['value' => Stock::sum('quantity'),        'trend' => '+50'],
+            'damage'     => ['value' => Damage::sum('quantity'),       'trend' => '+2'],
         ];
     }
 
@@ -129,16 +163,15 @@ class FinanceController extends Controller
             $stock      = Stock::where('product_id', $product->id)->sum('quantity');
             $damaged    = Damage::where('product_id', $product->id)->sum('quantity');
 
-            // Popularity: ratio of sold to (sold + stock + damaged), scaled 0–100
             $total      = $totalSold + $stock + $damaged;
             $popularity = $total > 0 ? round(($totalSold / $total) * 100) : 0;
 
             $trend          = $totalSold > 200 ? 'Increasing' : ($totalSold > 50 ? 'Stable' : 'Decreasing');
             $recommendation = match (true) {
-                $popularity >= 80  => 'Increase production',
-                $popularity >= 50  => 'Maintain current levels',
-                $damaged > $totalSold => 'Review quality control',
-                default            => 'Consider reducing production',
+                $popularity >= 80         => 'Increase production',
+                $popularity >= 50         => 'Maintain current levels',
+                $damaged > $totalSold     => 'Review quality control',
+                default                   => 'Consider reducing production',
             };
 
             return [
@@ -154,15 +187,17 @@ class FinanceController extends Controller
         });
     }
 
-    // ANALYTICS — REAL-TIME ACTIVITY LOG (audit trail)
-    public function analyticsActivities()
+    // ANALYTICS — REAL-TIME ACTIVITY LOG
+    // Supports: ?limit=50
+    public function analyticsActivities(Request $request)
     {
-        // Collect production events
-        $productions = Production::with(['product', 'user'])->latest()->take(50)->get()
+        $limit = (int) $request->query('limit', 100);
+
+        $productions = Production::with(['product', 'user'])->latest()->take($limit)->get()
             ->map(fn($p) => [
                 'id'       => $p->id,
                 'user'     => optional($p->user)->name ?? 'Baker Assistant',
-                'role'     => 'Production',
+                'role'     => 'Baker Assistant',
                 'category' => 'production',
                 'action'   => 'Baked products',
                 'item'     => optional($p->product)->name,
@@ -170,8 +205,7 @@ class FinanceController extends Controller
                 'time'     => $p->created_at->format('g:i A, M j'),
             ]);
 
-        // Collect damage events
-        $damages = Damage::with(['product', 'user'])->latest()->take(50)->get()
+        $damages = Damage::with(['product', 'user'])->latest()->take($limit)->get()
             ->map(fn($d) => [
                 'id'       => $d->id,
                 'user'     => optional($d->user)->name ?? 'Staff',
@@ -183,10 +217,9 @@ class FinanceController extends Controller
                 'time'     => $d->created_at->format('g:i A, M j'),
             ]);
 
-        // Merge, sort by time desc, return latest 100
         return $productions->concat($damages)
             ->sortByDesc('time')
             ->values()
-            ->take(100);
+            ->take($limit);
     }
 }
