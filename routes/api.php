@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BakerAssistantController;
 use App\Http\Controllers\Api\DistributionController;
 use App\Http\Controllers\Api\FinanceController;
+use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperationsController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PasswordController;
@@ -38,6 +39,18 @@ Route::middleware('auth:sanctum')->group(function () {
     // Any authenticated user can view products
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
+
+    /*
+    |--------------------------------------------------------------------------
+    | NOTIFICATIONS (every authenticated user — filtered by their own role)
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [NotificationController::class, 'index']);
+        Route::get('/unread-count', [NotificationController::class, 'unreadCount']);
+        Route::put('/read-all', [NotificationController::class, 'markAllRead']);
+        Route::put('/{id}/read', [NotificationController::class, 'markRead']);
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -141,7 +154,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | DISTRIBUTION (shared — store keeper + operations manager can write)
+    | DISTRIBUTION
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:store_keeper,operations_manager,cicm,finance_chief')->group(function () {
@@ -159,7 +172,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:sales_coordinator')->prefix('sales')->group(function () {
         Route::get('/dashboard', [SalesController::class, 'dashboard']);
 
-        // Detail list pages
         Route::get('/requests', [SalesController::class, 'requests']);
         Route::get('/baked', [SalesController::class, 'baked']);
         Route::get('/delivered', [SalesController::class, 'delivered']);
@@ -167,14 +179,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/damaged', [SalesController::class, 'damaged']);
         Route::get('/history', [SalesController::class, 'history']);
 
-        // Cake orders
         Route::get('/cake-orders', [SalesController::class, 'cakeOrders']);
         Route::post('/cake-order', [SalesController::class, 'storeCakeOrder']);
 
-        // Messaging
         Route::post('/messages', [SalesController::class, 'sendMessage']);
 
-        // Targets — full CRUD
         Route::get('/targets', [SalesController::class, 'targets']);
         Route::post('/targets', [SalesController::class, 'storeTarget']);
         Route::put('/targets/{id}', [SalesController::class, 'updateTarget']);
@@ -191,21 +200,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [FinanceController::class, 'index']);
         Route::post('/revenue', [FinanceController::class, 'store']);
 
-        // Product CRUD
         Route::post('/products', [ProductController::class, 'store']);
         Route::put('/products/{product}', [ProductController::class, 'update']);
         Route::delete('/products/{product}', [ProductController::class, 'destroy']);
 
-        // Finance hub
         Route::get('/chart', [FinanceController::class, 'chart']);
         Route::get('/ledger', [FinanceController::class, 'ledger']);
         Route::get('/measured-products', [FinanceController::class, 'measuredProducts']);
 
-        // Inventory
         Route::get('/inventory/measured', [FinanceController::class, 'inventoryMeasured']);
         Route::get('/inventory/baked', [FinanceController::class, 'inventoryBaked']);
 
-        // Analytics
         Route::get('/analytics/summary', [FinanceController::class, 'analyticsSummary']);
         Route::get('/analytics/performance', [FinanceController::class, 'analyticsPerformance']);
         Route::get('/analytics/activities', [FinanceController::class, 'analyticsActivities']);
