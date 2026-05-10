@@ -1,23 +1,19 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation'; 
 import { 
-  Package, Bell, ShoppingBag, AlertCircle, FileText, X, ArrowLeft, 
-  CheckCheck, ClipboardList, Edit3, CheckSquare, Square, Printer, 
-  ChefHat, ShieldAlert,PackageCheck 
+  PackagePlus, 
+  CheckCircle,
+  ArrowLeft,
+  Save,
+  Box,
+  Search
 } from 'lucide-react';
 
-interface Product {
-  name: string;
-  price: number;
-  category: string;
-  type: string;
-}
-
-// --- OFFICIAL PRODUCT LIST (KEPT EXACTLY AS PROVIDED) ---
-const FINANCE_PRODUCTS: Product[] = [
+// The exact product list you provided
+const STORE_PRODUCTS = [
+    // BREAD (Baked)
     { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
@@ -84,554 +80,215 @@ const FINANCE_PRODUCTS: Product[] = [
     { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
-export default function StoreKeeperDashboard() {
+export default function StoreKeeperAddProduct() {
   const router = useRouter(); 
-  const params = useParams();
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-  // --- STATE INITIALIZATION ---
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests'>('requests');  
-  const [deliveryNote, setDeliveryNote] = useState<any>(null);
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [editQty, setEditQty] = useState('');
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  const [productName, setProductName] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
+  
+  const [quantity, setQuantity] = useState('');
+  const [unit, setUnit] = useState('Kg'); 
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  // Live API States
-  const [myStock, setMyStock] = useState<any[]>([]);
-  const [shopRequests, setShopRequests] = useState<any[]>([]);
-  const [cakeOrders, setCakeOrders] = useState<any[]>([]);
-  const [cakeRequests, setCakeRequests] = useState<any[]>([]);
-  const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
+  // Filter products based on what the user types
+  const filteredProducts = STORE_PRODUCTS.filter(prod =>
+    prod.name.toLowerCase().includes(productName.toLowerCase())
+  );
 
-  // Mocked States (APIs missing from doc)
-  const [issuedNotes, setIssuedNotes] = useState([
-    { id: 'DN-9921', date: '02.04.2026', time: '10:30 AM', items: [{ name: 'Bread', quantity: 100, destination: 'KABUGA SHOP' }] },
-  ]);
-  const [damagedProducts, setDamagedProducts] = useState([
-    { id: 1, item: 'Special Flour', quantity: 5, unit: 'kg', date: '2026-03-27', time: '09:00 AM' },
-  ]);
-  const [bakedProducts, setBakedProducts] = useState([
-    { id: 1, item: 'Milk Bread', quantity: 300, time: '07:00 AM' },
-  ]);
-
-  // --- 1. INITIAL FETCH LOGIC ---
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const exactMatch = STORE_PRODUCTS.find(p => p.name.toLowerCase() === productName.toLowerCase());
+    if (!exactMatch) {
+      alert("Please select a valid product from the list.");
       return;
     }
 
-    const fetchAllData = async () => {
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json' 
+    setIsSubmitting(true);
+    
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+    try {
+      // 1. UPDATED PAYLOAD: Matches your Go API exactly
+      const payload = {
+        product_id: STORE_PRODUCTS.indexOf(exactMatch) + 1, // Simulated product ID based on array index
+        quantity: Number(quantity),
+        location: 'kabuga' // Update this dynamically later if needed based on the logged-in user
       };
 
-      try {
-        // Fetch 1: My Stock
-        const stockRes = await fetch(`${baseUrl}/storekeeper`, { headers });
-        if (stockRes.ok) {
-          const data = await stockRes.json();
-          setMyStock(data.map((item: any) => ({
-            id: item.id,
-            product_id: item.product_id,
-            item: item.product?.name || 'Unknown',
-            quantity: item.quantity,
-            unit: item.unit || 'pcs'
-          })));
-        }
-
-        // Fetch 2: Shop Requests
-        const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
-        if (reqRes.ok) {
-          const data = await reqRes.json();
-          const flattenedRequests: any[] = [];
-          data.forEach((order: any) => {
-             order.items?.forEach((item: any) => {
-                flattenedRequests.push({
-                   id: order.id, 
-                   product_id: item.product_id,
-                   item: item.product?.name || 'Unknown Product',
-                   quantity: item.quantity,
-                   unit: 'pcs',
-                   time: 'Pending', 
-                   branch: order.location,
-                   isEdited: false
-                });
-             });
-          });
-          setShopRequests(flattenedRequests);
-        }
-
-        // Fetch 3: Delivery History
-        const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
-        if (histRes.ok) {
-          const data = await histRes.json();
-          setDeliveryHistory(data.map((h: any) => ({
-             id: h.id,
-             item: h.product?.name || 'Unknown',
-             quantity: h.quantity,
-             date: 'Logged', 
-             receiver: h.to_location
-          })));
-        }
-
-        // Fetch 4: Cake Orders
-        const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
-        if (cakeOrderRes.ok) {
-          const data = await cakeOrderRes.json();
-          setCakeOrders(data.map((c: any) => ({
-             id: c.id,
-             customer: c.customer_name,
-             details: c.cake_type,
-             pickupTime: c.location,
-             status: c.status
-          })));
-        }
-
-        // Fetch 5: Pending Cake Requests
-        const cakeReqRes = await fetch(`${baseUrl}/storekeeper/cake-requests`, { headers });
-        if (cakeReqRes.ok) {
-          const data = await cakeReqRes.json();
-          setCakeRequests(data.map((c: any) => ({
-             id: c.id,
-             branch: c.location || 'Branch',
-             details: c.cake_type,
-             pickupTime: 'Pending'
-          })));
-        }
-
-        // Placeholder: When backend adds GET /api/storekeeper/damage
-        // const damageRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
-        // if (damageRes.ok) {
-        //   const data = await damageRes.json();
-        //   setDamagedProducts(data.map((d: any) => ({ ... })));
-        // }
-
-        // Placeholder: When backend adds GET /api/storekeeper/baked-log
-        // const bakedRes = await fetch(`${baseUrl}/storekeeper/baked-log`, { headers });
-        // if (bakedRes.ok) {
-        //   const data = await bakedRes.json();
-        //   setBakedProducts(data.map((b: any) => ({ ... })));
-        // }
-
-      } catch (err) {
-        console.error("Failed to fetch storekeeper data", err);
-      }
-    };
-
-    fetchAllData();
-  }, [router, baseUrl]);
-
-  const rawBranchId = params?.branchId;
-  const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-
-  const getCurrentTime = () => {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const handlePrint = () => { window.print(); };
-
-  const toggleSelection = (id: number) => {
-    setSelectedProductIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
-  };
-
-  const getStockForItem = (itemName: string) => {
-    return myStock.find(s => s.item.toLowerCase() === itemName.toLowerCase())?.quantity || 0;
-  };
-
-  const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
-
-  // --- 2. BULK DELIVERY (POST /api/storekeeper/delivery) ---
-  const handleBulkDelivery = async () => {
-    if (selectedProductIds.length === 0) return;
-    const token = localStorage.getItem('token');
-
-    try {
-      await Promise.all(selectedItems.map(item => {
-        return fetch(`${baseUrl}/storekeeper/delivery`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({
-            product_id: item.product_id,
-            quantity: item.quantity,
-            from_location: 'factory',
-            to_location: item.branch
-          })
-        });
-      }));
-
-      const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
-      const noteData = { id: newNoteId, date: new Date().toLocaleDateString(), time: getCurrentTime(), items: selectedItems.map(item => ({ name: item.item, quantity: item.quantity, destination: `${item.branch.toUpperCase()} SHOP` })) };
-      setDeliveryNote(noteData);
-      setIssuedNotes(prev => [noteData, ...prev]);
-      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
-      setSelectedProductIds([]);
-    } catch (err) {
-      console.error("Delivery recording failed", err);
-    }
-  };
-
-  // --- 3. EDIT REQUEST (PUT /api/storekeeper/stock/{id}) ---
-  const handleEditRequest = async () => {
-    const qty = parseInt(editQty);
-    if (isNaN(qty) || qty < 0 || !editingItem) return;
-
-    const token = localStorage.getItem('token');
-    try {
-      const response = await fetch(`${baseUrl}/storekeeper/stock/${editingItem.id}`, {
-        method: 'PUT',
+      // 2. UPDATED URL: Points directly to your storekeeper stock route
+      const response = await fetch(`${baseUrl}/storekeeper/stock`, {
+        method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify({ quantity: qty })
+        body: JSON.stringify(payload)
       });
 
-      if (response.ok) {
-        setShopRequests(prev => prev.map(req => req.id === editingItem.id ? { ...req, quantity: qty, isEdited: true } : req));
-        setMyStock(prev => prev.map(s => s.id === editingItem.id ? { ...s, quantity: qty } : s));
-        setEditingItem(null);
-        setEditQty('');
+      if (response.ok || response.status === 201) {
+        setProductName('');
+        setQuantity('');
+        
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+      } else {
+        const errorData = await response.text(); 
+        console.error("Backend Error Response:", errorData);
+        alert(`Server Error (${response.status}): ${errorData}`);
       }
-    } catch (err) {
-      console.error("Update failed", err);
+    } catch (error) {
+      console.error("API connection error", error);
+      alert("Network error occurred. Is your backend running?");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const stats = [
-    { id: 'requests', label: 'Requests', value: shopRequests.length.toString(), icon: Bell },
-    { id: 'baked_log', label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat },
-    { id: 'my_stock', label: 'Stock', value: myStock.length.toString(), icon: ShoppingBag },
-    { id: 'cake_orders', label: 'Cake Orders', value: cakeOrders.length.toString(), icon: ClipboardList }, 
-    { id: 'cake_requests', label: 'Cake Requests', value: cakeRequests.length.toString(), icon: Package }, 
-    { id: 'delivered', label: 'Full Added Products', value: deliveryHistory.length.toString(), icon: CheckCheck },
-    { id: 'damaged', label: 'Damaged', value: damagedProducts.length.toString(), icon: ShieldAlert },
-    { id: 'notes', label: 'Delivery Notes', value: issuedNotes.length.toString(), icon: FileText },
-  ];
-
   return (
-    // FIX 1: Strict w-full and max-w-full added to block screen stretching
-    <div className="space-y-8 w-full max-w-full md:max-w-7xl mx-auto pb-10 relative px-4 font-sans text-gray-700 overflow-x-hidden">
-      <style jsx global>{`
-        @media print { body * { visibility: hidden; } #printable-note, #printable-note * { visibility: visible; } #printable-note { position: absolute; left: 0; top: 0; width: 100%; border: none !important; } .no-print { display: none !important; } }
-      `}</style>
-
-      {/* --- EDIT POPUP --- */}
-      {editingItem && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 no-print">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-8 space-y-5 shadow-2xl border border-gray-100 text-center text-black">
-            <h2 className="font-black uppercase text-xs text-[#F57C00]">Edit Quantity</h2>
-            <p className="font-bold text-gray-400 text-[10px] uppercase">{editingItem.item}</p>
-            <div className="space-y-2 text-left">
-              <label className="text-[10px] font-bold text-gray-400 uppercase">New Quantity</label>
-              <input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none font-black text-xl text-[#F57C00] focus:border-[#F57C00]" autoFocus />
+    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-20 relative font-sans">
+      
+      {/* 3. UPDATED SUCCESS NOTIFICATION */}
+      {showSuccess && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
+            <div className="bg-green-50 text-green-700 px-8 py-4 rounded-2xl flex items-center gap-3 shadow-2xl border border-green-200">
+                <CheckCircle className="text-green-600" size={20} />
+                <span className="font-black uppercase text-xs tracking-widest">Product added successfully</span>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setEditingItem(null)} className="flex-1 font-bold text-gray-400">Cancel</button>
-              <button onClick={handleEditRequest} className="flex-1 bg-[#F57C00] text-white py-3 rounded-xl font-bold uppercase text-xs shadow-lg">Update</button>
-            </div>
-          </div>
         </div>
       )}
 
-  {/* --- DELIVERY NOTE POPUP --- */}
-{deliveryNote && (
-  <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 no-print">
-    <div id="printable-note" className="bg-white w-full max-w-md shadow-2xl overflow-hidden text-black p-8 font-serif border border-gray-200">
-      
-      {/* HEADER SECTION */}
-      <div className="text-center mb-6">
-         <div className="flex justify-center mb-2">
-            <img src="/logo.png" alt="Ishingiro Logo" className="w-16 h-16 object-contain" />
-         </div>
-         <h2 className="font-bold text-lg uppercase leading-tight">BINYA LTD</h2>
-         <p className="text-[10px] font-bold uppercase">B.P:2558 KIGALI-RWANDA</p>
-         <p className="text-[10px] font-bold">TEL:(+250)786766202/072577025</p>
-         <p className="text-[10px] font-bold uppercase">TIN: 102806807</p>
-         <p className="text-[10px] font-bold">email:ishingiro. naphtal@gmail</p>
+      {/* HEADER WITH BACK ARROW */}
+      <div className="flex items-center gap-4 mb-8">
+        <button 
+          onClick={() => router.back()}
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
+        >
+          <ArrowLeft size={22} strokeWidth={2} />
+        </button>
+        <div className="flex-1">
+          <h1 className="text-3xl md:text-4xl font-black text-black tracking-tighter uppercase">Store Keeper</h1>
+          <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Stock Management System</p>
+        </div>
       </div>
 
-      <div className="border-t border-b border-black py-2 mb-4 text-center">
-          <h3 className="font-bold uppercase text-xs tracking-widest">DELIVERY NOTE / PACKING LIST</h3>
-          {/* AUTOMATIC DATE & TIME TRACKING */}
-          <p className="text-[10px] font-bold mt-1 uppercase">
-            DATE : <span className="underline ml-1 mr-4">{deliveryNote.date}</span> 
-            TIME : <span className="underline ml-1">{deliveryNote.time}</span>
-          </p>
-      </div>
-
-      <div className="mb-4 space-y-2">
-          {/* AUTOMATIC BRANCH NAME TRACKING */}
-          <p className="text-[10px] font-bold uppercase">
-            Custom Name: <span className="underline ml-2">{deliveryNote.items[0]?.destination || "BRANCH"}</span>
-          </p>
-      </div>
-
-      {/* TABLE SECTION WITH PRICE TRACKING */}
-      <table className="w-full border-collapse border border-black text-[10px]">
-          <thead>
-              <tr className="border-b border-black font-bold">
-                  <th className="border-r border-black p-1 text-left uppercase">ITEM NAME</th>
-                  <th className="border-r border-black p-1 text-center uppercase">QTY</th>
-                  <th className="border-r border-black p-1 text-center uppercase">UNIT PRICE</th>
-                  <th className="p-1 text-right uppercase">TOTAL</th>
-              </tr>
-          </thead>
-          <tbody>
-              {deliveryNote.items.map((item: any, idx: number) => {
-                  // Track the price from MARKETING_PRODUCTS
-                  const productData = FINANCE_PRODUCTS.find(p => p.name.toLowerCase() === item.name.toLowerCase());
-                  const price = productData?.price || 0;
-                  const total = price * item.quantity;
-
-                  return (
-                    <tr key={idx} className="border-b border-black font-bold uppercase">
-                        <td className="border-r border-black p-1">
-                           <div>{item.name}</div>
-                           {/* This description will only show on the screen, not the paper */}
-                           {item.description && (
-                            <div className="text-[8px] leading-tight text-gray-500 lowercase italic font-normal no-print">
-                             {item.description}
-                            </div>
-                            )}
-                          </td>
-                        <td className="border-r border-black p-1 text-center">{item.quantity}</td>
-                        <td className="border-r border-black p-1 text-center">{price.toLocaleString()}</td>
-                        <td className="p-1 text-right">{total.toLocaleString()}</td>
-                    </tr>
-                  );
-              })}
-              {/* TOTAL AMOUNT ROW */}
-              <tr className="font-black uppercase border-t border-black">
-                  <td colSpan={3} className="border-r border-black p-1 text-right">TOTAL AMOUNT</td>
-                  <td className="p-1 text-right">
-                    {deliveryNote.items.reduce((acc: number, item: any) => {
-                      const productData = FINANCE_PRODUCTS.find(p => p.name.toLowerCase() === item.name.toLowerCase());
-                      return acc + ((productData?.price || 0) * item.quantity);
-                    }, 0).toLocaleString()}
-                  </td>
-              </tr>
-          </tbody>
-      </table>
-
-      {/* SIGNATURE & STAMP AREA */}
-      <div className="mt-8">
-          <div className="flex justify-between text-[10px] font-bold uppercase mb-8">
-              <span>Receiver Signature</span>
-              <span>Authorized Signature</span>
-          </div>
+      {/* --- ADD PRODUCT FORM --- */}
+      <div className="animate-in fade-in duration-500 slide-in-from-bottom-4">
+        <div className="bg-white rounded-[48px] border-2 border-gray-50 shadow-xl p-8 md:p-12">
           
-          <p className="text-[9px] font-bold italic mb-4">goods Received in good condition</p>
-
-          {/* CLEAN STAMP BOX */}
-          <div className=" mx-auto h-24 flex justify-center relative">
-            {/* Stamp space */}
-          </div>
-
-          {/* KINYARWANDA TEXT */}
-          <div className="text-center mt-6">
-              <p className="text-[10px] font-bold uppercase tracking-tight">
-                  GUTEKEREZA NEZA NO GUKORA NEZA NIBWO BUTWARI.
-              </p>
-          </div>
-      </div>
-
-      {/* ACTIONS (HIDDEN DURING PRINT) */}
-      <div className="grid grid-cols-2 gap-3 no-print mt-8 border-t pt-4">
-          <button onClick={handlePrint} className="flex-1 bg-[#F57C00] text-white py-3 rounded-xl font-bold uppercase text-[10px] flex items-center justify-center gap-2">
-            <Printer size={16}/> Print / PDF
-          </button>
-          <button onClick={() => setDeliveryNote(null)} className="flex-1 border border-gray-300 text-gray-500 py-3 rounded-xl font-bold uppercase text-[10px]">
-            Close
-          </button>
-      </div>
-    </div>
-  </div>
-)}
-      
-
-      {/* --- HEADER --- */}
-      <div className="flex items-center gap-4 pt-6 no-print text-black w-full">
-        <div>
-          <h1 className="text-2xl font-black text-black uppercase tracking-tight">STORE KEEPER</h1>
-        </div>
-      </div>
-
-      {/* --- STATS GRID --- */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 no-print text-black w-full">
-        {stats.map((stat) => (
-          <div 
-              key={stat.id} 
-              onClick={() => setActiveFilter(stat.id as any)} 
-              className={`p-5 rounded-[2rem] border transition-all cursor-pointer flex flex-col items-center justify-center text-center group ${
-                  activeFilter === stat.id 
-                  ? (stat.id === 'damaged' ? 'bg-red-600 text-white shadow-lg' : 'bg-[#F57C00] text-white shadow-lg') 
-                  : (stat.id === 'damaged' ? 'bg-white hover:border-red-600' : 'bg-white hover:border-[#F57C00]')
-              }`}
-          >
-             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-3 ${
-                 activeFilter === stat.id 
-                 ? (stat.id === 'damaged' ? 'bg-red-800' : 'bg-[#E65100]') 
-                 : (stat.id === 'damaged' ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-[#F57C00]')
-             }`}>
-               <stat.icon size={20} />
-             </div>
-             <h3 className="font-black text-[10px] uppercase tracking-widest opacity-80">{stat.label}</h3>
-             <p className="text-xl font-black">{stat.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* --- MAIN CONTENT --- */}
-      {/* FIX 2: Strict w-full and max-w-full on main card container */}
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 min-h-[450px] no-print overflow-hidden text-black w-full max-w-full">
-        <div className={`flex flex-col md:flex-row md:items-center justify-between p-7 gap-4 border-b ${activeFilter === 'damaged' ? 'border-rose-100 bg-rose-50/30' : 'border-gray-200'}`}>
-           <h2 className={`text-xl font-black uppercase tracking-tight ${activeFilter === 'damaged' ? 'text-rose-700' : 'text-[#F57C00]'}`}>
-             {activeFilter.replace('_', ' ')}
-           </h2>
-
-           {activeFilter === 'requests' && selectedProductIds.length > 0 && (
-             <button onClick={handleBulkDelivery} className="bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-all"><PackageCheck size={16} /> Generate Delivery Note ({selectedProductIds.length})</button>
-           )}
-        </div>
-
-        {activeFilter === 'requests' && (
-          <div className="w-full max-w-full overflow-x-auto text-black scrollbar-hide">
-            <table className="w-full min-w-[800px] whitespace-nowrap text-left">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4 w-10 text-center">Sel</th><th className="px-8 py-4">Item Details</th><th className="px-8 py-4 text-center">Branch</th><th className="px-8 py-4 text-center">Requested Qty</th><th className="px-8 py-4 text-right">Time Requested</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
-              <tbody className="divide-y divide-gray-200 text-black">
-                {shopRequests.map((req) => (
-                  <tr key={req.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="px-8 py-6 text-center"><button onClick={() => toggleSelection(req.id)} className="text-[#F57C00]">{selectedProductIds.includes(req.id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}</button></td>
-                    <td className="px-8 py-6"><div className="flex flex-col gap-1"><span className="font-black text-[#F57C00] uppercase text-sm">{req.item}</span>{req.isEdited && <span className="text-[9px] font-black text-rose-600 uppercase flex items-center gap-1"><AlertCircle size={10}/> Modified</span>}</div></td>
-                    <td className="px-8 py-6 text-center"><span className="px-3 py-1 bg-[#FAF6F4] text-[#F57C00] rounded-lg text-[10px] font-black uppercase">{req.branch}</span></td>
-                    <td className="px-8 py-6 text-center"><span className="font-black text-lg text-gray-900">{req.quantity}</span></td>
-                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{req.time}</td>
-                    <td className="px-8 py-6 text-right"><button onClick={() => { setEditingItem(req); setEditQty(req.quantity.toString()); }} className="text-gray-300 hover:text-[#F57C00] p-2 bg-gray-50 rounded-xl transition-all"><Edit3 size={18} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activeFilter === 'my_stock' && (
-          <div className="overflow-x-auto text-black">
-            <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Item Name</th><th className="px-8 py-4 text-center">Qty In Store</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {myStock.map((s) => (
-                  <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
-                    <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
-                    <td className="px-8 py-6 text-right"><button onClick={() => { setEditingItem(s); setEditQty(s.quantity.toString()); }} className="text-gray-300 hover:text-[#F57C00] p-2 bg-gray-50 rounded-xl transition-all"><Edit3 size={18} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {activeFilter === 'baked_log' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Product Item</th><th className="px-8 py-4 text-center">Batch Qty</th><th className="px-8 py-4 text-right">Recorded Time</th></tr></thead>
-              <tbody className="divide-y divide-gray-100 font-bold">
-                {bakedProducts.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{b.item}</td>
-                    <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{b.quantity}</td>
-                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{b.time}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        
-{/* --- FULL CAKE ORDERS GRID --- */}
-{activeFilter === 'cake_orders' && (
-  <div className="w-full max-w-full overflow-x-auto">
-    <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold">
-      <thead>
-        <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
-          <th className="px-8 py-4">Customer & Cake Details</th>
-          <th className="px-8 py-4 text-center">Status</th>
-          <th className="px-8 py-4 text-right">Pickup Time</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100 font-bold">
-        {cakeOrders
-          .sort((a, b) => a.pickupTime.localeCompare(b.pickupTime)) // Sort line by line by time
-          .map((order) => (
-          <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-            <td className="px-8 py-6">
-              <div className="flex flex-col">
-                <span className="font-black text-[#F57C00] uppercase text-sm">{order.customer}</span>
-                <span className="text-[10px] text-gray-400 lowercase italic">{order.details}</span>
+          <div className="flex items-center gap-4 mb-10 pb-6 border-b border-gray-50">
+              <div className="w-14 h-14 bg-orange-50 text-[#F57C00] rounded-2xl flex items-center justify-center shadow-sm">
+                  <PackagePlus size={32} />
               </div>
-            </td>
-            <td className="px-8 py-6 text-center">
-                <span className={`px-3 py-1 rounded-full text-[10px] uppercase font-black ${order.status === 'Ready' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {order.status}
-                </span>
-            </td>
-            <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{order.pickupTime}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-)}
-
-{/* --- CAKE REQUESTS GRID --- */}
-{activeFilter === 'cake_requests' && (
-  <div className="w-full max-w-full overflow-x-auto">
-    <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold">
-      <thead>
-        <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
-          <th className="px-8 py-4">Requesting Branch</th>
-          <th className="px-8 py-4 text-center">Cake Details</th>
-          <th className="px-8 py-4 text-right">Required Time</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100 font-bold">
-        {cakeRequests
-          .sort((a, b) => a.pickupTime.localeCompare(b.pickupTime)) // Sort line by line by time
-          .map((req) => (
-          <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
-            <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{req.branch} SHOP</td>
-            <td className="px-8 py-6 text-center font-bold text-gray-900 text-sm">{req.details}</td>
-            <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{req.pickupTime}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-)}
-
-        {/* Other filters... */}
-        {activeFilter === 'notes' && (
-          <div className="p-0 text-black w-full max-w-full overflow-x-auto">
-            <table className="w-full min-w-[800px] whitespace-nowrap text-left">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Delivered Products & Destination</th><th className="px-8 py-4 text-right">Time Issued</th></tr></thead>
-              <tbody className="divide-y divide-gray-200">
-                {issuedNotes.map((note) => (
-                  <tr key={note.id} onClick={() => setDeliveryNote(note)} className="hover:bg-gray-50/50 cursor-pointer transition-all group">
-                    <td className="px-8 py-6"><div className="flex flex-col gap-1">{note.items.map((it: any, i: number) => (<span key={i} className="text-[12px] font-black text-[#F57C00] uppercase">{it.quantity} {it.name} → {it.destination}</span>))}</div></td>
-                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400 group-hover:text-[#F57C00]">{note.time}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+              <div>
+                  <h2 className="text-xl font-black text-black uppercase tracking-tight">Receive New Stock</h2>
+                  <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">Add items to the main store</p>
+              </div>
           </div>
-        )}
+
+          <form onSubmit={handleSubmit} className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              
+              {/* Product Name Autocomplete / Search */}
+              <div className="space-y-3 relative">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2 flex items-center gap-2">
+                  <Box size={14} /> Product Name
+                </label>
+                
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
+                     <Search size={18} className="text-gray-400" />
+                  </div>
+                  <input 
+                    required
+                    type="text"
+                    value={productName}
+                    onChange={(e) => {
+                      setProductName(e.target.value);
+                      setIsDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    onBlur={() => setIsDropdownOpen(false)}
+                    placeholder="Search product..."
+                    autoComplete="off"
+                    className="w-full py-5 pl-12 pr-5 bg-gray-50 border-2 border-transparent rounded-3xl focus:border-[#F57C00] focus:bg-white text-sm font-bold outline-none text-black transition-all uppercase"
+                  />
+                  
+                  {/* Floating Dropdown Results */}
+                  {isDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl max-h-64 overflow-y-auto overflow-x-hidden transform animate-in fade-in slide-in-from-top-2">
+                      <ul className="py-2">
+                        {filteredProducts.length > 0 ? (
+                          filteredProducts.map((prod, idx) => (
+                            <li 
+                              key={idx}
+                              // onMouseDown prevents input blur from firing before the click registers
+                              onMouseDown={(e) => e.preventDefault()} 
+                              onClick={() => {
+                                setProductName(prod.name);
+                                setIsDropdownOpen(false);
+                              }}
+                              className="px-5 py-3 hover:bg-orange-50 cursor-pointer flex justify-between items-center text-sm font-bold text-gray-700 uppercase transition-colors"
+                            >
+                              <span>{prod.name}</span>
+                              <span className="text-[10px] text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">{prod.category}</span>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="px-5 py-4 text-sm font-bold text-gray-400 text-center uppercase">
+                            No products found
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Quantity Input */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Quantity Added</label>
+                <div className="flex">
+                  <input 
+                      required
+                      type="number"
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full p-5 bg-gray-50 border-2 border-r-0 border-transparent rounded-l-3xl focus:border-[#F57C00] focus:bg-white text-lg font-black outline-none text-black transition-all"
+                  />
+                  <select 
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    className="bg-gray-100 border-2 border-l-0 border-transparent rounded-r-3xl p-5 text-sm font-black text-gray-600 outline-none focus:border-[#F57C00] cursor-pointer uppercase transition-all"
+                  >
+                    <option value="Kg">Kg</option>
+                    <option value="Piece">Piece</option>
+                  </select>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Premium Submit Button */}
+            <div className="pt-4 mt-8">
+              <button 
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full h-[70px] bg-gradient-to-r from-[#F57C00] to-[#FF9800] text-white rounded-3xl font-black uppercase text-sm tracking-widest flex items-center justify-center gap-3 hover:shadow-2xl hover:shadow-orange-500/40 hover:-translate-y-1 transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+              >
+                {isSubmitting ? 'Saving to Database...' : (
+                  <>Add product <Save size={20} /></>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
+
     </div>
   );
 }
