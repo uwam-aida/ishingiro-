@@ -48,34 +48,43 @@ export default function LoginPage() {
         localStorage.setItem('userId', data.user.id.toString());
         localStorage.setItem('roleId', data.user.role_id.toString());
         
-        // 3. Extract Role and Location based on the API name (e.g., "shop_manager_kabuga")
-        let role = data.user.normalized_name; // Keep as fallback if backend adds it later
+        // 3. Extract Role and Location based on the API name
+        let role = data.user.normalized_name; // e.g., "shopmanagerkabuga"
         let userLoc = data.user.location;
 
         if (!role && data.user.name) {
-            // Split "shop_manager_kabuga" into parts
             const nameParts = data.user.name.split('_'); 
             if (nameParts.length >= 3) {
-                userLoc = nameParts.pop(); // Gets the last part (e.g., "kabuga")
-                role = nameParts.join(''); // Joins the rest (e.g., "shopmanager")
+                userLoc = nameParts.pop(); 
+                role = nameParts.join(''); 
             } else {
-                // For roles without locations like "cicm"
                 role = data.user.name.replace(/_/g, ''); 
             }
         }
 
-        // Save to local storage for the rest of the app to use
-        localStorage.setItem('userRole', role || '');
-        localStorage.setItem('userLocation', userLoc || 'kabuga');
+        // Clean up the string (removes spaces and underscores)
+        let cleanRole = (role || '').toLowerCase().replace(/_/g, '').replace(/\s/g, '');
 
-        setStatusMessage(`Login successful! Redirecting...`);
+        // --- THE MAGIC FIX FOR "shopmanagerkabuga" ---
+        // If the string starts with shopmanager but has extra text attached (like kabuga)
+        if (cleanRole.startsWith('shopmanager')) {
+            // Extract the location (removes "shopmanager", leaves "kabuga" or "masaka")
+            const extractedBranch = cleanRole.replace('shopmanager', '');
+            if (extractedBranch.length > 0) {
+                userLoc = extractedBranch;
+            }
+            // Reset the role so it perfectly matches the switch case below!
+            cleanRole = 'shopmanager'; 
+        }
 
+        // Set the final branch ID for the URL
         const branchId = (userLoc || 'kabuga').toLowerCase();
 
-        // --- THE FIX IS HERE ---
-        // Clean up the role string to guarantee it matches your cases perfectly
-        // This takes "shop_manager" or "Shop_Manager" and turns it into "shopmanager"
-        const cleanRole = (role || '').toLowerCase().replace(/_/g, '');
+        // Save to local storage for the rest of the app to use
+        localStorage.setItem('userRole', cleanRole);
+        localStorage.setItem('userLocation', branchId);
+
+        setStatusMessage(`Login successful! Redirecting...`);
 
         // 4. Role-based Redirects
         switch (cleanRole) {
