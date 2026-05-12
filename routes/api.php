@@ -15,7 +15,6 @@ use App\Http\Controllers\Api\ShopManagerController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StoreKeeperController;
 use Illuminate\Support\Facades\Route;
-
 /*
 |--------------------------------------------------------------------------
 | PUBLIC
@@ -42,7 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     /*
     |--------------------------------------------------------------------------
-    | NOTIFICATIONS (every authenticated user — filtered by their own role)
+    | NOTIFICATIONS
     |--------------------------------------------------------------------------
     */
     Route::prefix('notifications')->group(function () {
@@ -77,6 +76,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/delivery', [StoreKeeperController::class, 'storeDelivery']);
         Route::get('/history', [StoreKeeperController::class, 'deliveryHistory']);
         Route::post('/damage', [StoreKeeperController::class, 'storeDamage']);
+        Route::get('/damage', [StoreKeeperController::class, 'damages']);           // NEW
+        Route::get('/production', [StoreKeeperController::class, 'productionLog']); // NEW
         Route::get('/requests', [StoreKeeperController::class, 'requests']);
         Route::get('/cake-orders', [StoreKeeperController::class, 'cakeOrders']);
         Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
@@ -97,7 +98,9 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:shop_manager_kabuga,shop_manager_masaka')->group(function () {
-        Route::post('/shop/cake-orders', [ShopManagerController::class, 'storeCakeOrder']);
+        Route::post('/shop/cake-orders', [ShopManagerController::class, 'storeCakeOrder']);     // updated — now validates all fields
+        Route::put('/shop/cake-orders/{id}', [ShopManagerController::class, 'updateCakeOrder']); // NEW
+        Route::put('/orders/{id}/receive', [ShopManagerController::class, 'receiveOrder']);       // NEW
         Route::post('/shop/feedback', [ShopManagerController::class, 'storeFeedback']);
         Route::post('/shop/damages', [ShopManagerController::class, 'recordDamage']);
 

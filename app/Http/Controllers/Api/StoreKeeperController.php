@@ -8,6 +8,7 @@ use App\Models\CakeOrder;
 use App\Models\Damage;
 use App\Models\Delivery;
 use App\Models\Order;
+use App\Models\Production;
 use App\Models\Stock;
 use Illuminate\Http\Request;
 
@@ -55,12 +56,17 @@ class StoreKeeperController extends Controller
     }
 
     // INCOMING PRODUCT REQUESTS (pending orders from shop managers)
+    // Now includes created_at and formatted time field
     public function requests()
     {
         return Order::with('items.product')
             ->where('status', 'pending')
             ->latest()
-            ->get();
+            ->get()
+            ->map(fn($order) => array_merge($order->toArray(), [
+                'time' => $order->created_at->format('h:i A'),
+                'date' => $order->created_at->toDateString(),
+            ]));
     }
 
     // RECORD A DELIVERY
@@ -76,10 +82,16 @@ class StoreKeeperController extends Controller
         return Delivery::create($request->all());
     }
 
-    // DELIVERY HISTORY
+    // DELIVERY HISTORY — includes time field
     public function deliveryHistory()
     {
-        return Delivery::with('product')->latest()->get();
+        return Delivery::with('product')
+            ->latest()
+            ->get()
+            ->map(fn($d) => array_merge($d->toArray(), [
+                'time' => $d->created_at->format('h:i A'),
+                'date' => $d->created_at->toDateString(),
+            ]));
     }
 
     // RECORD DAMAGE
@@ -104,15 +116,50 @@ class StoreKeeperController extends Controller
         return $damage;
     }
 
-    // ALL CAKE ORDERS (cake management tab)
-    public function cakeOrders()
+    // GET DAMAGE LOG — includes time field
+    public function damages()
     {
-        return CakeOrder::latest()->get();
+        return Damage::with('product')
+            ->latest()
+            ->get()
+            ->map(fn($d) => array_merge($d->toArray(), [
+                'time' => $d->created_at->format('h:i A'),
+                'date' => $d->created_at->toDateString(),
+            ]));
     }
 
-    // PENDING CAKE REQUESTS only
+    // GET PRODUCTION LOG (baker output visible to store keeper) — includes time field
+    public function productionLog()
+    {
+        return Production::with('product')
+            ->latest()
+            ->get()
+            ->map(fn($p) => array_merge($p->toArray(), [
+                'time' => $p->created_at->format('h:i A'),
+                'date' => $p->created_at->toDateString(),
+            ]));
+    }
+
+    // ALL CAKE ORDERS (cake management tab) — includes time field
+    public function cakeOrders()
+    {
+        return CakeOrder::latest()
+            ->get()
+            ->map(fn($c) => array_merge($c->toArray(), [
+                'time' => $c->created_at->format('h:i A'),
+                'date' => $c->created_at->toDateString(),
+            ]));
+    }
+
+    // PENDING CAKE REQUESTS only — includes time field
     public function cakeRequests()
     {
-        return CakeOrder::where('status', 'pending')->latest()->get();
+        return CakeOrder::where('status', 'pending')
+            ->latest()
+            ->get()
+            ->map(fn($c) => array_merge($c->toArray(), [
+                'time' => $c->created_at->format('h:i A'),
+                'date' => $c->created_at->toDateString(),
+            ]));
     }
 }
