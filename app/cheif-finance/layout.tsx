@@ -8,8 +8,6 @@ import { Calendar, ShieldCheck } from 'lucide-react';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // --- Financial Context State ---
   const [unreadCount, setUnreadCount] = useState(3); 
   const handleBellClick = () => setUnreadCount(0);
 
@@ -28,8 +26,8 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] font-sans overflow-x-hidden selection:bg-[#5D4037]/10">
       
-      {/* 1. DESKTOP SIDEBAR (Enhanced with subtle border & shadow) */}
-      <aside className="hidden md:flex w-68 flex-col fixed inset-y-0 z-50 border-r border-gray-200/60 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden">
+      {/* 1. DESKTOP SIDEBAR - Changed to w-64 for standard alignment */}
+      <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-200/60 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden">
         <Sidebar 
           menuItems={cheifFinanceMenu}
           footerTitle={CONFIG.title}
@@ -38,7 +36,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
       </aside>
 
       {/* 2. MOBILE SIDEBAR DRAWER */}
-      <div className={`fixed inset-y-0 left-0 z-[101] w-72 bg-[#F6F6F6] shadow-2xl transform transition-transform duration-500 cubic-bezier(0.4, 0, 0.2, 1) md:hidden print:hidden ${
+      <div className={`fixed inset-y-0 left-0 z-[101] w-72 bg-[#F6F6F6] shadow-2xl transform transition-transform duration-500 md:hidden print:hidden ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <Sidebar 
@@ -58,10 +56,10 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         />
       )}
 
-      {/* 4. MAIN CONTENT AREA */}
+      {/* 4. MAIN CONTENT AREA - md:ml-64 now perfectly clears the sidebar */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
         
-        {/* HEADER (Standardized & Polished) */}
+        {/* HEADER */}
         <div className="sticky top-0 z-40 print:hidden">
           <div className="absolute inset-0 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-sm" />
           <div className="relative">
@@ -75,7 +73,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
           </div>
         </div>
 
-        {/* 5. DASHBOARD WELCOME BAR (Only visible on Desktop) */}
+        {/* 5. DASHBOARD WELCOME BAR */}
         <div className="hidden md:flex items-center justify-between px-8 py-4 bg-transparent print:hidden">
            <div className="flex items-center gap-2 text-gray-400">
               <Calendar size={14} />
@@ -87,14 +85,13 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
            </div>
         </div>
 
-        {/* PAGE CONTENT */}
-        <main className="flex-1 px-4 py-2 md:px-8 md:py-4 w-full max-w-7xl mx-auto overflow-y-auto print:bg-white print:p-0">
+        {/* PAGE CONTENT - Added md:px-12 for better space between sidebar and dashboard */}
+        <main className="flex-1 px-4 py-4 md:px-12 md:py-8 w-full max-w-7xl mx-auto overflow-y-auto print:bg-white print:p-0">
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             {children}
           </div>
         </main>
 
-        {/* SUBTLE FOOTER TAG */}
         <footer className="p-6 text-center print:hidden">
            <p className="text-[10px] font-medium text-gray-300 uppercase tracking-[0.4em]">
              Ishingiro Shop Financial Management System

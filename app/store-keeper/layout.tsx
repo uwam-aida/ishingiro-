@@ -4,14 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
-// ONLY import the global Store Keeper menu
 import { getStoreKeeperMenu } from '../lib/menus';
 
 export default function StoreKeeperLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   
-  // --- NOTIFICATION STATE SHARED BETWEEN HEADER & SIDEBAR ---
   const [unreadCount, setUnreadCount] = useState(2); 
   const pathname = usePathname();
 
@@ -19,49 +17,49 @@ export default function StoreKeeperLayout({ children }: { children: React.ReactN
     setIsMounted(true);
   }, []);
 
-  // Function to clear notifications
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   const clearNotifications = () => {
     setUnreadCount(0);
   };
 
   if (!isMounted) return null;
 
-  // --- CLEAN GLOBAL LOGIC ---
   const menuItems = getStoreKeeperMenu();
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] flex overflow-hidden">
+    <div className="min-h-screen bg-[#FDFDFD] flex overflow-hidden font-sans">
       
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex w-72 flex-col fixed inset-y-0 z-50 bg-gray-50">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-72 flex-col fixed inset-y-0 left-0 z-50 bg-gray-50 border-r border-gray-100">
         <Sidebar 
-          isOpen={isMobileMenuOpen} 
-          onClose={() => setIsMobileMenuOpen(false)}
+          isOpen={true} 
+          onClose={() => {}} 
           menuItems={menuItems} 
           footerTitle="Store Keeper"
           footerInitial="S"
-          // ✅ This now works because Sidebar interface is updated
           onNotificationClick={clearNotifications}
         />
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 md:ml-72 flex flex-col min-h-screen">
+      <div className="flex-1 md:ml-72 flex flex-col min-h-screen w-full transition-all duration-300 relative">
         <Header 
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title="Store Keeper"
           notificationHref="/store-keeper/notifications"
-          // ✅ These now work because Header interface is updated
           unreadCount={unreadCount}
           onBellClick={clearNotifications}
         />
         
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto w-full">
           {children}
         </main>
       </div>
 
-      {/* Mobile Sidebar Logic */}
+      {/* RESTORED: Your original Mobile Sidebar Logic */}
       <div className="md:hidden">
         <Sidebar 
           isOpen={isMobileMenuOpen} 
@@ -69,10 +67,10 @@ export default function StoreKeeperLayout({ children }: { children: React.ReactN
           menuItems={menuItems} 
           footerTitle="Store Keeper"
           footerInitial="S"
-          // ✅ This now works because Sidebar interface is updated
           onNotificationClick={clearNotifications}
         />
       </div>
+      
     </div>
   );
 }

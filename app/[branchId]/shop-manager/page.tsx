@@ -305,7 +305,7 @@ export default function DynamicShopDashboard() {
     { id: 'orders', label: 'Orders', icon: Clock },
     { id: 'cake_orders', label: 'Cake Orders', icon: Cake },
     { id: 'received', label: 'Received', icon: Archive },
-    { id: 'stock', label: 'My Stock', icon: Store },
+    { id: 'stock', label: 'Stock', icon: Store },
     { id: 'damaged', label: 'Damaged', icon: AlertCircle },
     { id: 'history', label: 'Full History', icon: History },
   ];
@@ -407,10 +407,7 @@ export default function DynamicShopDashboard() {
                     )}
                   </div>
                   <input type="number" placeholder="Qty" value={damagedQty} onChange={(e) => setDamagedQty(e.target.value)} className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500" />
-                  <select value={damagedState} onChange={(e) => setDamagedState(e.target.value)} className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500">
-                    <option value="Baked">Baked</option>
-                    <option value="Unbaked">Unbaked</option>
-                  </select>
+                  
                   <select value={damagedUnit} onChange={(e) => setDamagedUnit(e.target.value)} className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500">
                     <option value="Piece">Piece</option>
                     <option value="Kg">Kg</option>

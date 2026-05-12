@@ -22,7 +22,6 @@ export default function BakerDashboard() {
   // --- STATE TO HOLD FETCHED API DATA ---
   const [bakedProducts, setBakedProducts] = useState<any[]>([]);
   const [damagedItems, setDamagedItems] = useState<any[]>([]);
-  const [ingredients, setIngredients] = useState<any[]>([]);
   const [realProducts, setRealProducts] = useState<any[]>([]);
 
   // --- MODAL STATES ---
@@ -47,10 +46,6 @@ export default function BakerDashboard() {
 
       const damRes = await fetch(`${baseUrl}/baker/damage`, { headers });
       if (damRes.ok) setDamagedItems(await damRes.json());
-
-      const ingRes = await fetch(`${baseUrl}/baker/ingredients`, { headers });
-      if (ingRes.ok) setIngredients(await ingRes.json());
-
       const productsRes = await fetch(`${baseUrl}/products`, { headers });
       if (productsRes.ok) setRealProducts(await productsRes.json());
 
@@ -142,7 +137,6 @@ export default function BakerDashboard() {
   const stats = [
     { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
     { label: 'Damaged Items', value: damagedItems.length.toString(), icon: Trash2, color: 'bg-red-50 text-red-600' },
-    { label: 'Ingredient Store', value: ingredients.length.toString(), icon: Package, color: 'bg-gray-100 text-black' },
     { label: 'Full Added Products', value: (bakedProducts.length + damagedItems.length).toString(), icon: History, color: 'bg-gray-100 text-black' },
   ];
 
@@ -164,14 +158,6 @@ export default function BakerDashboard() {
           qty: `${d.quantity} pcs`, 
           reason: d.reason, 
           status: 'Waste'
-        }));
-      case 'Ingredient Store':
-        return ingredients.map(i => ({
-          id: `ING-${i.id}`, 
-          item: i.name, 
-          qty: `${i.quantity} ${i.unit}`, 
-          time: 'Available', 
-          status: 'Stock'
         }));
       case 'Full Added Products':
         const combined = [...bakedProducts, ...damagedItems].sort((a, b) => b.id - a.id);

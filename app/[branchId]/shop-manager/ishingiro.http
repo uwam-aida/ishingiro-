@@ -65,3 +65,38 @@ Content-Type: application/json
 {
   "player_id": "test-onesignal-123"
 }
+
+###
+
+### 7. GET PRODUCTION (Baking History)
+GET {{baseUrl}}/production
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 8. GET STOCK (Current Inventory)
+GET {{baseUrl}}/stock
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 9. GET SALES (Alternative name for Orders)
+GET {{baseUrl}}/sales
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 10. GET BRANCHES (Check Kabuga/Masaka list)
+GET {{baseUrl}}/branches
+Authorization: Bearer {{token}}
+Accept: application/json
+
+###
+
+### 11. GET PRODUCT SALES (Specific item)
+GET {{baseUrl}}/products/1/sales
+Authorization: Bearer {{token}}
+Accept: application/json

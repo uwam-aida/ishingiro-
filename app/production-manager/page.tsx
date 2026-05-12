@@ -10,12 +10,22 @@ import {
   Users, UserCircle, Star, Calendar, UtensilsCrossed 
 } from 'lucide-react';
 
+// --- NEW: INTERFACE TO FIX TYPESCRIPT ts(2339) ERROR ---
+interface DashboardItem {
+  id: number;
+  item: string;
+  qty: string;
+  time: string;
+  status: string;
+  target?: string; // The '?' makes this optional, fixing the TS error!
+}
+
 export default function ProductionManagerDashboard() {
   const router = useRouter();
   const [currentView, setCurrentView] = useState('Dashboard');
   
-  // --- STATE TO MANAGE ALL DATA ---
-  const [allData, setAllData] = useState({
+  // --- STATE TO MANAGE ALL DATA (Now strongly typed!) ---
+  const [allData, setAllData] = useState<Record<string, DashboardItem[]>>({
     Measured: [
       { id: 1, item: 'White Bread Dough', qty: '50 kg', time: '08:00 AM', status: 'Ready to Bake' },
     ],
@@ -36,7 +46,7 @@ export default function ProductionManagerDashboard() {
     ]
   });
 
-  // --- NEW: FETCH DATA FROM API ON LOAD ---
+  // --- FETCH DATA FROM API ON LOAD ---
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -72,9 +82,9 @@ export default function ProductionManagerDashboard() {
     fetchProductionData();
   }, [router]);
 
-  // --- UPDATED: HANDLE EDIT WITH API (PUT) ---
+  // --- HANDLE EDIT WITH API (PUT) ---
   const handleEdit = async (category: string, id: number) => {
-    const currentItems = allData[category as keyof typeof allData];
+    const currentItems = allData[category];
     const itemToEdit = currentItems.find(i => i.id === id);
     
     if (itemToEdit) {
@@ -98,7 +108,7 @@ export default function ProductionManagerDashboard() {
          const newQty = parseInt(newQtyStr || '');
          if (!newQty || isNaN(newQty)) return;
          
-         const newTarget = prompt(`Edit Target Category (e.g. Events, Tiku) for ${itemToEdit.item}:`, itemToEdit.target);
+         const newTarget = prompt(`Edit Target Category (e.g. Events, Tiku) for ${itemToEdit.item}:`, itemToEdit.target || '');
          if (!newTarget) return;
 
          endpoint = `${baseUrl}/production/distribution/${id}`;
@@ -154,7 +164,7 @@ export default function ProductionManagerDashboard() {
     }
   };
 
-  // --- NEW: HANDLE DELETE WITH API (DELETE) ---
+  // --- HANDLE DELETE WITH API (DELETE) ---
   const handleDelete = async (category: string, id: number) => {
     if (!confirm("Are you sure you want to delete this record?")) return;
 
@@ -183,7 +193,7 @@ export default function ProductionManagerDashboard() {
         }
         
         // Remove from local UI state
-        const updatedItems = allData[category as keyof typeof allData].filter(i => i.id !== id);
+        const updatedItems = allData[category].filter(i => i.id !== id);
         setAllData({ ...allData, [category]: updatedItems });
     } catch (e) { console.error(e); }
   };
@@ -210,21 +220,22 @@ export default function ProductionManagerDashboard() {
     return {
       desc: descriptions[view] || '',
       editable: true,
-      data: allData[view as keyof typeof allData] || []
+      data: allData[view] || []
     };
   };
 
   const pageInfo = getDataForView(currentView);
 
   return (
-    <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
+    // ONLY THIS LINE CHANGED: Added max-w-7xl mx-auto and adjusted padding so it doesn't hug the sidebar line
+    <div className="max-w-7xl mx-auto min-h-screen bg-[#FDFDFD] p-4 md:p-8 lg:p-10 space-y-8 pb-10">
       
       {currentView === 'Dashboard' && (
         <>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Production Manager</h1>
-            <p className="text-gray-500 text-sm mt-1">Monitor all production and store distributions.</p>
-          </div>
+        <div className="flex items-center gap-4 pt-6 no-print text-black">
+        <h1 className="text-2xl font-black text-black uppercase tracking-tight">PRODUCTION MANAGER</h1>
+      </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {stats.map((stat, index) => (
               <button key={index} onClick={() => setCurrentView(stat.label)} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col text-left hover:shadow-md transition-all group relative overflow-hidden">

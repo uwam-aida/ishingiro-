@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
@@ -23,7 +23,7 @@ export default function MeasuredProductsReport() {
   const reportDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const isoDate = new Date().toISOString().split('T')[0];
 
-  // --- STATE WITH MOCK DATA FALLBACK ---
+  // --- STATE WITH MOCK DATA FALLBACK (Will be overwritten by API) ---
   const [productData, setProductData] = useState<any[]>([
     { id: 1, branch: 'Kabuga', name: 'White Bread', unit: 'Piece', price: 1000, sold: 500, damaged: 10 },
     { id: 2, branch: 'Kabuga', name: 'Brown Bread', unit: 'Piece', price: 1200, sold: 300, damaged: 5 },
@@ -57,7 +57,7 @@ export default function MeasuredProductsReport() {
              id: item.id,
              branch: item.branch.charAt(0).toUpperCase() + item.branch.slice(1), // e.g., 'kabuga' -> 'Kabuga'
              name: item.name,
-             unit: item.name.toLowerCase().includes('flour') || item.name.toLowerCase().includes('sugar') ? 'Kg' : 'Piece', // API fallback
+             unit: item.unit || (item.name.toLowerCase().includes('flour') || item.name.toLowerCase().includes('sugar') ? 'Kg' : 'Piece'), // API fallback
              price: item.price,
              sold: item.sold || 0,
              damaged: item.damaged || 0

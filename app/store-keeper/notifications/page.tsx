@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation'; // Import Router
+import { useRouter } from 'next/navigation'; 
 import { Bell, CheckCircle, SlidersHorizontal, Clock, ArrowLeft, Search } from 'lucide-react';
 
 export default function StoreKeeperNotifications() {
-  const router = useRouter(); // Initialize Router
+  const router = useRouter(); 
 
   // Professional Mock Data
   const notifications = [
@@ -39,9 +39,13 @@ export default function StoreKeeperNotifications() {
   const filtered = notifications.filter(n => n.type === 'general');
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-10 relative">
+    // ADDED px-4 md:px-8 so content doesn't touch the screen edges on mobile
+    <div className="max-w-5xl mx-auto px-4 md:px-8 space-y-6 md:space-y-8 py-6 md:py-10 pb-20 relative font-sans">
       
-      
+      {/* --- MOBILE LOGO --- */}
+      <div className="md:hidden flex items-center justify-center mb-2">
+         <img src="/logo.png" alt="Shop Logo" className="h-14 w-auto object-contain" />
+      </div>
 
       {/* Page Header with Back Arrow */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-6">
@@ -49,48 +53,54 @@ export default function StoreKeeperNotifications() {
            {/* Back Button */}
            <button 
              onClick={() => router.back()} 
-             className="p-2 rounded-xl bg-white border border-gray-200 text-gray-900 hover:bg-gray-100 transition-all shadow-sm"
+             className="flex-shrink-0 p-2.5 md:p-3 rounded-xl bg-white border border-gray-200 text-gray-900 hover:bg-gray-100 transition-all shadow-sm"
            >
-             <ArrowLeft size={24} />
+             <ArrowLeft size={22} />
            </button>
            
            <div>
-             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">General Notifications</h1>
-             <p className="text-gray-500 text-sm mt-1">System updates and announcements.</p>
+             {/* Responsive text sizing */}
+             <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">General Notifications</h1>
+             <p className="text-gray-500 text-xs md:text-sm mt-1">System updates and announcements.</p>
            </div>
         </div>
         
         {/* Search/Filter (Visual Only) */}
-        <div className="flex items-center gap-2">
-            <button className="flex items-center gap-2 text-sm font-bold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
+        <div className="flex items-center gap-2 self-start md:self-auto ml-14 md:ml-0">
+            <button className="flex items-center gap-2 text-xs md:text-sm font-bold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
                 <SlidersHorizontal size={16} /> Filter
             </button>
         </div>
       </div>
 
       {/* --- NOTIFICATION CARDS --- */}
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         {filtered.length > 0 ? filtered.map((note) => (
           <div 
             key={note.id} 
-            className="group relative p-6 rounded-2xl border transition-all duration-300 hover:shadow-md flex items-start gap-5 bg-red-50/30 border-red-100"
+            // Scaled padding and gap for mobile
+            className="group relative p-4 md:p-6 rounded-2xl border transition-all duration-300 hover:shadow-md flex items-start gap-3 md:gap-5 bg-red-50/30 border-red-100"
           >
             {/* Icon Status */}
-            <div className="mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-500 text-white shadow-red-200 shadow-md">
-               <Bell size={20} />
+            <div className="mt-0.5 md:mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-500 text-white shadow-red-200 shadow-md">
+               <Bell size={18} className="md:w-5 md:h-5" />
             </div>
 
-            <div className="flex-1">
-               <div className="flex items-center gap-3 mb-1">
-                 <h3 className="font-bold text-gray-900 text-base">{note.title}</h3>
+            <div className="flex-1 min-w-0">
+               <div className="flex items-center justify-between gap-3 mb-1">
+                 {/* Truncate text just in case it gets too long on narrow phones */}
+                 <h3 className="font-bold text-gray-900 text-sm md:text-base truncate">{note.title}</h3>
+                 
+                 {/* Unread indicator */}
                  {note.status === 'unread' && (
-                   <span className="w-2 h-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+                   <span className="shrink-0 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white"></span>
                  )}
                </div>
                
-               <p className="text-gray-600 text-sm leading-relaxed">{note.message}</p>
+               <p className="text-gray-600 text-xs md:text-sm leading-relaxed pr-2">{note.message}</p>
                
-               <div className="mt-3 flex items-center gap-4 text-xs font-medium text-gray-400 uppercase tracking-wide">
+               {/* Added flex-wrap so the badge drops to the next line on tiny screens instead of squishing */}
+               <div className="mt-3 flex flex-wrap items-center gap-3 md:gap-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wide">
                  <span className="flex items-center gap-1.5"><Clock size={12} /> {note.meta}</span>
                  
                  {/* Badge */}
@@ -101,7 +111,9 @@ export default function StoreKeeperNotifications() {
             </div>
           </div>
         )) : (
-            <div className="text-center py-20 text-gray-400">No general notifications found.</div>
+            <div className="text-center py-20 text-sm font-bold text-gray-400 uppercase tracking-widest">
+              No general notifications found.
+            </div>
         )}
       </div>
     </div>
