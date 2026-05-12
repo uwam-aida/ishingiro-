@@ -95,6 +95,6 @@ class ProductSeeder extends Seeder
             );
         }
 
-        $this->command->info('✓ Seeded ' . count($products) . ' products.');
+        $this->command->info('Seeded ' . count($products) . ' products.');
     }
 }
