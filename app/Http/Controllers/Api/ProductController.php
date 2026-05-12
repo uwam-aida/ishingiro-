@@ -31,7 +31,8 @@ class ProductController extends Controller
             'type' => 'required|in:baked,unbaked'
         ]);
 
-        return Product::create($validated);
+        $product = Product::create($validated);
+        return $product;
     }
 
     public function update(Request $request, Product $product)

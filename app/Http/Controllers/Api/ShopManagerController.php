@@ -151,4 +151,5 @@ class ShopManagerController extends Controller
             ->latest()
             ->get();
     }
+
 }
