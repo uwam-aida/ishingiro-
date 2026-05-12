@@ -10,6 +10,7 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\Production;
 use App\Models\Stock;
+use App\Services\DeliveryNoteService;
 use Illuminate\Http\Request;
 
 class StoreKeeperController extends Controller
@@ -56,7 +57,6 @@ class StoreKeeperController extends Controller
     }
 
     // INCOMING PRODUCT REQUESTS (pending orders from shop managers)
-    // Now includes created_at and formatted time field
     public function requests()
     {
         return Order::with('items.product')
@@ -82,7 +82,7 @@ class StoreKeeperController extends Controller
         return Delivery::create($request->all());
     }
 
-    // DELIVERY HISTORY — includes time field
+    // DELIVERY HISTORY
     public function deliveryHistory()
     {
         return Delivery::with('product')
@@ -116,7 +116,7 @@ class StoreKeeperController extends Controller
         return $damage;
     }
 
-    // GET DAMAGE LOG — includes time field
+    // GET DAMAGE LOG
     public function damages()
     {
         return Damage::with('product')
@@ -128,7 +128,7 @@ class StoreKeeperController extends Controller
             ]));
     }
 
-    // GET PRODUCTION LOG (baker output visible to store keeper) — includes time field
+    // GET PRODUCTION LOG
     public function productionLog()
     {
         return Production::with('product')
@@ -140,7 +140,7 @@ class StoreKeeperController extends Controller
             ]));
     }
 
-    // ALL CAKE ORDERS (cake management tab) — includes time field
+    // ALL CAKE ORDERS
     public function cakeOrders()
     {
         return CakeOrder::latest()
@@ -151,7 +151,10 @@ class StoreKeeperController extends Controller
             ]));
     }
 
-    // PENDING CAKE REQUESTS only — includes time field
+    
+
+
+    // PENDING CAKE REQUESTS only
     public function cakeRequests()
     {
         return CakeOrder::where('status', 'pending')
@@ -161,5 +164,87 @@ class StoreKeeperController extends Controller
                 'time' => $c->created_at->format('h:i A'),
                 'date' => $c->created_at->toDateString(),
             ]));
+    }
+
+    // ── DELIVER ───────────────────────────────────────────────────────────────
+    // Marks one or more orders / cake orders as "delivered",
+    // creates Delivery records, notifies the shop, and returns a PDF.
+    //
+    // POST /api/storekeeper/deliver
+    // {
+    //   "order_ids":      [1, 2],          // optional
+    //   "cake_order_ids": [3],             // optional
+    //   "recipient_name": "Kabuga Shop"    // optional, printed on the note
+    // }
+    public function deliver(Request $request)
+    {
+        $request->validate([
+            'order_ids'        => 'nullable|array',
+            'order_ids.*'      => 'integer|exists:orders,id',
+            'cake_order_ids'   => 'nullable|array',
+            'cake_order_ids.*' => 'integer|exists:cake_orders,id',
+            'recipient_name'   => 'nullable|string',
+        ]);
+
+        if (empty($request->order_ids) && empty($request->cake_order_ids)) {
+            return response()->json([
+                'error' => 'Provide at least one order_id or cake_order_id'
+            ], 422);
+        }
+
+        $orders     = collect();
+        $cakeOrders = collect();
+
+        // ── Regular orders ───────────────────────────────────────────────────
+        if (!empty($request->order_ids)) {
+            $orders = Order::with('items.product')
+                ->whereIn('id', $request->order_ids)
+                ->get();
+
+            foreach ($orders as $order) {
+                $order->update(['status' => 'delivered']);
+
+                foreach ($order->items as $item) {
+                    Delivery::create([
+                        'product_id'    => $item->product_id,
+                        'quantity'      => $item->quantity,
+                        'from_location' => 'factory',
+                        'to_location'   => $order->location,
+                    ]);
+                }
+
+                SendNotificationJob::dispatch(
+                    'shop_manager_' . $order->location,
+                    'Your order #' . $order->id . ' has been delivered'
+                );
+            }
+        }
+
+        // ── Cake orders ──────────────────────────────────────────────────────
+        if (!empty($request->cake_order_ids)) {
+            $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
+
+            foreach ($cakeOrders as $cake) {
+                $cake->update(['status' => 'delivered']);
+
+                SendNotificationJob::dispatch(
+                    'shop_manager_' . $cake->location,
+                    'Cake order for ' . $cake->customer_name . ' has been delivered'
+                );
+            }
+        }
+
+        // ── Generate and stream the PDF ──────────────────────────────────────
+        $pdf = app(DeliveryNoteService::class)->generate(
+            orders:      $orders,
+            cakeOrders:  $cakeOrders,
+            recipient:   $request->input('recipient_name', 'Shop'),
+            deliveredAt: now(),
+        );
+
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="delivery-note-' . now()->format('Y-m-d-His') . '.pdf"',
+        ]);
     }
 }

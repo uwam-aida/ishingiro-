@@ -151,5 +151,17 @@ class ShopManagerController extends Controller
             ->latest()
             ->get();
     }
+    public function cakeOrdersLocation()
+    {
+        $location = auth()->user()->role->name === 'shop_manager_kabuga' ? 'kabuga' : 'masaka';
+
+        return CakeOrder::latest()
+            ->where('location', $location)
+            ->get()
+            ->map(fn($c) => array_merge($c->toArray(), [
+                'time' => $c->created_at->format('h:i A'),
+                'date' => $c->created_at->toDateString(),
+            ]));
+    }
 
 }

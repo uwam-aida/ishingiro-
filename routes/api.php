@@ -81,6 +81,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/requests', [StoreKeeperController::class, 'requests']);
         Route::get('/cake-orders', [StoreKeeperController::class, 'cakeOrders']);
         Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
+        Route::post('/deliver', [StoreKeeperController::class, 'deliver']);
     });
 
 
@@ -91,6 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::middleware('role:shop_manager_kabuga')->post('/orders/kabuga', [OrderController::class, 'store'])->defaults('location', 'kabuga');
     Route::middleware('role:shop_manager_masaka')->post('/orders/masaka', [OrderController::class, 'store'])->defaults('location', 'masaka');
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -109,6 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/shop/cake-orders/{location}', [ShopManagerController::class, 'cakeOrdersByLocation']);
         Route::get('/shop/damages/{location}', [ShopManagerController::class, 'damagesByLocation']);
         Route::get('/factory/stock', [StockController::class, 'factoryStock']);
+        Route::get('/cake-orders', [ShopManagerController::class, 'cakeOrdersLocation']);
     });
 
 
