@@ -17,9 +17,10 @@ fi
 echo "Running migrations..."
 php artisan migrate --force
 
-# Seed roles
+# Seed roles and products
 echo "Setting up roles..."
 php artisan db:seed --class=RoleSeeder --force
+php artisan db:seed --class=ProductSeeder --force
 
 # Seed users
 echo "Creating test users..."
