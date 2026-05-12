@@ -184,12 +184,20 @@ export default function DynamicShopDashboard() {
                 }
             }
 
-            // Fetch Cake Orders
-            const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
+         // Fetch Cake Orders
+          const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
             if (cakeRes.ok) {
                 const cakeData = await cakeRes.json();
+                console.log("RAW CAKE DATA FROM SERVER:", cakeData); 
+                
                 if(cakeData.length > 0) {
-                   setCakeOrders(cakeData.map((c:any) => ({ id: c.id, item: c.cake_type, code: `CK-${c.id}`, customer: c.customer_name, time: c.delivery_date || 'Pending' })));
+                   setCakeOrders(cakeData.map((c:any) => ({ 
+                       id: c.id, 
+                       item: c.cake_type || 'Custom Cake', 
+                       code: `CK-${c.id}`, 
+                       customer: c.customer_name || 'Customer', 
+                       time: c.delivery_date || 'Pending' 
+                   })));
                 }
             }
         } catch(e) { console.error("Failed to fetch shop data", e); }
@@ -315,7 +323,7 @@ export default function DynamicShopDashboard() {
       ...receivedStock.map(s => ({ category: 'Received', item: s.item, qty: s.quantity, time: s.arrivalTime || 'Latest', color: 'text-green-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
       ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
-  ].sort((a, b) => b.time.localeCompare(a.time));
+  ].sort((a, b) => { if (a.time === 'Latest') return 1; if (b.time === 'Latest') return -1; return b.time.localeCompare(a.time); });
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans w-full overflow-x-hidden">
@@ -355,7 +363,13 @@ export default function DynamicShopDashboard() {
           {activeFilter === 'stock' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Ingredient/Product</th><th className="px-8 py-4 text-center">In Store</th><th className="px-8 py-4 text-right">Unit</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                    <tr>
+                        <th className="px-8 py-4">Ingredient/Product</th>
+                        <th className="px-8 py-4 text-center">In Store</th>
+                        <th className="px-8 py-4 text-right">Unit</th>
+                    </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100">
                   {myStock.map((s, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
@@ -374,7 +388,14 @@ export default function DynamicShopDashboard() {
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
                <table className="w-full min-w-[800px] whitespace-nowrap text-left border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Type</th><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Quantity</th><th className="px-8 py-4 text-right">Time Added</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                    <tr>
+                        <th className="px-8 py-4">Type</th>
+                        <th className="px-8 py-4">Product Name</th>
+                        <th className="px-8 py-4 text-center">Quantity</th>
+                        <th className="px-8 py-4 text-right">Time Added</th>
+                    </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100">
                   {fullHistory.map((log, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors font-bold">
@@ -418,7 +439,13 @@ export default function DynamicShopDashboard() {
               </div>
               <div className="w-full max-w-full overflow-x-auto scrollbar-hide">
                 <table className="w-full min-w-[800px] whitespace-nowrap mt-8 text-left font-bold">
-                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
+                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100">
+                    <tr>
+                        <th className="px-8 py-4">Item</th>
+                        <th className="px-8 py-4 text-center">State</th>
+                        <th className="px-8 py-4 text-right">Time Reported</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-gray-100">
                     {damagedReports.map((d) => (
                       <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td></tr>
@@ -482,7 +509,13 @@ export default function DynamicShopDashboard() {
                   <button disabled={!requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Add Request</button>
                 </div>
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-8">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                    <tr>
+                        <th className="px-8 py-4 text-gray-900">Requested Item</th>
+                        <th className="px-8 py-4 text-center text-gray-900">Qty</th>
+                        <th className="px-8 py-4 text-right text-gray-900">Status</th>
+                    </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100">
                   {myRequests.map((req) => (
                     <tr key={req.id} className="hover:bg-gray-50 transition-colors font-bold"><td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.item}</td><td className="px-8 py-6 text-center text-lg">{req.quantity}</td><td className="px-8 py-6 text-right"><span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{req.time} • {req.status}</span></td></tr>

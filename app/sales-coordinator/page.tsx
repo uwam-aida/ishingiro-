@@ -59,7 +59,7 @@ export default function SalesCoordinatorDashboard() {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
         const headers = { 'Authorization': `Bearer ${token}` };
         
-        // 1. Fetch Dashboard Summary
+        // 1. Fetch Dashboard Summary (Section 7: Sales Coordinator)
         const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, { headers });
         if (summaryResponse.ok) {
           const summary = await summaryResponse.json();
@@ -70,54 +70,84 @@ export default function SalesCoordinatorDashboard() {
             delivered_products: summary.delivered_products || 0,
             stock: summary.shop_stock || 0, 
             damaged_products: summary.damaged_products || 0,
-            history: summary.history || 0
+            history: summary.delivered_products || 0 // Using delivered count as history proxy
           });
         }
 
-        // 2. Fetch All Detailed Logs Concurrently
-        const [
-          reqRes, bakedRes, delRes, stockRes, damRes, histRes, cakeRes
-        ] = await Promise.all([
-          fetch(`${baseUrl}/sales/requests`, { headers }),
-          fetch(`${baseUrl}/sales/baked`, { headers }),
-          fetch(`${baseUrl}/sales/delivered`, { headers }),
-          fetch(`${baseUrl}/sales/stock`, { headers }),
-          fetch(`${baseUrl}/sales/damaged`, { headers }),
-          fetch(`${baseUrl}/sales/history`, { headers }),
-          fetch(`${baseUrl}/sales/cake-orders`, { headers })
+        // 2. Fetch Detailed Logs from Production, Stock, and Sales Endpoints
+        const [prodDetailsRes, stockRes, cakeRes] = await Promise.all([
+          fetch(`${baseUrl}/production/details`, { headers }), // For Requests, Baked, Delivered, Damaged
+          fetch(`${baseUrl}/factory/stock`, { headers }),      // For Stock
+          fetch(`${baseUrl}/sales/cake-orders`, { headers })   // For Cake Orders
         ]);
 
-        const newLists = {
-          Requests: reqRes.ok ? await reqRes.json() : [],
-          Baked: bakedRes.ok ? await bakedRes.json() : [],
-          Delivered: delRes.ok ? await delRes.json() : [],
-          Stock: stockRes.ok ? await stockRes.json() : [],
-          Damaged: damRes.ok ? await damRes.json() : [],
-          History: histRes.ok ? await histRes.json() : [],
-          CakeOrders: cakeRes.ok ? await cakeRes.json() : []
-        };
+        const prodData = prodDetailsRes.ok ? await prodDetailsRes.json() : { productions: [], damages: [], deliveries: [], orders: [] };
+        const stockData = stockRes.ok ? await stockRes.json() : [];
+        const cakeData = cakeRes.ok ? await cakeRes.json() : [];
 
         setDetailedLists({
-          Requests: newLists.Requests.flatMap((r: any) => r.items.map((i: any) => ({
-            id: r.id, item: i.product?.name || 'Unknown', qty: `${i.quantity} pcs`, stock: `${r.location} Request`, time: 'Latest', status: r.status
-          }))),
-          CakeOrders: newLists.CakeOrders.map((c: any) => ({
-             id: c.id, item: c.cake_type, qty: `Code: CK-${c.id}`, stock: `Customer: ${c.customer_name}`, time: c.delivery_date || 'N/A', status: c.status 
+          // Requests mapped from production orders
+          Requests: prodData.orders.map((r: any) => ({
+            id: r.id, 
+            item: r.location ? `${r.location.toUpperCase()} Order` : 'Order Batch', 
+            qty: 'View Items', 
+            stock: `${r.location} Request`, 
+            time: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending', 
+            status: r.status
           })),
-          Baked: newLists.Baked.map((b: any) => ({
-             id: b.id, item: b.product?.name || 'Unknown', qty: `${b.quantity} pcs`, stock: `Factory - ${b.location}`, time: 'Latest', status: 'Ready'
+          // Cake Orders from Sales section
+          CakeOrders: cakeData.map((c: any) => ({
+             id: c.id, 
+             item: c.cake_type, 
+             qty: `Code: CK-${c.id}`, 
+             stock: `Customer: ${c.customer_name}`, 
+             time: c.delivery_date || 'N/A', 
+             status: c.status 
           })),
-          Delivered: newLists.Delivered.map((d: any) => ({
-             id: d.id, item: d.product?.name || 'Unknown', qty: `${d.quantity} pcs`, stock: `To: ${d.to_location}`, time: 'Latest', status: 'Delivered'
+          // Baked products from production logs
+          Baked: prodData.baked.map((b: any) => ({
+             id: b.id, 
+             item: b.product?.name || 'Baked Item', 
+             qty: `${b.quantity} pcs`, 
+             stock: `Factory - ${b.location}`, 
+             time: b.created_at ? new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest', 
+             status: 'Ready'
           })),
-          Stock: newLists.Stock.map((s: any) => ({
-             id: s.id, item: s.product?.name || 'Unknown', qty: `${s.quantity} pcs`, stock: `${s.location} Shop`, time: 'Latest', status: 'In Stock'
+          // Delivered products from distribution logs
+          Delivered: prodData.delivered.map((d: any) => ({
+             id: d.id, 
+             item: d.product?.name || 'Product', 
+             qty: `${d.quantity} pcs`, 
+             stock: `To: ${d.to_location}`, 
+             time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest', 
+             status: 'Delivered'
           })),
-          Damaged: newLists.Damaged.map((d: any) => ({
-             id: d.id, item: d.product?.name || 'Unknown', qty: `${d.quantity} pcs`, stock: d.reason || 'Reported', time: 'Latest', status: 'Disposed'
+          // Stock from Factory Stock endpoint
+          Stock: stockData.map((s: any) => ({
+             id: s.id, 
+             item: s.product?.name || 'Unknown', 
+             qty: `${s.quantity} pcs`, 
+             stock: `${s.location} Inventory`, 
+             time: 'In Store', 
+             status: 'In Stock'
           })),
-          History: newLists.History.map((h: any) => ({
-             id: h.id, item: h.product?.name || 'Unknown', qty: `${h.quantity} pcs`, stock: `${h.type.toUpperCase()} - ${h.location}`, time: 'Logged', status: 'Archived'
+          // Damaged products from production logs
+          Damaged: prodData.damaged.map((d: any) => ({
+             id: d.id, 
+             item: d.product?.name || 'Unknown', 
+             qty: `${d.quantity} pcs`, 
+             stock: d.location || 'Reported', 
+             time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest', 
+             status: 'Waste'
+          })),
+          // History mapped from deliveries
+          History: prodData.delivered.map((h: any) => ({
+             id: h.id, 
+             item: h.product?.name || 'Product', 
+             qty: `${h.quantity} pcs`, 
+             stock: `DELIVERY - ${h.to_location}`, 
+             time: h.created_at ? new Date(h.created_at).toLocaleDateString() : 'Logged', 
+             status: 'Archived'
           }))
         });
 

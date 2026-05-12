@@ -144,7 +144,7 @@ export default function StoreKeeperDashboard() {
                    item: item.product?.name || 'Unknown Product',
                    quantity: item.quantity,
                    unit: 'pcs',
-                   time: 'Pending', 
+                   time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending', 
                    branch: order.location,
                    isEdited: false
                 });
@@ -161,7 +161,7 @@ export default function StoreKeeperDashboard() {
              id: h.id,
              item: h.product?.name || 'Unknown',
              quantity: h.quantity,
-             date: 'Logged', 
+             date: h.created_at ? new Date(h.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'No Date', 
              receiver: h.to_location
           })));
         }
@@ -191,39 +191,6 @@ export default function StoreKeeperDashboard() {
           })));
         }
 
-        // -------------------------------------------------------------
-        // 🚨 PLACEHOLDERS FOR MISSING APIS 🚨
-        // Uncomment these lines when your backend developer adds them!
-        // -------------------------------------------------------------
-        
-        /* // Fetch 6: Damaged Log
-        const damageRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
-        if (damageRes.ok) {
-          const data = await damageRes.json();
-          setDamagedProducts(data.map((d: any) => ({
-             id: d.id,
-             item: d.product?.name || 'Unknown',
-             quantity: d.quantity,
-             unit: d.unit || 'pcs',
-             time: d.created_at || 'Logged'
-          })));
-        }
-        */
-
-        /*
-        // Fetch 7: Baked Products Log
-        const bakedRes = await fetch(`${baseUrl}/storekeeper/baked-log`, { headers });
-        if (bakedRes.ok) {
-          const data = await bakedRes.json();
-          setBakedProducts(data.map((b: any) => ({
-             id: b.id,
-             item: b.product?.name || 'Unknown',
-             quantity: b.quantity,
-             time: b.created_at || 'Logged'
-          })));
-        }
-        */
-
       } catch (err) {
         console.error("Failed to fetch storekeeper data", err);
       }
@@ -248,33 +215,54 @@ export default function StoreKeeperDashboard() {
   const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
 
   // --- 2. BULK DELIVERY (POST /api/storekeeper/delivery) ---
+  // --- 2. BULK DELIVERY (POST /api/storekeeper/deliver) ---
   const handleBulkDelivery = async () => {
     if (selectedProductIds.length === 0) return;
     const token = localStorage.getItem('token');
 
-    try {
-      await Promise.all(selectedItems.map(item => {
-        return fetch(`${baseUrl}/storekeeper/delivery`, {
-          method: 'POST',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json' 
-          },
-          body: JSON.stringify({
-            product_id: item.product_id,
-            quantity: item.quantity,
-            from_location: 'factory',
-            to_location: item.branch
-          })
-        });
-      }));
+    // 1. Extract unique order IDs from the selected items
+    const uniqueOrderIds = Array.from(new Set(selectedItems.map(item => item.id)));
+    
+    // 2. Grab the destination name (e.g., "Kabuga Shop")
+    const destinationBranch = selectedItems[0]?.branch 
+        ? `${selectedItems[0].branch} Shop` 
+        : 'Unknown Shop';
 
-      const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
-      const noteData = { id: newNoteId, date: new Date().toLocaleDateString(), time: getCurrentTime(), items: selectedItems.map(item => ({ name: item.item, quantity: item.quantity, destination: `${item.branch.toUpperCase()} SHOP` })) };
-      setDeliveryNote(noteData);
-      setIssuedNotes(prev => [noteData, ...prev]);
-      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
-      setSelectedProductIds([]);
+    try {
+      // 3. Call the NEW bulk API from your screenshot
+      const response = await fetch(`${baseUrl}/storekeeper/deliver`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          order_ids: uniqueOrderIds,
+          cake_order_ids: [], // Keep empty until you add cake checkbox logic
+          recipient_name: destinationBranch
+        })
+      });
+
+      if (response.ok) {
+        // Only generate the note and clear the screen IF the backend says success
+        const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
+        const noteData = { 
+            id: newNoteId, 
+            date: new Date().toLocaleDateString(), 
+            time: getCurrentTime(), 
+            items: selectedItems.map(item => ({ 
+                name: item.item, 
+                quantity: item.quantity, 
+                destination: `${item.branch.toUpperCase()} SHOP` 
+            })) 
+        };
+        setDeliveryNote(noteData);
+        setIssuedNotes(prev => [noteData, ...prev]);
+        setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
+        setSelectedProductIds([]);
+      } else {
+        console.error("Backend rejected the delivery.");
+      }
     } catch (err) {
       console.error("Delivery recording failed", err);
     }
@@ -544,7 +532,41 @@ export default function StoreKeeperDashboard() {
             </table>
           </div>
         )}
-        
+        {/* TAB: FULL ADDED PRODUCTS (DELIVERED) */}
+        {activeFilter === 'delivered' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-bold border-collapse">
+              <thead className="bg-gray-50/50">
+                <tr className="text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
+                   <th className="px-8 py-4">Item Details</th>
+                   <th className="px-8 py-4 text-center">To Branch</th>
+                   <th className="px-8 py-4 text-center">Qty Added</th>
+                   <th className="px-8 py-4 text-right">Status Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {deliveryHistory.map((h) => (
+                  <tr key={h.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-8 py-6">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-black text-[#F57C00] uppercase text-sm">{h.item}</span>
+                        <span className="text-[9px] text-gray-400">ID: {h.id}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                       <span className="px-3 py-1 bg-green-50 text-green-700 rounded-lg text-[10px] font-black uppercase">{h.receiver}</span>
+                    </td>
+                    <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{h.quantity}</td>
+                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{h.date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {deliveryHistory.length === 0 && (
+              <div className="p-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Data Found</div>
+            )}
+          </div>
+        )}
         {/* ... Other filter logic remains the same ... */}
       </div>
     </div>
