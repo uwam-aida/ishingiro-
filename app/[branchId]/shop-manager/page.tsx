@@ -312,6 +312,7 @@ export default function DynamicShopDashboard() {
 
   const fullHistory = [
       ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
+      ...receivedStock.map(s => ({ category: 'Received', item: s.item, qty: s.quantity, time: s.arrivalTime || 'Latest', color: 'text-green-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
       ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
   ].sort((a, b) => b.time.localeCompare(a.time));

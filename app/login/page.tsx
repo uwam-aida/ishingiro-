@@ -72,8 +72,13 @@ export default function LoginPage() {
 
         const branchId = (userLoc || 'kabuga').toLowerCase();
 
+        // --- THE FIX IS HERE ---
+        // Clean up the role string to guarantee it matches your cases perfectly
+        // This takes "shop_manager" or "Shop_Manager" and turns it into "shopmanager"
+        const cleanRole = (role || '').toLowerCase().replace(/_/g, '');
+
         // 4. Role-based Redirects
-        switch (role) {
+        switch (cleanRole) {
           case 'marketingmanager': 
             router.push('/marketing-manager');
             break;
@@ -87,9 +92,11 @@ export default function LoginPage() {
             router.push('/sales-coordinator');
             break;
           case 'operationsmanager':
+          case 'productionmanager':
             router.push('/production-manager');
             break;
           case 'financechief':
+          case 'chieffinance':
             router.push('/cheif-finance');
             break;
           case 'cicm':
@@ -99,6 +106,7 @@ export default function LoginPage() {
             router.push(`/${branchId}/shop-manager`);
             break;
           default:
+            console.warn("Unrecognized role, going to home:", cleanRole);
             router.push('/');
         }
       } else {
