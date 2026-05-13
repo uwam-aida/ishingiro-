@@ -184,20 +184,12 @@ export default function DynamicShopDashboard() {
                 }
             }
 
-         // Fetch Cake Orders
-          const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
+            // Fetch Cake Orders
+            const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
             if (cakeRes.ok) {
                 const cakeData = await cakeRes.json();
-                console.log("RAW CAKE DATA FROM SERVER:", cakeData); 
-                
                 if(cakeData.length > 0) {
-                   setCakeOrders(cakeData.map((c:any) => ({ 
-                       id: c.id, 
-                       item: c.cake_type || 'Custom Cake', 
-                       code: `CK-${c.id}`, 
-                       customer: c.customer_name || 'Customer', 
-                       time: c.delivery_date || 'Pending' 
-                   })));
+                   setCakeOrders(cakeData.map((c:any) => ({ id: c.id, item: c.cake_type, code: `CK-${c.id}`, customer: c.customer_name, time: c.delivery_date || 'Pending' })));
                 }
             }
         } catch(e) { console.error("Failed to fetch shop data", e); }
@@ -308,22 +300,27 @@ export default function DynamicShopDashboard() {
   const branchName = branchIdString === 'kabuga' ? 'KABUGA SHOP' : branchIdString === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
   const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
 
-  const stats = [
-    { id: 'baked', label: 'Baked Items', icon: ShoppingBag },
-    { id: 'orders', label: 'Orders', icon: Clock },
-    { id: 'cake_orders', label: 'Cake Orders', icon: Cake },
-    { id: 'received', label: 'Received', icon: Archive },
-    { id: 'stock', label: 'Stock', icon: Store },
-    { id: 'damaged', label: 'Damaged', icon: AlertCircle },
-    { id: 'history', label: 'Full History', icon: History },
-  ];
-
+  // ==========================================
+  // --- CORRECTED ORDER: fullHistory FIRST ---
+  // ==========================================
   const fullHistory = [
       ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
-      ...receivedStock.map(s => ({ category: 'Received', item: s.item, qty: s.quantity, time: s.arrivalTime || 'Latest', color: 'text-green-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
       ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
-  ].sort((a, b) => { if (a.time === 'Latest') return 1; if (b.time === 'Latest') return -1; return b.time.localeCompare(a.time); });
+  ].sort((a, b) => b.time.localeCompare(a.time));
+
+  // ==========================================
+  // --- THEN stats (WITH COUNTS) ---
+  // ==========================================
+  const stats = [
+    { id: 'baked', label: 'Baked Items', icon: ShoppingBag, count: factoryStock.length },
+    { id: 'orders', label: 'Orders', icon: Clock, count: myRequests.length },
+    { id: 'cake_orders', label: 'Cake Orders', icon: Cake, count: cakeOrders.length },
+    { id: 'received', label: 'Received', icon: Archive, count: receivedStock.length },
+    { id: 'stock', label: 'My Stock', icon: Store, count: myStock.length },
+    { id: 'damaged', label: 'Damaged', icon: AlertCircle, count: damagedReports.length },
+    { id: 'history', label: 'Full History', icon: History, count: fullHistory.length },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans w-full overflow-x-hidden">
@@ -334,6 +331,7 @@ export default function DynamicShopDashboard() {
             </div>
         </div>
 
+        {/* --- STATS BUTTONS (UPDATED WITH NUMBERS) --- */}
         {/* --- STATS BUTTONS --- */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 w-full">
           {stats.map((stat) => (
@@ -346,14 +344,24 @@ export default function DynamicShopDashboard() {
                     : (stat.id === 'damaged' ? 'bg-white hover:border-red-600' : 'bg-white hover:border-[#F57C00]')
                 }`}
             >
-                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center mb-3 ${
+                {/* ICON */}
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${
                     activeFilter === stat.id 
                     ? 'bg-white/20' 
                     : (stat.id === 'damaged' ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-[#F57C00]')
                 }`}>
-                  <stat.icon size={20} />
+                  <stat.icon size={24} />
                 </div>
-                <h3 className="font-black text-[9px] md:text-[10px] uppercase tracking-widest opacity-80">{stat.label}</h3>
+                
+                {/* LABEL (Now above the number) */}
+                <h3 className="font-black text-[9px] md:text-[10px] uppercase tracking-widest opacity-80 leading-none mb-2">
+                  {stat.label}
+                </h3>
+
+                {/* NUMBER (Now underneath, made slightly larger to match your image) */}
+                <span className="text-2xl font-black leading-none text-inherit">
+                  {stat.count}
+                </span>
             </div>
           ))}
         </div>
@@ -363,13 +371,7 @@ export default function DynamicShopDashboard() {
           {activeFilter === 'stock' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
-                    <tr>
-                        <th className="px-8 py-4">Ingredient/Product</th>
-                        <th className="px-8 py-4 text-center">In Store</th>
-                        <th className="px-8 py-4 text-right">Unit</th>
-                    </tr>
-                </thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Ingredient/Product</th><th className="px-8 py-4 text-center">In Store</th><th className="px-8 py-4 text-right">Unit</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {myStock.map((s, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
@@ -388,14 +390,7 @@ export default function DynamicShopDashboard() {
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
                <table className="w-full min-w-[800px] whitespace-nowrap text-left border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
-                    <tr>
-                        <th className="px-8 py-4">Type</th>
-                        <th className="px-8 py-4">Product Name</th>
-                        <th className="px-8 py-4 text-center">Quantity</th>
-                        <th className="px-8 py-4 text-right">Time Added</th>
-                    </tr>
-                </thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Type</th><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Quantity</th><th className="px-8 py-4 text-right">Time Added</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {fullHistory.map((log, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors font-bold">
@@ -429,7 +424,10 @@ export default function DynamicShopDashboard() {
                     )}
                   </div>
                   <input type="number" placeholder="Qty" value={damagedQty} onChange={(e) => setDamagedQty(e.target.value)} className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500" />
-                  
+                  <select value={damagedState} onChange={(e) => setDamagedState(e.target.value)} className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500">
+                    <option value="Baked">Baked</option>
+                    <option value="Unbaked">Unbaked</option>
+                  </select>
                   <select value={damagedUnit} onChange={(e) => setDamagedUnit(e.target.value)} className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500">
                     <option value="Piece">Piece</option>
                     <option value="Kg">Kg</option>
@@ -439,13 +437,7 @@ export default function DynamicShopDashboard() {
               </div>
               <div className="w-full max-w-full overflow-x-auto scrollbar-hide">
                 <table className="w-full min-w-[800px] whitespace-nowrap mt-8 text-left font-bold">
-                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100">
-                    <tr>
-                        <th className="px-8 py-4">Item</th>
-                        <th className="px-8 py-4 text-center">State</th>
-                        <th className="px-8 py-4 text-right">Time Reported</th>
-                    </tr>
-                  </thead>
+                  <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
                   <tbody className="divide-y divide-gray-100">
                     {damagedReports.map((d) => (
                       <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td></tr>
@@ -509,13 +501,7 @@ export default function DynamicShopDashboard() {
                   <button disabled={!requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Add Request</button>
                 </div>
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-8">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
-                    <tr>
-                        <th className="px-8 py-4 text-gray-900">Requested Item</th>
-                        <th className="px-8 py-4 text-center text-gray-900">Qty</th>
-                        <th className="px-8 py-4 text-right text-gray-900">Status</th>
-                    </tr>
-                </thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
                 <tbody className="divide-y divide-gray-100">
                   {myRequests.map((req) => (
                     <tr key={req.id} className="hover:bg-gray-50 transition-colors font-bold"><td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.item}</td><td className="px-8 py-6 text-center text-lg">{req.quantity}</td><td className="px-8 py-6 text-right"><span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{req.time} • {req.status}</span></td></tr>

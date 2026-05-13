@@ -14,7 +14,8 @@ import {
   Search,
   ClipboardList,
   History,
-  Cake
+  Cake,
+  Target // Added Target icon for the missing API
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -31,7 +32,8 @@ export default function SalesCoordinatorDashboard() {
     delivered_products: 0,
     stock: 0,
     damaged_products: 0,
-    history: 0
+    history: 0,
+    targets: 0 // Added state for the missing targets API
   });
 
   // --- STATE FOR DETAILED LISTS ---
@@ -42,7 +44,8 @@ export default function SalesCoordinatorDashboard() {
     Delivered: [] as any[],
     Stock: [] as any[],
     Damaged: [] as any[],
-    History: [] as any[]
+    History: [] as any[],
+    Targets: [] as any[] // Added list for the missing targets API
   });
 
   // --- FETCH DATA ON LOAD ---
@@ -63,7 +66,8 @@ export default function SalesCoordinatorDashboard() {
         const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, { headers });
         if (summaryResponse.ok) {
           const summary = await summaryResponse.json();
-          setApiData({
+          setApiData(prev => ({
+            ...prev,
             shop_requests: summary.shop_requests || 0,
             cake_orders: summary.cake_orders || 0,
             baked_products: summary.baked_products || 0,
@@ -71,19 +75,24 @@ export default function SalesCoordinatorDashboard() {
             stock: summary.shop_stock || 0, 
             damaged_products: summary.damaged_products || 0,
             history: summary.delivered_products || 0 // Using delivered count as history proxy
-          });
+          }));
         }
 
-        // 2. Fetch Detailed Logs from Production, Stock, and Sales Endpoints
-        const [prodDetailsRes, stockRes, cakeRes] = await Promise.all([
+        // 2. Fetch Detailed Logs from Production, Stock, Sales Endpoints AND the missing Targets API
+        const [prodDetailsRes, stockRes, cakeRes, targetsRes] = await Promise.all([
           fetch(`${baseUrl}/production/details`, { headers }), // For Requests, Baked, Delivered, Damaged
           fetch(`${baseUrl}/factory/stock`, { headers }),      // For Stock
-          fetch(`${baseUrl}/sales/cake-orders`, { headers })   // For Cake Orders
+          fetch(`${baseUrl}/sales/cake-orders`, { headers }),  // For Cake Orders
+          fetch(`${baseUrl}/sales/targets`, { headers })       // MISSING API ADDED HERE
         ]);
 
         const prodData = prodDetailsRes.ok ? await prodDetailsRes.json() : { productions: [], damages: [], deliveries: [], orders: [] };
         const stockData = stockRes.ok ? await stockRes.json() : [];
         const cakeData = cakeRes.ok ? await cakeRes.json() : [];
+        const targetsData = targetsRes.ok ? await targetsRes.json() : []; // Parse missing API data
+
+        // Update the count for targets
+        setApiData(prev => ({ ...prev, targets: targetsData.length }));
 
         setDetailedLists({
           // Requests mapped from production orders
@@ -148,6 +157,15 @@ export default function SalesCoordinatorDashboard() {
              stock: `DELIVERY - ${h.to_location}`, 
              time: h.created_at ? new Date(h.created_at).toLocaleDateString() : 'Logged', 
              status: 'Archived'
+          })),
+          // MISSING API ADDED HERE: Mapped Targets
+          Targets: targetsData.map((t: any) => ({
+             id: t.id,
+             item: t.product_name,
+             qty: `${t.actual_volume} / ${t.target_volume}`, // Shows progress
+             stock: 'Target Volume',
+             time: 'Active Tracker',
+             status: t.status // "On Track" or "Completed"
           }))
         });
 
@@ -227,6 +245,16 @@ export default function SalesCoordinatorDashboard() {
       color: 'text-purple-600', 
       bg: 'bg-purple-50',
     },
+    // MISSING API ADDED HERE: Targets Card
+    { 
+      label: 'Targets', 
+      fullLabel: 'Sales Targets',
+      value: apiData.targets.toString(), 
+      sub: 'Monitored quotas', 
+      icon: Target, 
+      color: 'text-teal-600', 
+      bg: 'bg-teal-50',
+    },
   ];
 
   // --- 2. TABLE DATA GENERATOR ---
@@ -239,6 +267,7 @@ export default function SalesCoordinatorDashboard() {
       case 'Stock': return detailedLists.Stock;
       case 'Damaged': return detailedLists.Damaged;
       case 'History': return detailedLists.History;
+      case 'Targets': return detailedLists.Targets; // MISSING API ADDED HERE
       default: return [];
     }
   };
@@ -253,7 +282,7 @@ export default function SalesCoordinatorDashboard() {
             <p className="text-gray-500 text-sm mt-1">Track requests, stock, and product flow across branches.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
               <button 
                 key={index} 
@@ -339,7 +368,7 @@ export default function SalesCoordinatorDashboard() {
                       </td>
                       <td className="px-8 py-5 text-right">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          row.status === 'Ready' || row.status === 'Approved' || row.status === 'Selling' || row.status === 'In Stock' ? 'bg-green-100 text-green-700' :
+                          row.status === 'Ready' || row.status === 'Approved' || row.status === 'Selling' || row.status === 'In Stock' || row.status === 'Completed' ? 'bg-green-100 text-green-700' :
                           row.status === 'Delivered' || row.status === 'Archived' ? 'bg-blue-100 text-blue-700' :
                           row.status === 'Disposed' || row.status === 'Returned' || row.status === 'Waste' ? 'bg-red-100 text-red-700' :
                           'bg-orange-100 text-orange-700'
@@ -355,7 +384,7 @@ export default function SalesCoordinatorDashboard() {
             
             {getDataForView(currentView).length === 0 && !isLoading && (
                <div className="p-20 text-center uppercase font-black text-gray-300 tracking-widest">
-                  No records found
+                 No records found
                </div>
             )}
           </div> 

@@ -1,56 +1,113 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Bell, CheckCircle, SlidersHorizontal, Clock, ArrowLeft, Search } from 'lucide-react';
+import { Bell, CheckCircle, SlidersHorizontal, Clock, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 
 export default function StoreKeeperNotifications() {
   const router = useRouter(); 
 
-  // Professional Mock Data
-  const notifications = [
-    { 
-      id: 1, 
-      type: 'production',
-      title: 'Ready for Pickup', 
-      message: '100 pieces of bread baked and ready for shop.', 
-      meta: 'by Baker • 1hr ago',
-      status: 'unread' 
-    },
-    { 
-      id: 2, 
-      type: 'general',
-      title: 'System Maintenance', 
-      message: 'Scheduled maintenance tonight at 12:00 PM.', 
-      meta: 'System Admin • 3hrs ago',
-      status: 'read' 
-    },
-    { 
-      id: 3, 
-      type: 'general',
-      title: 'New Policy', 
-      message: 'Please review the new inventory safety guidelines.', 
-      meta: 'Management • 1 day ago',
-      status: 'unread' 
-    }
-  ];
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // STRICT FILTER: Show ONLY 'general'
+  // --- 1. FETCH NOTIFICATIONS (WITH AUTO-REFRESH) ---
+  const fetchNotifications = async (showLoader = false) => {
+    if (showLoader) setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      const response = await fetch(`${baseUrl}/notifications`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        const formattedData = data.map((n: any) => ({
+          id: n.id,
+          type: 'general', 
+          title: 'System Announcement', 
+          message: n.message,
+          meta: new Date(n.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+          status: n.is_read ? 'read' : 'unread'
+        }));
+        
+        setNotifications(formattedData);
+      }
+    } catch (error) {
+      console.error("Failed to load notifications:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Fetch immediately on load
+    fetchNotifications(true);
+
+    // AUTO-POLLING: Check for new messages every 10 seconds
+    const intervalId = setInterval(() => {
+      fetchNotifications(false); // fetch without showing the big loading spinner
+    }, 10000); 
+
+    return () => clearInterval(intervalId); // Cleanup when leaving page
+  }, []);
+
+  // --- 2. MISSING API: MARK SINGLE AS READ (Section 3.3) ---
+  const handleMarkAsRead = async (id: number, currentStatus: string) => {
+    if (currentStatus === 'read') return; // Do nothing if already read
+
+    // Optimistic UI update (instantly remove red dot)
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: 'read' } : n));
+
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      await fetch(`${baseUrl}/notifications/${id}/read`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
+  };
+
+  // --- 3. MISSING API: MARK ALL AS READ (Section 3.4) ---
+  const handleMarkAllAsRead = async () => {
+    // Optimistic UI update
+    setNotifications(prev => prev.map(n => ({ ...n, status: 'read' })));
+
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      await fetch(`${baseUrl}/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    }
+  };
+
+  // Filter
   const filtered = notifications.filter(n => n.type === 'general');
+  const unreadCount = filtered.filter(n => n.status === 'unread').length;
 
   return (
-    // ADDED px-4 md:px-8 so content doesn't touch the screen edges on mobile
     <div className="max-w-5xl mx-auto px-4 md:px-8 space-y-6 md:space-y-8 py-6 md:py-10 pb-20 relative font-sans">
       
-      {/* --- MOBILE LOGO --- */}
       <div className="md:hidden flex items-center justify-center mb-2">
          <img src="/logo.png" alt="Shop Logo" className="h-14 w-auto object-contain" />
       </div>
 
-      {/* Page Header with Back Arrow */}
+      {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-6">
         <div className="flex items-center gap-4">
-           {/* Back Button */}
            <button 
              onClick={() => router.back()} 
              className="flex-shrink-0 p-2.5 md:p-3 rounded-xl bg-white border border-gray-200 text-gray-900 hover:bg-gray-100 transition-all shadow-sm"
@@ -59,14 +116,24 @@ export default function StoreKeeperNotifications() {
            </button>
            
            <div>
-             {/* Responsive text sizing */}
              <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">General Notifications</h1>
-             <p className="text-gray-500 text-xs md:text-sm mt-1">System updates and announcements.</p>
+             <p className="text-gray-500 text-xs md:text-sm mt-1">
+                System updates and announcements. 
+                {unreadCount > 0 && <span className="ml-2 text-red-500 font-bold">({unreadCount} Unread)</span>}
+             </p>
            </div>
         </div>
         
-        {/* Search/Filter (Visual Only) */}
+        {/* Added "Mark All Read" Button */}
         <div className="flex items-center gap-2 self-start md:self-auto ml-14 md:ml-0">
+            {unreadCount > 0 && (
+              <button 
+                onClick={handleMarkAllAsRead}
+                className="flex items-center gap-2 text-xs md:text-sm font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors"
+              >
+                  <CheckCircle2 size={16} /> Mark All Read
+              </button>
+            )}
             <button className="flex items-center gap-2 text-xs md:text-sm font-bold text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-lg transition-colors">
                 <SlidersHorizontal size={16} /> Filter
             </button>
@@ -75,21 +142,32 @@ export default function StoreKeeperNotifications() {
 
       {/* --- NOTIFICATION CARDS --- */}
       <div className="space-y-3 md:space-y-4">
-        {filtered.length > 0 ? filtered.map((note) => (
+        {isLoading ? (
+            <div className="flex justify-center items-center py-20 text-gray-400">
+                <Loader2 className="animate-spin" size={32} />
+            </div>
+        ) : filtered.length > 0 ? filtered.map((note) => (
           <div 
             key={note.id} 
-            // Scaled padding and gap for mobile
-            className="group relative p-4 md:p-6 rounded-2xl border transition-all duration-300 hover:shadow-md flex items-start gap-3 md:gap-5 bg-red-50/30 border-red-100"
+            onClick={() => handleMarkAsRead(note.id, note.status)}
+            className={`group relative p-4 md:p-6 rounded-2xl border transition-all duration-300 flex items-start gap-3 md:gap-5 cursor-pointer ${
+              note.status === 'unread' 
+                ? 'bg-red-50/30 border-red-200 shadow-sm hover:shadow-md' 
+                : 'bg-white border-gray-100 hover:bg-gray-50'
+            }`}
           >
             {/* Icon Status */}
-            <div className="mt-0.5 md:mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-500 text-white shadow-red-200 shadow-md">
+            <div className={`mt-0.5 md:mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-md ${
+              note.status === 'unread' ? 'bg-red-500 text-white shadow-red-200' : 'bg-gray-200 text-gray-500 shadow-gray-100'
+            }`}>
                <Bell size={18} className="md:w-5 md:h-5" />
             </div>
 
             <div className="flex-1 min-w-0">
                <div className="flex items-center justify-between gap-3 mb-1">
-                 {/* Truncate text just in case it gets too long on narrow phones */}
-                 <h3 className="font-bold text-gray-900 text-sm md:text-base truncate">{note.title}</h3>
+                 <h3 className={`text-sm md:text-base truncate ${note.status === 'unread' ? 'font-black text-gray-900' : 'font-bold text-gray-600'}`}>
+                   {note.title}
+                 </h3>
                  
                  {/* Unread indicator */}
                  {note.status === 'unread' && (
@@ -97,14 +175,16 @@ export default function StoreKeeperNotifications() {
                  )}
                </div>
                
-               <p className="text-gray-600 text-xs md:text-sm leading-relaxed pr-2">{note.message}</p>
+               <p className={`text-xs md:text-sm leading-relaxed pr-2 ${note.status === 'unread' ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>
+                 {note.message}
+               </p>
                
-               {/* Added flex-wrap so the badge drops to the next line on tiny screens instead of squishing */}
                <div className="mt-3 flex flex-wrap items-center gap-3 md:gap-4 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wide">
                  <span className="flex items-center gap-1.5"><Clock size={12} /> {note.meta}</span>
                  
-                 {/* Badge */}
-                 <span className="px-2 py-0.5 rounded-md border bg-red-100 text-red-700 border-red-200">
+                 <span className={`px-2 py-0.5 rounded-md border ${
+                   note.status === 'unread' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200'
+                 }`}>
                    {note.type}
                  </span>
                </div>

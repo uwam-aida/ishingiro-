@@ -24,6 +24,7 @@ export default function SalesBroadcastPage() {
   ];
 
   // --- UPDATED: HANDLE REAL API REQUEST ---
+  // --- UPDATED: HANDLE REAL API REQUEST ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -52,7 +53,19 @@ export default function SalesBroadcastPage() {
         setMessage('');
         setTimeout(() => setSuccess(false), 3000);
       } else {
-        alert("Failed to send message. Please check your permissions.");
+        // --- ADDED THIS TO CATCH THE REAL BACKEND ERROR ---
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Backend Error Details:", errorData);
+        
+        // Show the actual backend message if it exists, otherwise show default
+        const errorMessage = errorData.message || errorData.error || "Please check your permissions or input.";
+        
+        // If it's a validation error (422), show the specific field errors
+        if (errorData.errors && errorData.errors.recipient_role) {
+           alert(`Validation Error: ${errorData.errors.recipient_role[0]}`);
+        } else {
+           alert(`Server says: ${errorMessage}`);
+        }
       }
     } catch (error) {
       console.error("Failed to broadcast message:", error);

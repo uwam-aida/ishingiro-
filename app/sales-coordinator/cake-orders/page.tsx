@@ -62,37 +62,47 @@ export default function CakeOrderForm() {
         setShowError(true); return;
     }
 
-    try {
+   try {
       const token = localStorage.getItem('token');
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-      // Map your frontend state to the exact payload the backend expects
-      const payload = {
-        customer_name: formData.customerFullName || "Guest",
-        phone: formData.customerPhoneNumber || "N/A",
-        cake_type: `${formData.purpose} (${formData.flavor})`,
-        quantity: 1, // Defaulting to 1 as form state doesn't track quantity
-        price: Number(formData.totalAmount),
-        location: formData.orderLocation || "kabuga", // fallback to kabuga if empty
-        delivery_date: formData.pickupDate || new Date().toISOString().split('T')[0]
-      };
+      // 1. Create a FormData object instead of a JSON object
+      const submitData = new FormData();
+      
+      submitData.append('customer_name', formData.customerFullName || "Guest");
+      submitData.append('phone', formData.customerPhoneNumber || "N/A");
+      submitData.append('cake_type', `${formData.purpose} (${formData.flavor})`);
+      submitData.append('quantity', '1');
+      submitData.append('price', formData.totalAmount);
+      submitData.append('location', formData.orderLocation || "kabuga");
+      submitData.append('delivery_date', formData.pickupDate || new Date().toISOString().split('T')[0]);
+      
+      // Payment & Details
+      submitData.append('payment_method', formData.paymentMethod);
+      submitData.append('paid_amount', formData.paidAmount);
+      submitData.append('payer_name', formData.payerName);
+      submitData.append('cake_message', formData.cakeMessage);
+      submitData.append('special_instructions', formData.specialInstructions);
 
+      // 2. Append the image file if it exists
+      if (formData.cakeFile) {
+        submitData.append('cake_image', formData.cakeFile);
+      }
+
+      // 3. Send the request (Notice we REMOVED 'Content-Type': 'application/json')
       const response = await fetch(`${baseUrl}/sales/cake-order`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // Browser automatically sets the correct Content-Type for FormData
         },
-        body: JSON.stringify(payload)
+        body: submitData
       });
 
       if (response.ok) {
-        // Success! Generate UI code and show completion screen
         const randomNum = Math.floor(Math.random() * 100);
         setGeneratedCode(`KS-${randomNum}`);
         setStep(6); 
       } else {
-        // Handle backend rejection
         alert("Failed to submit order. Please check your permissions and try again.");
         setShowError(true);
       }
