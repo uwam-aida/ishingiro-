@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\ShopManagerController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StoreKeeperController;
 use Illuminate\Support\Facades\Route;
+
 /*
 |--------------------------------------------------------------------------
 | PUBLIC
@@ -82,6 +83,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cake-orders', [StoreKeeperController::class, 'cakeOrders']);
         Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
         Route::post('/deliver', [StoreKeeperController::class, 'deliver']);
+        Route::put('/requests/{id}', [StoreKeeperController::class, 'updateRequest']);
     });
 
 
@@ -92,7 +94,6 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::middleware('role:shop_manager_kabuga')->post('/orders/kabuga', [OrderController::class, 'store'])->defaults('location', 'kabuga');
     Route::middleware('role:shop_manager_masaka')->post('/orders/masaka', [OrderController::class, 'store'])->defaults('location', 'masaka');
-    
 
     /*
     |--------------------------------------------------------------------------
@@ -111,7 +112,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/shop/cake-orders/{location}', [ShopManagerController::class, 'cakeOrdersByLocation']);
         Route::get('/shop/damages/{location}', [ShopManagerController::class, 'damagesByLocation']);
         Route::get('/factory/stock', [StockController::class, 'factoryStock']);
-        Route::get('/cake-orders', [ShopManagerController::class, 'cakeOrdersLocation']);
     });
 
 
@@ -135,8 +135,9 @@ Route::middleware('auth:sanctum')->group(function () {
     | PRODUCTION MANAGER
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:operations_manager')->prefix('production')->group(function () {
+    Route::middleware('role:production_manager')->prefix('production')->group(function () {
         Route::get('/summary', [OperationsController::class, 'summary']);
+        Route::get('/distribution', [OperationsController::class, 'getDistribution']);
         Route::get('/details', [OperationsController::class, 'details']);
 
         Route::put('/stock/{id}', [OperationsController::class, 'updateStock']);
@@ -163,7 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
     | DISTRIBUTION
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:store_keeper,operations_manager,cicm,finance_chief')->group(function () {
+    Route::middleware('role:store_keeper,production_manager,cicm,finance_chief')->group(function () {
         Route::post('/distribution', [DistributionController::class, 'store']);
         Route::get('/distribution', [DistributionController::class, 'index']);
         Route::get('/distribution/categories', [DistributionController::class, 'categories']);

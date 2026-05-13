@@ -40,7 +40,7 @@ class OperationsController extends Controller
         ];
     }
 
-    // ── STOCK ──────────────────────────────────────────────────────────────────
+    // STOCK ---------------------------------------------------------------
 
     public function updateStock(Request $request, $id)
     {
@@ -57,7 +57,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // ── PRODUCTION ─────────────────────────────────────────────────────────────
+    // PRODUCTION ----------------------------------------------------------
 
     public function updateProduction(Request $request, $id)
     {
@@ -74,7 +74,19 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // ── DISTRIBUTION ───────────────────────────────────────────────────────────
+    // DISTRIBUTION --------------------------------------------------------
+
+    // GET all distributions with product name, time, and date
+    public function getDistribution()
+    {
+        return Distribution::with('product')
+            ->latest()
+            ->get()
+            ->each(function ($d) {
+                $d->time = $d->created_at->format('h:i A');
+                $d->date = $d->created_at->toDateString();
+            });
+    }
 
     public function updateDistribution(Request $request, $id)
     {
@@ -91,7 +103,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // ── DELIVERY ───────────────────────────────────────────────────────────────
+    // DELIVERY ------------------------------------------------------------
 
     public function updateDelivery(Request $request, $id)
     {
@@ -108,7 +120,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // ── ORDERS ─────────────────────────────────────────────────────────────────
+    // ORDERS --------------------------------------------------------------
 
     public function updateOrder(Request $request, $id)
     {
@@ -125,7 +137,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // ── DAMAGE ─────────────────────────────────────────────────────────────────
+    // DAMAGE --------------------------------------------------------------
 
     public function deleteDamage($id)
     {

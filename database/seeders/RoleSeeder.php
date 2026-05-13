@@ -19,7 +19,7 @@ class RoleSeeder extends Seeder
             ['name' => 'shop_manager_masaka'],
             ['name' => 'store_keeper'],
             ['name' => 'baker_assistant'],
-            ['name' => 'operations_manager'],
+            ['name' => 'production_manager'],
             ['name' => 'sales_coordinator'],
             ['name' => 'cicm'],
             ['name' => 'finance_chief'],

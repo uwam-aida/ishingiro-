@@ -33,10 +33,10 @@ return [
             'role' => 'baker_assistant',
         ],
         [
-            'name' => 'Operations Manager',
-            'email' => 'ops@test.com',
+            'name' => 'Production Manager',
+            'email' => 'pmt@test.com',
             'password' => 'password123',
-            'role' => 'operations_manager',
+            'role' => 'production_manager',
         ],
         [
             'name' => 'Sales Coordinator',
