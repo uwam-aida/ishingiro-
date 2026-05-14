@@ -6,60 +6,71 @@ import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, S
 
 // --- OFFICIAL PRODUCT LIST (KEPT EXACTLY AS PROVIDED) ---
 const MARKETING_PRODUCTS = [
-    { name: 'big milk', type: 'Baked' },
-    { name: 'small milk', type: 'Baked' },
-    { name: 'pcpn', type: 'Baked' },
-    { name: 'sen', type: 'Baked' },
-    { name: 'salted bread', type: 'Baked' },
-    { name: 'baguette', type: 'Baked' },
-    { name: 'milk slice bread', type: 'Baked' },
-    { name: 'crubes', type: 'Baked' },
-    { name: 'sen pieces', type: 'Baked' },
-    { name: 'brown sanduich', type: 'Baked' },
-    { name: 'mult graine', type: 'Baked' },
-    { name: 'milk mult graine', type: 'Baked' },
-    { name: 'brown bread', type: 'Baked' },
-    { name: 'tea cake', type: 'Baked' },
-    { name: 'marble cake', type: 'Baked' },
-    { name: 'brown cake', type: 'Baked' },
-    { name: 'oliver corn cake', type: 'Baked' },
-    { name: 'muffin cake', type: 'Baked' },
-    { name: 'ishingiro', type: 'Baked' }, 
-    { name: 's.begne', type: 'Baked' },
-    { name: 'dark donut', type: 'Baked' },
-    { name: 'choc donuts', type: 'Baked' },
-    { name: 'kk donuts', type: 'Baked' },
-    { name: 'triangle', type: 'Baked' },
-    { name: 'meat sambusa', type: 'Baked' },
-    { name: 'biscuits', type: 'Baked' },  
-    { name: 'ISH.MILK Cookie', type: 'Baked' }, 
-    { name: 'butter biscuits', type: 'Baked' },
-    { name: 'chocolate biscuits', type: 'Baked' }, 
-    { name: 'ubunyobwa', type: 'Baked' },
-    { name: 'ikinyuranyo 1kg', type: 'Unbaked' },
-    { name: 'ikinyuranyo 3kg', type: 'Unbaked' },
-    { name: 'ikinyuranyo 5kg', type: 'Unbaked' },
-    { name: 'ikinyuranyo (0.5)kg', type: 'Unbaked' },
-    { name: 'yellow c flour 1kg', type: 'Unbaked' },
-    { name: 'yellow c flour 3kg', type: 'Unbaked' },
-    { name: 'cashnewnuts', type: 'Unbaked' },
-    { name: 'cornfresh cream', type: 'Unbaked' },
-    { name: 'cake 38000', type: 'Baked' },
-    { name: 'cake 20000', type: 'Baked' },
-    { name: 'cakes 24000', type: 'Baked' },
-    { name: 'cake 19000', type: 'Baked' },
-    { name: 'cake18000', type: 'Baked' },
-    { name: 'cakes 15000', type: 'Baked' },
-    { name: 'cakes 14000', type: 'Baked' },
-    { name: 'cakes 13000', type: 'Baked' },
-    { name: 'cake 12000', type: 'Baked' },
-    { name: 'cakes 10000', type: 'Baked' },
-    { name: 'cakes 9000', type: 'Baked' },
-    { name: 'cakes 8000', type: 'Baked' },
-    { name: 'cakes 7000', type: 'Baked' },
-    { name: 'cakes 6000', type: 'Baked' },
-    { name: 'cake 5000', type: 'Baked' },
-    { name: 'ADDCAKE', type: 'Baked' },
+     // BREAD (Baked)
+    { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
+    { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
+    { name: 'sen', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'salted bread', price: 1100, category: 'BREAD', type: 'baked' },
+    { name: 'baguette', price: 500, category: 'BREAD', type: 'baked' },
+    { name: 'milk slice bread', price: 200, category: 'BREAD', type: 'baked' },
+    { name: 'crubes', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'sen pieces', price: 100, category: 'BREAD', type: 'baked' },
+    { name: 'brown sanduich', price: 250, category: 'BREAD', type: 'baked' },
+    { name: 'mult graine', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'milk mult graine', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'brown bread', price: 800, category: 'BREAD', type: 'baked' },
+ 
+    // CAKES (Baked)
+    { name: 'tea cake', price: 1000, category: 'CAKES', type: 'baked' },
+    { name: 'marble cake', price: 1200, category: 'CAKES', type: 'baked' },
+    { name: 'brown cake', price: 250, category: 'CAKES', type: 'baked' },
+    { name: 'oliver corn cake', price: 350, category: 'CAKES', type: 'baked' },
+    { name: 'muffin cake', price: 170, category: 'CAKES', type: 'baked' },
+
+    // AMANDAZI (Baked)
+    { name: 'ishingiro', price: 150, category: 'AMANDAZI', type: 'baked' },
+    { name: 's.begne', price: 70, category: 'AMANDAZI', type: 'baked' },
+    { name: 'dark donut', price: 450, category: 'AMANDAZI', type: 'baked' },
+    { name: 'choc donuts', price: 450, category: 'AMANDAZI', type: 'baked' },
+    { name: 'kk donuts', price: 250, category: 'AMANDAZI', type: 'baked' },
+    { name: 'triangle', price: 150, category: 'AMANDAZI', type: 'baked' },
+
+    // OTHERS (Mixed)
+    { name: 'meat samosa', price: 450, category: 'OTHERS', type: 'baked' },
+    { name: 'biscuits', price: 85, category: 'OTHERS', type: 'baked' },
+    { name: 'ISH.MILK Cookie', price: 130, category: 'OTHERS', type: 'baked' },
+    { name: 'butter biscuits', price: 130, category: 'OTHERS', type: 'baked' },
+    { name: 'chocolate biscuits', price: 140, category: 'OTHERS', type: 'baked' },
+    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'baked' },
+    
+    // UNBAKED OTHERS
+    { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ikinyuranyo 3kg', price: 4500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ikinyuranyo 5kg', price: 7500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ikinyuranyo (0.5)kg', price: 1200, category: 'OTHERS', type: 'unbaked' },
+    { name: 'yellow c flour 1kg', price: 1700, category: 'OTHERS', type: 'unbaked' },
+    { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS', type: 'unbaked' },
+    { name: 'cashnewnuts', price: 5500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'cornfresh cream', price: 500, category: 'OTHERS', type: 'unbaked' },
+
+    // BIG CAKES (Baked)
+    { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 20000', price: 20000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 24000', price: 24000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 19000', price: 19000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake18000', price: 18000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 15000', price: 15000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 14000', price: 14000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 13000', price: 13000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 12000', price: 12000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 10000', price: 10000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 9000', price: 9000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 8000', price: 8000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 7000', price: 7000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
 export default function DynamicShopDashboard() {
@@ -68,11 +79,12 @@ export default function DynamicShopDashboard() {
   const rawBranchId = params?.branchId;
   const branchIdString = rawBranchId?.toString().toLowerCase() || 'kabuga';
 
-  // --- 1. STATE (KEPT ALL YOUR ORIGINAL STATE) ---
+  // --- 1. STATE ---
   const [factoryStock, setFactoryStock] = useState(MARKETING_PRODUCTS.map(p => ({ 
     item: p.name, quantity: 100, unit: p.name.includes('kg') ? 'Kg' : 'Pieces', entryTime: '06:00 AM' 
   })));
   const [requestQty, setRequestQty] = useState('');
+  const [restQty, setRestQty] = useState(''); 
   
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [receivedStock, setReceivedStock] = useState<any[]>([]);
@@ -101,6 +113,9 @@ export default function DynamicShopDashboard() {
   const [cakeOrders, setCakeOrders] = useState<any[]>([]);
   const [realProducts, setRealProducts] = useState<any[]>([]);
 
+  // NEW STATE: SUCCESS MESSAGE TOGGLE
+  const [showRequestSuccess, setShowRequestSuccess] = useState(false);
+
   // --- 2. BACKEND WIRING: AUTH & INITIAL LOAD ---
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -115,11 +130,9 @@ export default function DynamicShopDashboard() {
         try {
             const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
 
-            // Fetch Products (for ID mapping)
             const prodRes = await fetch(`${baseUrl}/products`, { headers });
             if (prodRes.ok) setRealProducts(await prodRes.json());
 
-            // --- FETCH FACTORY STOCK (API ENDPOINT UPDATED HERE) ---
             const factRes = await fetch(`${baseUrl}/factory/stock`, { headers });
             if (factRes.ok) {
                 const factData = await factRes.json();
@@ -133,7 +146,6 @@ export default function DynamicShopDashboard() {
                 }
             }
 
-            // Fetch My Stock
             const stockRes = await fetch(`${baseUrl}/stock/${branchIdString}`, { headers });
             if (stockRes.ok) {
                 const stockData = await stockRes.json();
@@ -142,7 +154,6 @@ export default function DynamicShopDashboard() {
                 }
             }
 
-            // Fetch Orders
             const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
             if (ordRes.ok) {
                 const ordData = await ordRes.json();
@@ -175,7 +186,6 @@ export default function DynamicShopDashboard() {
                 }
             }
 
-            // Fetch Damages
             const damRes = await fetch(`${baseUrl}/shop/damages/${branchIdString}`, { headers });
             if (damRes.ok) {
                 const damData = await damRes.json();
@@ -184,7 +194,6 @@ export default function DynamicShopDashboard() {
                 }
             }
 
-            // Fetch Cake Orders
             const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
             if (cakeRes.ok) {
                 const cakeData = await cakeRes.json();
@@ -205,7 +214,6 @@ export default function DynamicShopDashboard() {
   const isRequestNotFound = productSearch.length > 0 && filteredProducts.length === 0;
   const isDamagedSearchNotFound = damagedItem.length > 0 && damagedFiltered.length === 0;
 
-  // --- DYNAMIC VALIDATION ---
   useEffect(() => {
     const product = MARKETING_PRODUCTS.find(p => p.name.toLowerCase() === damagedItem.toLowerCase());
     if (damagedItem.length > 0 && !product && !showDamagedSuggestions) {
@@ -248,18 +256,26 @@ export default function DynamicShopDashboard() {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                items: [{ product_id: dbProductId, quantity: parseInt(requestQty) }]
+                items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
             })
         });
         
-        if (response.ok) { console.log("Order saved to backend"); }
+        if (response.ok) { 
+          console.log("Order saved to backend"); 
+          // SHOW SUCCESS MESSAGE
+          setShowRequestSuccess(true);
+          setTimeout(() => setShowRequestSuccess(false), 3000);
+        }
     } catch (e) { console.error(e); }
 
     const qtyToDeduct = parseInt(requestQty);
     const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
     setMyRequests([{ id: Date.now(), item: selectedItem, quantity: qtyToDeduct, status: 'Pending Dispatch', time: currentTime }, ...myRequests]);
-    setRequestQty(''); setProductSearch(''); setSelectedItem(null);
+    setRequestQty(''); 
+    setRestQty(''); 
+    setProductSearch(''); 
+    setSelectedItem(null);
   };
 
   // --- 5. BACKEND INTEGRATION FOR REPORT DAMAGE ---
@@ -300,18 +316,12 @@ export default function DynamicShopDashboard() {
   const branchName = branchIdString === 'kabuga' ? 'KABUGA SHOP' : branchIdString === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
   const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
 
-  // ==========================================
-  // --- CORRECTED ORDER: fullHistory FIRST ---
-  // ==========================================
   const fullHistory = [
       ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
       ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
   ].sort((a, b) => b.time.localeCompare(a.time));
 
-  // ==========================================
-  // --- THEN stats (WITH COUNTS) ---
-  // ==========================================
   const stats = [
     { id: 'baked', label: 'Baked Items', icon: ShoppingBag, count: factoryStock.length },
     { id: 'orders', label: 'Orders', icon: Clock, count: myRequests.length },
@@ -324,6 +334,17 @@ export default function DynamicShopDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans w-full overflow-x-hidden">
+      
+      {/* SUCCESS NOTIFICATION OVERLAY */}
+      {showRequestSuccess && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
+            <div className="bg-green-50 text-green-700 px-8 py-4 rounded-2xl flex items-center gap-3 shadow-2xl border border-green-200">
+                <CheckCircle2 className="text-green-600" size={20} />
+                <span className="font-black uppercase text-xs tracking-widest">Added Request</span>
+            </div>
+        </div>
+      )}
+
       <div className="w-full max-w-full md:max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-6">
         <div className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur-md py-4 border-b border-gray-200/50 flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -331,8 +352,6 @@ export default function DynamicShopDashboard() {
             </div>
         </div>
 
-        {/* --- STATS BUTTONS (UPDATED WITH NUMBERS) --- */}
-        {/* --- STATS BUTTONS --- */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 w-full">
           {stats.map((stat) => (
             <div 
@@ -344,7 +363,6 @@ export default function DynamicShopDashboard() {
                     : (stat.id === 'damaged' ? 'bg-white hover:border-red-600' : 'bg-white hover:border-[#F57C00]')
                 }`}
             >
-                {/* ICON */}
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${
                     activeFilter === stat.id 
                     ? 'bg-white/20' 
@@ -352,13 +370,9 @@ export default function DynamicShopDashboard() {
                 }`}>
                   <stat.icon size={24} />
                 </div>
-                
-                {/* LABEL (Now above the number) */}
                 <h3 className="font-black text-[9px] md:text-[10px] uppercase tracking-widest opacity-80 leading-none mb-2">
                   {stat.label}
                 </h3>
-
-                {/* NUMBER (Now underneath, made slightly larger to match your image) */}
                 <span className="text-2xl font-black leading-none text-inherit">
                   {stat.count}
                 </span>
@@ -367,7 +381,6 @@ export default function DynamicShopDashboard() {
         </div>
 
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px] w-full max-w-full">
-          {/* TAB: STOCK */}
           {activeFilter === 'stock' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
@@ -385,7 +398,6 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* TAB: HISTORY */}
           {activeFilter === 'history' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
@@ -405,7 +417,6 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* TAB: DAMAGED */}
           {activeFilter === 'damaged' && (
             <div className="p-8 animate-in fade-in">
               <div className="bg-red-50/30 p-6 rounded-3xl border border-red-100">
@@ -448,7 +459,6 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* TAB: CAKE ORDERS */}
           {activeFilter === 'cake_orders' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">CUSTOM CAKE ORDERS</h2>
@@ -477,12 +487,11 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* TAB: ORDERS */}
           {activeFilter === 'orders' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                 <div className="max-w-2xl">
                   <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">REQUEST FOR PRODUCTS</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> 
                     <div className="space-y-1 relative" ref={suggestionRef}><label className="text-[10px] font-black text-gray-400 uppercase ml-1">Product</label>
                       <input type="text" value={productSearch} onFocus={() => setShowSuggestions(true)} onChange={(e) => { setProductSearch(e.target.value); setShowSuggestions(true); setSelectedItem(null); }} className={`w-full border-2 p-4 rounded-2xl font-bold text-[#F57C00] outline-none focus:border-[#F57C00] transition-all ${isRequestNotFound ? 'border-red-500 bg-red-50' : 'border-gray-200'}`} placeholder="Search..." />
                       {isRequestNotFound && <p className="text-[10px] text-red-600 font-black uppercase mt-1 ml-2">product not found</p>}
@@ -494,8 +503,12 @@ export default function DynamicShopDashboard() {
                         </div>
                       )}
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black text-gray-400 uppercase">Rest Product</label>
+                      <input type="number" value={restQty} onChange={(e) => setRestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" placeholder="0" />
+                    </div>
                     <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 uppercase">Qty</label><span className={`text-[10px] block font-black uppercase ${isOverLimit ? 'text-red-500' : 'text-emerald-600'}`}>Factory: {selectedItem ? bakedItemsAvailable : '--'}</span>
-                      <input type="number" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none" />
+                      <input type="number" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" />
                     </div>
                   </div>
                   <button disabled={!requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Add Request</button>
@@ -511,7 +524,6 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* TAB: BAKED */}
           {activeFilter === 'baked' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
@@ -531,7 +543,6 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* TAB: RECEIVED */}
           {activeFilter === 'received' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">

@@ -11,6 +11,7 @@ export default function StoreKeeperNotifications() {
   const [isLoading, setIsLoading] = useState(true);
 
   // --- 1. FETCH NOTIFICATIONS (WITH AUTO-REFRESH) ---
+  // --- 1. FETCH NOTIFICATIONS (WITH AUTO-REFRESH) ---
   const fetchNotifications = async (showLoader = false) => {
     if (showLoader) setIsLoading(true);
     try {
@@ -24,9 +25,15 @@ export default function StoreKeeperNotifications() {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const rawData = await response.json();
         
-        const formattedData = data.map((n: any) => ({
+        // --- DEBUGGING: LOOK IN YOUR BROWSER CONSOLE ---
+        console.log("Real Notifications from API:", rawData);
+        
+        // Safely extract the array, whether the backend wrapped it in { data: [...] } or not
+        const notificationsArray = Array.isArray(rawData) ? rawData : (rawData.data || []);
+        
+        const formattedData = notificationsArray.map((n: any) => ({
           id: n.id,
           type: 'general', 
           title: 'System Announcement', 
@@ -36,6 +43,8 @@ export default function StoreKeeperNotifications() {
         }));
         
         setNotifications(formattedData);
+      } else {
+        console.error("Backend rejected the request. Status:", response.status);
       }
     } catch (error) {
       console.error("Failed to load notifications:", error);

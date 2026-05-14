@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation'; 
 import { 
   PackagePlus, 
@@ -8,12 +8,12 @@ import {
   ArrowLeft,
   Save,
   Box,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
 
-// The exact product list you provided
+// The hardcoded list acts as a fallback if the API is unreachable
 const STORE_PRODUCTS = [
-    // BREAD (Baked)
     { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
@@ -27,31 +27,23 @@ const STORE_PRODUCTS = [
     { name: 'mult graine', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'milk mult graine', price: 1000, category: 'BREAD', type: 'baked' },
     { name: 'brown bread', price: 800, category: 'BREAD', type: 'baked' },
- 
-    // CAKES (Baked)
     { name: 'tea cake', price: 1000, category: 'CAKES', type: 'baked' },
     { name: 'marble cake', price: 1200, category: 'CAKES', type: 'baked' },
     { name: 'brown cake', price: 250, category: 'CAKES', type: 'baked' },
     { name: 'oliver corn cake', price: 350, category: 'CAKES', type: 'baked' },
     { name: 'muffin cake', price: 170, category: 'CAKES', type: 'baked' },
-
-    // AMANDAZI (Baked)
     { name: 'ishingiro', price: 150, category: 'AMANDAZI', type: 'baked' },
     { name: 's.begne', price: 70, category: 'AMANDAZI', type: 'baked' },
     { name: 'dark donut', price: 450, category: 'AMANDAZI', type: 'baked' },
     { name: 'choc donuts', price: 450, category: 'AMANDAZI', type: 'baked' },
     { name: 'kk donuts', price: 250, category: 'AMANDAZI', type: 'baked' },
     { name: 'triangle', price: 150, category: 'AMANDAZI', type: 'baked' },
-
-    // OTHERS (Mixed)
     { name: 'meat samosa', price: 450, category: 'OTHERS', type: 'baked' },
     { name: 'biscuits', price: 85, category: 'OTHERS', type: 'baked' },
     { name: 'ISH.MILK Cookie', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'butter biscuits', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'chocolate biscuits', price: 140, category: 'OTHERS', type: 'baked' },
     { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'baked' },
-    
-    // UNBAKED OTHERS
     { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS', type: 'unbaked' },
     { name: 'ikinyuranyo 3kg', price: 4500, category: 'OTHERS', type: 'unbaked' },
     { name: 'ikinyuranyo 5kg', price: 7500, category: 'OTHERS', type: 'unbaked' },
@@ -60,8 +52,6 @@ const STORE_PRODUCTS = [
     { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS', type: 'unbaked' },
     { name: 'cashnewnuts', price: 5500, category: 'OTHERS', type: 'unbaked' },
     { name: 'cornfresh cream', price: 500, category: 'OTHERS', type: 'unbaked' },
-
-    // BIG CAKES (Baked)
     { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 20000', price: 20000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cakes 24000', price: 24000, category: 'BIG CAKES', type: 'baked' },
@@ -82,9 +72,11 @@ const STORE_PRODUCTS = [
 
 export default function StoreKeeperAddProduct() {
   const router = useRouter(); 
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
   const [productName, setProductName] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false); 
+  const [productsList, setProductsList] = useState<any[]>([]); // To store real API products
   
   const [quantity, setQuantity] = useState('');
   const [unit, setUnit] = useState('Kg'); 
@@ -92,34 +84,55 @@ export default function StoreKeeperAddProduct() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // --- 1. NEW FETCH API INTEGRATION (Section 2.4) ---
+  useEffect(() => {
+    const fetchProducts = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch(`${baseUrl}/products`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setProductsList(data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch dynamic products:", error);
+      }
+    };
+    fetchProducts();
+  }, [baseUrl]);
+
+  // Merge dynamic list with fallback list, preferring the API list
+  const displayList = productsList.length > 0 ? productsList : STORE_PRODUCTS;
+
   // Filter products based on what the user types
-  const filteredProducts = STORE_PRODUCTS.filter(prod =>
+  const filteredProducts = displayList.filter(prod =>
     prod.name.toLowerCase().includes(productName.toLowerCase())
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const exactMatch = STORE_PRODUCTS.find(p => p.name.toLowerCase() === productName.toLowerCase());
+    const exactMatch = displayList.find(p => p.name.toLowerCase() === productName.toLowerCase());
     if (!exactMatch) {
       alert("Please select a valid product from the list.");
       return;
     }
 
     setIsSubmitting(true);
-    
     const token = localStorage.getItem('token');
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
     try {
-      // 1. UPDATED PAYLOAD: Matches your Go API exactly
+      // --- 2. UPDATED PAYLOAD (Section 5.2): Added missing 'unit' ---
       const payload = {
-        product_id: STORE_PRODUCTS.indexOf(exactMatch) + 1, // Simulated product ID based on array index
+        product_id: exactMatch.id || (STORE_PRODUCTS.indexOf(exactMatch) + 1), 
         quantity: Number(quantity),
-        location: 'kabuga' // Update this dynamically later if needed based on the logged-in user
+        location: 'kabuga', 
+        unit: unit.toLowerCase(), // Required field from documentation
+        description: "Stock addition via dashboard"
       };
 
-      // 2. UPDATED URL: Points directly to your storekeeper stock route
       const response = await fetch(`${baseUrl}/storekeeper/stock`, {
         method: 'POST',
         headers: { 
@@ -132,7 +145,6 @@ export default function StoreKeeperAddProduct() {
       if (response.ok || response.status === 201) {
         setProductName('');
         setQuantity('');
-        
         setShowSuccess(true);
         setTimeout(() => setShowSuccess(false), 3000);
       } else {
@@ -151,7 +163,6 @@ export default function StoreKeeperAddProduct() {
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-8 pb-20 relative font-sans">
       
-      {/* 3. UPDATED SUCCESS NOTIFICATION */}
       {showSuccess && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
             <div className="bg-green-50 text-green-700 px-8 py-4 rounded-2xl flex items-center gap-3 shadow-2xl border border-green-200">
@@ -225,7 +236,6 @@ export default function StoreKeeperAddProduct() {
                           filteredProducts.map((prod, idx) => (
                             <li 
                               key={idx}
-                              // onMouseDown prevents input blur from firing before the click registers
                               onMouseDown={(e) => e.preventDefault()} 
                               onClick={() => {
                                 setProductName(prod.name);
@@ -280,7 +290,7 @@ export default function StoreKeeperAddProduct() {
                 disabled={isSubmitting}
                 className="w-full h-[70px] bg-gradient-to-r from-[#F57C00] to-[#FF9800] text-white rounded-3xl font-black uppercase text-sm tracking-widest flex items-center justify-center gap-3 hover:shadow-2xl hover:shadow-orange-500/40 hover:-translate-y-1 transition-all duration-300 active:scale-[0.98] disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
               >
-                {isSubmitting ? 'Saving to Database...' : (
+                {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : (
                   <>Add product <Save size={20} /></>
                 )}
               </button>

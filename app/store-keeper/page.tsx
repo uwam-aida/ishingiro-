@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { 
   Package, Bell, ShoppingBag, AlertCircle, FileText, X, ArrowLeft, 
   CheckCheck, ClipboardList, Edit3, CheckSquare, Square, Printer, 
-  ChefHat, ShieldAlert,PackageCheck 
+  ChefHat, ShieldAlert, PackageCheck 
 } from 'lucide-react';
 
 interface Product {
@@ -91,17 +91,9 @@ export default function StoreKeeperDashboard() {
   const [cakeOrders, setCakeOrders] = useState<any[]>([]);
   const [cakeRequests, setCakeRequests] = useState<any[]>([]);
   const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
-
-  // Mocked States (APIs missing from doc)
-  const [issuedNotes, setIssuedNotes] = useState([
-    { id: 'DN-9921', date: '02.04.2026', time: '10:30 AM', items: [{ name: 'Bread', quantity: 100, destination: 'KABUGA SHOP' }] },
-  ]);
-  const [damagedProducts, setDamagedProducts] = useState([
-    { id: 1, item: 'Special Flour', quantity: 5, unit: 'kg', date: '2026-03-27', time: '09:00 AM' },
-  ]);
-  const [bakedProducts, setBakedProducts] = useState([
-    { id: 1, item: 'Milk Bread', quantity: 300, time: '07:00 AM' },
-  ]);
+  const [damagedProducts, setDamagedProducts] = useState<any[]>([]);
+  const [bakedProducts, setBakedProducts] = useState<any[]>([]);
+  const [issuedNotes, setIssuedNotes] = useState<any[]>([]);
 
   // --- 1. INITIAL FETCH LOGIC ---
   useEffect(() => {
@@ -122,13 +114,15 @@ export default function StoreKeeperDashboard() {
         const stockRes = await fetch(`${baseUrl}/storekeeper`, { headers });
         if (stockRes.ok) {
           const data = await stockRes.json();
-          setMyStock(data.map((item: any) => ({
+          const mappedStock = data.map((item: any) => ({
             id: item.id,
             product_id: item.product_id,
             item: item.product?.name || 'Unknown',
             quantity: item.quantity,
             unit: item.unit || 'pcs'
-          })));
+          }));
+          mappedStock.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          setMyStock(mappedStock);
         }
 
         // Fetch 2: Shop Requests
@@ -140,16 +134,19 @@ export default function StoreKeeperDashboard() {
              order.items?.forEach((item: any) => {
                 flattenedRequests.push({
                    id: order.id, 
+                   request_item_id: item.id, 
                    product_id: item.product_id,
                    item: item.product?.name || 'Unknown Product',
                    quantity: item.quantity,
                    unit: 'pcs',
-                   time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending', 
+                   time: order.time || (order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'), 
                    branch: order.location,
-                   isEdited: false
+                   isEdited: false,
+                   type: 'request'
                 });
              });
           });
+          flattenedRequests.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setShopRequests(flattenedRequests);
         }
 
@@ -157,38 +154,78 @@ export default function StoreKeeperDashboard() {
         const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
         if (histRes.ok) {
           const data = await histRes.json();
-          setDeliveryHistory(data.map((h: any) => ({
+          const mappedHistory = data.map((h: any) => ({
              id: h.id,
              item: h.product?.name || 'Unknown',
              quantity: h.quantity,
-             date: h.created_at ? new Date(h.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'No Date', 
+             date: h.date || (h.created_at ? new Date(h.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'No Date'), 
              receiver: h.to_location
-          })));
+          }));
+          mappedHistory.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          setDeliveryHistory(mappedHistory);
         }
 
-        // Fetch 4: Cake Orders
+        // Fetch 4: Cake Orders (UPDATED MAPPING HERE)
         const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
         if (cakeOrderRes.ok) {
           const data = await cakeOrderRes.json();
-          setCakeOrders(data.map((c: any) => ({
+          const mappedCakes = data.map((c: any) => ({
              id: c.id,
              customer: c.customer_name,
              details: c.cake_type,
              pickupTime: c.location,
-             status: c.status
-          })));
+             status: c.status,
+             totalPrice: c.price,
+             paid: c.total_paid,
+             remaining: c.remaining_payment,
+             imageUrl: c.inspo_image_url
+          }));
+          mappedCakes.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          setCakeOrders(mappedCakes);
         }
 
         // Fetch 5: Cake Requests
         const cakeReqRes = await fetch(`${baseUrl}/storekeeper/cake-requests`, { headers });
         if (cakeReqRes.ok) {
           const data = await cakeReqRes.json();
-          setCakeRequests(data.map((c: any) => ({
+          const mappedCakeReqs = data.map((c: any) => ({
              id: c.id,
              branch: c.location || 'Branch',
              details: c.cake_type,
              pickupTime: 'Pending'
-          })));
+          }));
+          mappedCakeReqs.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          setCakeRequests(mappedCakeReqs);
+        }
+
+        // Fetch 6: Baked Products (Production Log)
+        const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
+        if (bakedRes.ok) {
+          const data = await bakedRes.json();
+          const mappedBaked = data.map((b: any) => ({
+            id: b.id,
+            item: b.product?.name || 'Baked Item',
+            quantity: b.quantity,
+            time: b.time || 'Logged'
+          }));
+          mappedBaked.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          setBakedProducts(mappedBaked);
+        }
+
+        // Fetch 7: Damaged Products Log
+        const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
+        if (damagedRes.ok) {
+          const data = await damagedRes.json();
+          const mappedDamaged = data.map((d: any) => ({
+            id: d.id,
+            item: d.product?.name || 'Damaged Item',
+            quantity: d.quantity,
+            reason: d.reason || 'N/A',
+            date: d.date || 'N/A',
+            time: d.time || ''
+          }));
+          mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          setDamagedProducts(mappedDamaged);
         }
 
       } catch (err) {
@@ -200,8 +237,6 @@ export default function StoreKeeperDashboard() {
   }, [router, baseUrl]);
 
   const rawBranchId = params?.branchId;
-  const branchName = rawBranchId?.toString().toLowerCase() === 'kabuga' ? 'KABUGA SHOP' : rawBranchId?.toString().toLowerCase() === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -214,22 +249,17 @@ export default function StoreKeeperDashboard() {
 
   const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
 
-  // --- 2. BULK DELIVERY (POST /api/storekeeper/delivery) ---
-  // --- 2. BULK DELIVERY (POST /api/storekeeper/deliver) ---
+  // --- 2. BULK DELIVERY (POST /storekeeper/deliver) ---
   const handleBulkDelivery = async () => {
     if (selectedProductIds.length === 0) return;
     const token = localStorage.getItem('token');
 
-    // 1. Extract unique order IDs from the selected items
     const uniqueOrderIds = Array.from(new Set(selectedItems.map(item => item.id)));
-    
-    // 2. Grab the destination name (e.g., "Kabuga Shop")
     const destinationBranch = selectedItems[0]?.branch 
         ? `${selectedItems[0].branch} Shop` 
         : 'Unknown Shop';
 
     try {
-      // 3. Call the NEW bulk API from your screenshot
       const response = await fetch(`${baseUrl}/storekeeper/deliver`, {
         method: 'POST',
         headers: { 
@@ -238,13 +268,13 @@ export default function StoreKeeperDashboard() {
         },
         body: JSON.stringify({
           order_ids: uniqueOrderIds,
-          cake_order_ids: [], // Keep empty until you add cake checkbox logic
-          recipient_name: destinationBranch
+          cake_order_ids: [], 
+          recipient_name: destinationBranch, // FIXED: Comma added here!
+          payment_received: true             // FIXED: Value added here!
         })
       });
 
       if (response.ok) {
-        // Only generate the note and clear the screen IF the backend says success
         const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
         const noteData = { 
             id: newNoteId, 
@@ -260,39 +290,78 @@ export default function StoreKeeperDashboard() {
         setIssuedNotes(prev => [noteData, ...prev]);
         setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
         setSelectedProductIds([]);
-      } else {
-        console.error("Backend rejected the delivery.");
       }
     } catch (err) {
       console.error("Delivery recording failed", err);
     }
   };
 
-  // --- 3. EDIT REQUEST (PUT /api/storekeeper/stock/{id}) ---
+  // --- 3. CORRECTED EDIT REQUEST (PUT /storekeeper/requests/{id} or /stock/{id}) ---
   const handleEditRequest = async () => {
     const qty = parseInt(editQty);
     if (isNaN(qty) || qty < 0 || !editingItem) return;
 
     const token = localStorage.getItem('token');
+    
+    const editUrl = editingItem.type === 'request' 
+      ? `${baseUrl}/storekeeper/requests/${editingItem.id}` 
+      : `${baseUrl}/storekeeper/stock/${editingItem.id}`; 
+
     try {
-      const response = await fetch(`${baseUrl}/storekeeper/stock/${editingItem.id}`, {
+      const response = await fetch(editUrl, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify({ quantity: qty })
+        body: JSON.stringify(editingItem.type === 'request' 
+          ? { items: [{ id: editingItem.request_item_id, quantity: qty }] }
+          : { quantity: qty }
+        )
       });
 
       if (response.ok) {
-        setShopRequests(prev => prev.map(req => req.id === editingItem.id ? { ...req, quantity: qty, isEdited: true } : req));
-        // Also update myStock if they edit from that tab
-        setMyStock(prev => prev.map(s => s.id === editingItem.id ? { ...s, quantity: qty } : s));
+        if (editingItem.type === 'request') {
+          setShopRequests(prev => prev.map(req => req.request_item_id === editingItem.request_item_id ? { ...req, quantity: qty, isEdited: true } : req));
+        } else {
+          setMyStock(prev => prev.map(s => s.id === editingItem.id ? { ...s, quantity: qty } : s));
+        }
         setEditingItem(null);
         setEditQty('');
       }
     } catch (err) {
       console.error("Update failed", err);
+    }
+  };
+
+  // --- 4. NEW: RECORD CAKE PAYMENT (POST /sales/cake-order/{id}/payment) ---
+  const handleRecordCakePayment = async (cakeId: number, amount: number) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/sales/cake-order/${cakeId}/payment`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          payment_amount: amount,
+          payment_method: 'cash',
+          payer_name: 'Collected at Shop'
+        })
+      });
+
+      if (response.ok) {
+        alert("Payment recorded successfully!");
+        // Instantly update the UI so the balance shows 0
+        setCakeOrders(prev => prev.map(cake => 
+          cake.id === cakeId ? { ...cake, remaining: 0, paid: cake.paid + amount } : cake
+        ));
+      } else {
+        alert("Failed to record payment. Please try again.");
+      }
+    } catch (err) {
+      console.error("Payment failed", err);
     }
   };
 
@@ -468,7 +537,7 @@ export default function StoreKeeperDashboard() {
               <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4 w-10">Select</th><th className="px-8 py-4">Item Details</th><th className="px-8 py-4 text-center">Branch</th><th className="px-8 py-4 text-center">Requested Qty</th><th className="px-8 py-4 text-right">Time Requested</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
               <tbody className="divide-y divide-gray-200 text-black">
                 {shopRequests.map((req) => (
-                  <tr key={req.id} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr key={req.request_item_id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-8 py-6"><button onClick={() => toggleSelection(req.id)} className="text-[#F57C00]">{selectedProductIds.includes(req.id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}</button></td>
                     <td className="px-8 py-6"><div className="flex flex-col gap-1"><span className="font-black text-[#F57C00] uppercase text-sm">{req.item}</span>{req.isEdited && <span className="text-[9px] font-black text-rose-600 uppercase flex items-center gap-1"><AlertCircle size={10}/> Modified</span>}</div></td>
                     <td className="px-8 py-6 text-center"><span className="px-3 py-1 bg-[#FAF6F4] text-[#F57C00] rounded-lg text-[10px] font-black uppercase">{req.branch}</span></td>
@@ -485,13 +554,12 @@ export default function StoreKeeperDashboard() {
         {activeFilter === 'my_stock' && (
           <div className="overflow-x-auto text-black">
             <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Item Name</th><th className="px-8 py-4 text-center">Qty In Store</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
+              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Item Name</th><th className="px-8 py-4 text-center">Qty In Store</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {myStock.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
                     <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
-                    <td className="px-8 py-6 text-right"><button onClick={() => { setEditingItem(s); setEditQty(s.quantity.toString()); }} className="text-gray-300 hover:text-[#F57C00] p-2 bg-gray-50 rounded-xl transition-all"><Edit3 size={18} /></button></td>
                   </tr>
                 ))}
               </tbody>
@@ -516,23 +584,62 @@ export default function StoreKeeperDashboard() {
           </div>
         )}
 
-        {activeFilter === 'cake_orders' && (
+        {activeFilter === 'damaged' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Customer</th><th className="px-8 py-4 text-center">Status</th><th className="px-8 py-4 text-right">Pickup</th></tr></thead>
+              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Damaged Item</th><th className="px-8 py-4 text-center">Qty</th><th className="px-8 py-4 text-center">Reason</th><th className="px-8 py-4 text-right">Date Recorded</th></tr></thead>
               <tbody className="divide-y divide-gray-100 font-bold">
-                {cakeOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-8 py-6"><span className="font-black text-[#F57C00] uppercase text-sm">{order.customer}</span></td>
-                    <td className="px-8 py-6 text-center"><span className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] uppercase font-black">{order.status}</span></td>
-                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{order.pickupTime}</td>
+                {damagedProducts.map((d) => (
+                  <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-8 py-6 font-black text-rose-700 uppercase text-sm">{d.item}</td>
+                    <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{d.quantity}</td>
+                    <td className="px-8 py-6 text-center font-black text-gray-400 text-xs">{d.reason}</td>
+                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{d.date} {d.time}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        {/* TAB: FULL ADDED PRODUCTS (DELIVERED) */}
+
+        {/* --- FIXED CAKE ORDERS WITH PAYMENT API LOGIC --- */}
+        {activeFilter === 'cake_orders' && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left font-bold">
+              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Customer / Item</th><th className="px-8 py-4 text-center">Payment Status</th><th className="px-8 py-4 text-right">Pickup</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
+              <tbody className="divide-y divide-gray-100 font-bold">
+                {cakeOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-8 py-6">
+                      <div className="flex flex-col">
+                        <span className="font-black text-[#F57C00] uppercase text-sm">{order.customer}</span>
+                        <span className="text-[10px] text-gray-400">{order.details}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                       <div className="flex flex-col items-center">
+                         <span className={`px-3 py-1 rounded-full text-[9px] uppercase font-black ${
+                           order.remaining === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                         }`}>
+                           {order.remaining === 0 ? 'Fully Paid' : `Debt: ${order.remaining?.toLocaleString() || 0} RWF`}
+                         </span>
+                       </div>
+                    </td>
+                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{order.pickupTime}</td>
+                    <td className="px-8 py-6 text-right">
+                       {order.remaining > 0 && (
+                          <button onClick={() => handleRecordCakePayment(order.id, order.remaining)} className="text-[9px] bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors uppercase font-black shadow-md active:scale-95">
+                            Record Pay
+                          </button>
+                       )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {activeFilter === 'delivered' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left font-bold border-collapse">
@@ -567,7 +674,6 @@ export default function StoreKeeperDashboard() {
             )}
           </div>
         )}
-        {/* ... Other filter logic remains the same ... */}
       </div>
     </div>
   );

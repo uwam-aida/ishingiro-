@@ -45,30 +45,28 @@ export default function CakeOrderForm() {
   ];
 
   const handleNext = () => {
-    // Keep validation for Step 1
     if (step === 1 && (!formData.purpose || !formData.size || !formData.flavor)) {
         setShowError(true); return;
     }
-    
-    // STEP 2 VALIDATION REMOVED - Step 2 is now optional
-    
     setShowError(false);
     setStep(step + 1);
   };
 
-  // --- UPDATED: API Integration Added Here ---
-  const handleSubmit = async () => {
+ const handleSubmit = async () => {
+    // 1. Check validation before starting
     if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
-        setShowError(true); return;
+        setShowError(true); 
+        return;
     }
 
    try {
       const token = localStorage.getItem('token');
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-      // 1. Create a FormData object instead of a JSON object
+      // Declare submitData ONLY ONCE
       const submitData = new FormData();
       
+      // Core Contact & Order Info
       submitData.append('customer_name', formData.customerFullName || "Guest");
       submitData.append('phone', formData.customerPhoneNumber || "N/A");
       submitData.append('cake_type', `${formData.purpose} (${formData.flavor})`);
@@ -77,41 +75,47 @@ export default function CakeOrderForm() {
       submitData.append('location', formData.orderLocation || "kabuga");
       submitData.append('delivery_date', formData.pickupDate || new Date().toISOString().split('T')[0]);
       
-      // Payment & Details
+      // Financials (Mapping correctly to backend keys)
       submitData.append('payment_method', formData.paymentMethod);
-      submitData.append('paid_amount', formData.paidAmount);
+      submitData.append('advance_payment', formData.paidAmount); 
       submitData.append('payer_name', formData.payerName);
+
+      // Detailed Specs (These were missing before)
+      submitData.append('cake_size', formData.size);
+      submitData.append('frosting_cream', formData.frostingCream);
+      submitData.append('frosting_color', formData.frostingColor);
       submitData.append('cake_message', formData.cakeMessage);
       submitData.append('special_instructions', formData.specialInstructions);
+      submitData.append('reception_location', formData.receptionLocation || "N/A");
+      submitData.append('needs_sample', formData.needsSample === 'yes' ? 'true' : 'false');
 
-      // 2. Append the image file if it exists
+      // Image (Mapping to backend key "inspo_image")
       if (formData.cakeFile) {
-        submitData.append('cake_image', formData.cakeFile);
+        submitData.append('inspo_image', formData.cakeFile);
       }
 
-      // 3. Send the request (Notice we REMOVED 'Content-Type': 'application/json')
       const response = await fetch(`${baseUrl}/sales/cake-order`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}` // Browser automatically sets the correct Content-Type for FormData
+          'Authorization': `Bearer ${token}` 
+          // Note: Do NOT set Content-Type header; FormData handles it
         },
         body: submitData
       });
 
       if (response.ok) {
-        const randomNum = Math.floor(Math.random() * 100);
-        setGeneratedCode(`KS-${randomNum}`);
+        const result = await response.json();
+        setGeneratedCode(result.id ? `KS-${result.id}` : `KS-${Math.floor(Math.random() * 100)}`);
         setStep(6); 
       } else {
-        alert("Failed to submit order. Please check your permissions and try again.");
+        alert("Failed to submit order. Please check permissions.");
         setShowError(true);
       }
     } catch (error) {
       console.error("Failed to submit cake order:", error);
-      alert("Network error. Please check your connection.");
+      alert("Network error.");
     }
   };
-
   const handlePrev = () => {
     if (step === 1) router.back();
     else setStep(step - 1);
@@ -134,10 +138,7 @@ export default function CakeOrderForm() {
         </div>
       )}
 
-      {/* --- HEADER WITH NEW BACK BUTTON --- */}
       <div className="flex flex-col items-center pt-8 relative max-w-3xl mx-auto px-6">
-        
-        {/* <-- ADDED THIS BACK BUTTON --> */}
         <button 
           onClick={() => router.back()}
           className="absolute left-6 top-8 flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
@@ -146,14 +147,13 @@ export default function CakeOrderForm() {
         </button>
 
         <div className="w-48 h-24 relative mb-4">
-           <img src="/cake-top.png" alt="Cake" className="w-full h-full object-contain" />
+            <img src="/cake-top.png" alt="Cake" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-2xl font-black text-[#5D4037] uppercase tracking-tight text-center px-4">
           ISHINGIRO Bakery Online Cake Order Form
         </h1>
       </div>
 
-      {/* --- UPDATED STEPPER SECTION --- */}
       {step >= 1 && step <= 5 && (
         <div className="max-w-3xl mx-auto px-6 mt-10">
           <p className="text-center text-[#5D4037] font-bold mb-4 text-sm tracking-widest">Step {step} of 5</p>
@@ -212,7 +212,6 @@ export default function CakeOrderForm() {
           </div>
         )}
 
-        {/* Passing setShowError to all steps so you can use it locally if needed */}
         {step === 1 && <Step1Purpose formData={formData} setFormData={setFormData} handleNext={handleNext} handlePrev={handlePrev} setShowError={setShowError} />}
         {step === 2 && <Step2Design formData={formData} setFormData={setFormData} handleNext={handleNext} handlePrev={handlePrev} setShowError={setShowError} />}
         {step === 3 && <Step3Details formData={formData} setFormData={setFormData} handleNext={handleNext} handlePrev={handlePrev} setShowError={setShowError} />}
@@ -225,10 +224,7 @@ export default function CakeOrderForm() {
             <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center mb-6 shadow-lg"><Check size={40} className="text-white" strokeWidth={4} /></div>
             <h2 className="text-3xl font-black text-[#5D4037] mb-4">Order Submitted!</h2>
             <p className="text-[#A67C37] font-black text-xl mb-8 tracking-widest uppercase">Code: {generatedCode}</p>
-            <button onClick={() => {
-              // Optional: reset form data here when starting a new order
-              setStep(0);
-            }} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
+            <button onClick={() => setStep(0)} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
         </div>
       )}
     </div>
