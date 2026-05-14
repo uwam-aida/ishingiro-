@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 class CakeOrder extends Model
 {
     use HasFactory;
+    
     protected $fillable = [
         'customer_name',
         'phone',
@@ -46,7 +47,9 @@ class CakeOrder extends Model
 
     protected $appends = ['inspo_image_url'];
 
-    // Automatically calculate remaining payment when saving
+    /**
+     * Automatically calculate remaining payment when saving
+     */
     protected static function booted()
     {
         static::saving(function ($cakeOrder) {
@@ -63,7 +66,10 @@ class CakeOrder extends Model
         });
     }
 
-    // Accessor for full image URL
+    /**
+     * Accessor for full image URL
+     * Generates the public URL for the inspiration image
+     */
     public function getInspoImageUrlAttribute()
     {
         if ($this->inspo_image_path) {
@@ -75,13 +81,17 @@ class CakeOrder extends Model
         return null;
     }
 
-    // Check if order is fully paid
+    /**
+     * Check if order is fully paid
+     */
     public function isFullyPaid(): bool
     {
         return $this->total_paid >= $this->price;
     }
 
-    // Get payment status text
+    /**
+     * Get payment status text
+     */
     public function getPaymentStatusAttribute(): string
     {
         if ($this->total_paid == 0) {
@@ -93,7 +103,9 @@ class CakeOrder extends Model
         return 'partial';
     }
 
-    // Relationships
+    /**
+     * Relationships
+     */
     public function revenues()
     {
         return $this->morphMany(Revenue::class, 'reference');

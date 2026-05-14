@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\ShopManagerController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StoreKeeperController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -77,8 +78,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/delivery', [StoreKeeperController::class, 'storeDelivery']);
         Route::get('/history', [StoreKeeperController::class, 'deliveryHistory']);
         Route::post('/damage', [StoreKeeperController::class, 'storeDamage']);
-        Route::get('/damage', [StoreKeeperController::class, 'damages']);           // NEW
-        Route::get('/production', [StoreKeeperController::class, 'productionLog']); // NEW
+        Route::get('/damage', [StoreKeeperController::class, 'damages']);
+        Route::get('/production', [StoreKeeperController::class, 'productionLog']);
         Route::get('/requests', [StoreKeeperController::class, 'requests']);
         Route::get('/cake-orders', [StoreKeeperController::class, 'cakeOrders']);
         Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
@@ -92,8 +93,8 @@ Route::middleware('auth:sanctum')->group(function () {
     | SHOP MANAGERS — Location-specific order posting
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:shop_manager_kabuga')->post('/orders/kabuga', [OrderController::class, 'store'])->defaults('location', 'kabuga');
-    Route::middleware('role:shop_manager_masaka')->post('/orders/masaka', [OrderController::class, 'store'])->defaults('location', 'masaka');
+    Route::middleware('role:shop_manager_kabuga')->post('/orders/kabuga', [OrderController::class, 'store']);
+    Route::middleware('role:shop_manager_masaka')->post('/orders/masaka', [OrderController::class, 'store']);
 
     /*
     |--------------------------------------------------------------------------
@@ -101,9 +102,9 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:shop_manager_kabuga,shop_manager_masaka')->group(function () {
-        Route::post('/shop/cake-orders', [ShopManagerController::class, 'storeCakeOrder']);     // updated — now validates all fields
-        Route::put('/shop/cake-orders/{id}', [ShopManagerController::class, 'updateCakeOrder']); // NEW
-        Route::put('/orders/{id}/receive', [ShopManagerController::class, 'receiveOrder']);       // NEW
+        Route::post('/shop/cake-orders', [ShopManagerController::class, 'storeCakeOrder']);
+        Route::put('/shop/cake-orders/{id}', [ShopManagerController::class, 'updateCakeOrder']);
+        Route::put('/orders/{id}/receive', [ShopManagerController::class, 'receiveOrder']);
         Route::post('/shop/feedback', [ShopManagerController::class, 'storeFeedback']);
         Route::post('/shop/damages', [ShopManagerController::class, 'recordDamage']);
 

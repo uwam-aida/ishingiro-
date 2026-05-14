@@ -12,6 +12,12 @@ use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
+    /**
+     * Store a new order
+     * 
+     * @param Request $request
+     * @param string $location - 'kabuga' or 'masaka'
+     */
     public function store(Request $request, $location)
     {
         $request->validate([
@@ -21,7 +27,7 @@ class OrderController extends Controller
         ]);
 
         if (!in_array($location, ['kabuga', 'masaka'])) {
-            abort(400, 'Invalid location');
+            return response()->json(['error' => 'Invalid location'], 400);
         }
 
         $order = Order::create([
@@ -40,7 +46,7 @@ class OrderController extends Controller
             ]);
         }
 
-        //NOTIFICATIONS
+        // NOTIFICATIONS
         SendNotificationJob::dispatch('store_keeper', "New order received ($location)");
         SendNotificationJob::dispatch('sales_coordinator', "New order created");
         SendNotificationJob::dispatch('marketing_manager', "Order created in $location");
@@ -48,6 +54,11 @@ class OrderController extends Controller
         return $order->load('items');
     }
 
+    /**
+     * Get all orders for a specific location
+     * 
+     * @param string $location
+     */
     public function indexByLocation($location)
     {
         return Order::with('items.product')
@@ -55,5 +66,4 @@ class OrderController extends Controller
             ->latest()
             ->get();
     }
-        
 }

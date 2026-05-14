@@ -74,28 +74,6 @@ class SalesController extends Controller
         return StockMovement::with('product')->latest()->get();
     }
 
-    // ALL CAKE ORDERS
-    // public function cakeOrders()
-    // {
-    //     return CakeOrder::latest()->get();
-    // }
-
-    // CREATE CAKE ORDER
-    // public function storeCakeOrder(Request $request)
-    // {
-    //     $request->validate([
-    //         'customer_name' => 'required|string',
-    //         'date'          => 'required|date',
-    //     ]);
-
-    //     $order = CakeOrder::create($request->all());
-
-    //     SendNotificationJob::dispatch('shop_manager_kabuga', 'New cake order received');
-    //     SendNotificationJob::dispatch('shop_manager_masaka', 'New cake order received');
-
-    //     return $order;
-    // }
-
     // SEND MESSAGE TO STAFF GROUP
     public function sendMessage(Request $request)
     {
@@ -172,6 +150,10 @@ class SalesController extends Controller
 
         return response()->noContent();
     }
+
+    /**
+     * Get all cake orders with image URLs
+     */
     public function cakeOrders()
     {
         $orders = CakeOrder::latest()->get();
@@ -186,7 +168,9 @@ class SalesController extends Controller
         return response()->json($orders);
     }
 
-    // CREATE CAKE ORDER from sales coordinator - FULL PAYLOAD
+    /**
+     * CREATE CAKE ORDER from sales coordinator - FULL PAYLOAD
+     */
     public function storeCakeOrder(Request $request)
     {
         $request->validate([
@@ -260,7 +244,9 @@ class SalesController extends Controller
         return response()->json($cakeOrder, 201);
     }
 
-    // ADDITIONAL PAYMENT ON CAKE ORDER
+    /**
+     * ADDITIONAL PAYMENT ON CAKE ORDER
+     */
     public function addCakeOrderPayment(Request $request, $id)
     {
         $request->validate([
