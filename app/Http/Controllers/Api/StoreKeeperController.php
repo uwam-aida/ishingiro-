@@ -12,28 +12,43 @@ use App\Models\OrderItem;
 use App\Models\Production;
 use App\Models\Revenue;
 use App\Models\Stock;
+use App\Models\StockMovement;
 use App\Services\DeliveryNoteService;
 use Illuminate\Http\Request;
 
 class StoreKeeperController extends Controller
 {
-    // VIEW ALL STOCK
+    /**
+     * VIEW ALL STOCK
+     */
     public function index()
     {
         return Stock::with('product')->get();
     }
 
-    // ADD / INCREMENT STOCK
+    /**
+     * ADD / INCREMENT STOCK
+     * 
+     * Automatically categorizes items:
+     * - Baked items → Added to Production
+     * - Cake items → Added to CakeOrder requests
+     * - Regular items → Stock only
+     */
     public function store(Request $request)
     {
         $request->validate([
             'product_id'  => 'required|exists:products,id',
             'quantity'    => 'required|integer|min:1',
             'location'    => 'required|in:kabuga,masaka',
+            'type'        => 'nullable|in:baked,cake,regular',
             'description' => 'nullable|string',
             'unit'        => 'nullable|string',
         ]);
 
+        $product = \App\Models\Product::find($request->product_id);
+        $type = $request->type ?? $product->type ?? 'regular';
+
+        // 1. CREATE/UPDATE STOCK
         $stock = Stock::firstOrCreate([
             'product_id' => $request->product_id,
             'location'   => $request->location,
@@ -46,10 +61,52 @@ class StoreKeeperController extends Controller
             'unit'        => $request->unit,
         ], fn($v) => !is_null($v)));
 
+        // 2. LOG STOCK MOVEMENT (HISTORY)
+        StockMovement::create([
+            'product_id' => $request->product_id,
+            'type'       => 'in',
+            'quantity'   => $request->quantity,
+            'location'   => $request->location,
+            'user_id'    => auth()->id()
+        ]);
+
+        // 3. HANDLE BAKED ITEMS
+        if ($type === 'baked') {
+            Production::create([
+                'product_id' => $request->product_id,
+                'quantity'   => $request->quantity,
+                'location'   => $request->location
+            ]);
+        }
+
+        // 4. HANDLE CAKE ITEMS
+        if ($type === 'cake') {
+            CakeOrder::create([
+                'customer_name' => 'Store Added',
+                'phone'         => auth()->user()->id,
+                'cake_type'     => $product->name,
+                'quantity'      => $request->quantity,
+                'price'         => $product->price,
+                'location'      => $request->location,
+                'delivery_date' => now()->addDays(1),
+                'status'        => 'pending'
+            ]);
+        }
+
+        // 5. LOW STOCK ALERT
+        if ($stock->quantity < 10) {
+            SendNotificationJob::dispatch(
+                'operations_manager',
+                "Low stock: {$product->name} ({$stock->quantity} units)"
+            );
+        }
+
         return $stock->fresh();
     }
 
-    // UPDATE STOCK COUNT DIRECTLY
+    /**
+     * UPDATE STOCK COUNT DIRECTLY
+     */
     public function update(Request $request, $id)
     {
         $stock = Stock::findOrFail($id);
@@ -58,10 +115,9 @@ class StoreKeeperController extends Controller
         return $stock;
     }
 
-    // INCOMING PRODUCT REQUESTS (pending orders from shop managers)
-    // FIX: use ->each() to append fields directly onto the model instead of
-    // array_merge(->toArray()) which can silently drop items when relations
-    // have null/empty values and reindex the collection.
+    /**
+     * INCOMING PRODUCT REQUESTS (pending orders from shop managers)
+     */
     public function requests()
     {
         return Order::with('items.product')
@@ -74,7 +130,9 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // RECORD A DELIVERY
+    /**
+     * RECORD A DELIVERY
+     */
     public function storeDelivery(Request $request)
     {
         $request->validate([
@@ -87,7 +145,9 @@ class StoreKeeperController extends Controller
         return Delivery::create($request->all());
     }
 
-    // DELIVERY HISTORY
+    /**
+     * DELIVERY HISTORY
+     */
     public function deliveryHistory()
     {
         return Delivery::with('product')
@@ -99,7 +159,9 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // RECORD DAMAGE
+    /**
+     * RECORD DAMAGE
+     */
     public function storeDamage(Request $request)
     {
         $request->validate([
@@ -121,7 +183,9 @@ class StoreKeeperController extends Controller
         return $damage;
     }
 
-    // GET DAMAGE LOG
+    /**
+     * GET DAMAGE LOG
+     */
     public function damages()
     {
         return Damage::with('product')
@@ -133,7 +197,9 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // GET PRODUCTION LOG
+    /**
+     * GET PRODUCTION LOG
+     */
     public function productionLog()
     {
         return Production::with('product')
@@ -145,7 +211,9 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // ALL CAKE ORDERS
+    /**
+     * ALL CAKE ORDERS
+     */
     public function cakeOrders()
     {
         return CakeOrder::latest()
@@ -156,7 +224,9 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // PENDING CAKE REQUESTS only
+    /**
+     * PENDING CAKE REQUESTS ONLY
+     */
     public function cakeRequests()
     {
         return CakeOrder::where('status', 'pending')
@@ -168,17 +238,51 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // ── DELIVER ───────────────────────────────────────────────────────────────
-    // Marks one or more orders / cake orders as "delivered",
-    // decrements factory stock for each item, creates Delivery records,
-    // notifies the shop, and returns a PDF delivery note.
-    //
-    // POST /api/storekeeper/deliver
-    // {
-    //   "order_ids":      [1, 2],          // optional
-    //   "cake_order_ids": [3],             // optional
-    //   "recipient_name": "Kabuga Shop"    // optional, printed on the note
-    // }
+    /**
+     * FULL HISTORY OF ADDED PRODUCTS
+     * 
+     * Logs every single item added to stock
+     * Shows what, when, by whom, and from where
+     */
+    public function history(Request $request)
+    {
+        $query = StockMovement::with('product', 'user')->latest();
+
+        // Filter by type if provided (in/out)
+        if ($request->has('type')) {
+            $query->where('type', $request->type);
+        }
+
+        // Filter by location if provided
+        if ($request->has('location')) {
+            $query->where('location', $request->location);
+        }
+
+        $limit = (int) $request->query('limit', 100);
+
+        return $query->take($limit)->get()->map(function ($movement) {
+            return [
+                'id'           => $movement->id,
+                'product_id'   => $movement->product_id,
+                'product_name' => optional($movement->product)->name,
+                'type'         => $movement->type === 'in' ? 'Added' : 'Removed',
+                'quantity'     => $movement->quantity,
+                'location'     => $movement->location,
+                'added_by'     => optional($movement->user)->name ?? 'System',
+                'created_at'   => $movement->created_at,
+                'date'         => $movement->created_at->toDateString(),
+                'time'         => $movement->created_at->format('H:i A'),
+                'timestamp'    => $movement->created_at->format('Y-m-d H:i:s'),
+            ];
+        });
+    }
+
+    /**
+     * DELIVER ORDERS AND GENERATE PDF
+     * 
+     * Marks orders as delivered, reduces factory stock,
+     * increases shop stock, and generates delivery note
+     */
     public function deliver(Request $request)
     {
         $request->validate([
@@ -187,7 +291,7 @@ class StoreKeeperController extends Controller
             'cake_order_ids'    => 'nullable|array',
             'cake_order_ids.*'  => 'integer|exists:cake_orders,id',
             'recipient_name'    => 'nullable|string',
-            'payment_received'  => 'nullable|boolean',  // NEW
+            'payment_received'  => 'nullable|boolean',
         ]);
 
         if (empty($request->order_ids) && empty($request->cake_order_ids)) {
@@ -200,14 +304,13 @@ class StoreKeeperController extends Controller
         $cakeOrders = collect();
         $totalRevenue = 0;
 
-        // ── Regular orders ────────────────────────────────────────────────────
+        // ── Regular orders ────────────────────────────────────────────────
         if (!empty($request->order_ids)) {
             $orders = Order::with('items.product')
                 ->whereIn('id', $request->order_ids)
                 ->get();
 
             foreach ($orders as $order) {
-                // Skip if already delivered
                 if ($order->status === 'delivered') {
                     continue;
                 }
@@ -218,7 +321,7 @@ class StoreKeeperController extends Controller
                     $itemTotal = $item->quantity * $item->price;
                     $orderTotal += $itemTotal;
 
-                    // 1. Record the delivery
+                    // Record delivery
                     Delivery::create([
                         'product_id'    => $item->product_id,
                         'quantity'      => $item->quantity,
@@ -226,7 +329,7 @@ class StoreKeeperController extends Controller
                         'to_location'   => $order->location,
                     ]);
 
-                    // 2. Reduce factory stock
+                    // Reduce factory stock
                     $factoryStock = Stock::where('product_id', $item->product_id)
                         ->where('location', 'factory')
                         ->first();
@@ -236,7 +339,7 @@ class StoreKeeperController extends Controller
                         $factoryStock->update(['quantity' => $newQty]);
                     }
 
-                    // 3. INCREASE SHOP STOCK (products arriving at shop)
+                    // Increase shop stock
                     $shopStock = Stock::firstOrCreate([
                         'product_id' => $item->product_id,
                         'location'   => $order->location,
@@ -244,7 +347,7 @@ class StoreKeeperController extends Controller
                     $shopStock->increment('quantity', $item->quantity);
                 }
 
-                // 4. Create revenue record if payment was received
+                // Create revenue record
                 if ($request->input('payment_received', true)) {
                     Revenue::create([
                         'amount'   => $orderTotal,
@@ -254,30 +357,26 @@ class StoreKeeperController extends Controller
                     $totalRevenue += $orderTotal;
                 }
 
-                // 5. Update order status
                 $order->update(['status' => 'delivered']);
 
-                // 6. Send notification
                 SendNotificationJob::dispatch(
                     'shop_manager_' . $order->location,
-                    'Your order #' . $order->id . ' has been delivered. Total: ' . number_format($orderTotal) . ' RWF'
+                    'Order #' . $order->id . ' delivered. Total: ' . number_format($orderTotal) . ' RWF'
                 );
             }
         }
 
-        // ── Cake orders ───────────────────────────────────────────────────────
+        // ── Cake orders ───────────────────────────────────────────────────
         if (!empty($request->cake_order_ids)) {
             $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
 
             foreach ($cakeOrders as $cake) {
-                // Skip if already delivered
                 if ($cake->status === 'delivered') {
                     continue;
                 }
 
                 $cakeTotal = $cake->quantity * $cake->price;
 
-                // Create revenue record if payment was received
                 if ($request->input('payment_received', true)) {
                     Revenue::create([
                         'amount'   => $cakeTotal,
@@ -287,18 +386,16 @@ class StoreKeeperController extends Controller
                     $totalRevenue += $cakeTotal;
                 }
 
-                // Update cake order status
                 $cake->update(['status' => 'delivered']);
 
-                // Send notification
                 SendNotificationJob::dispatch(
                     'shop_manager_' . $cake->location,
-                    'Cake order for ' . $cake->customer_name . ' has been delivered. Total: ' . number_format($cakeTotal) . ' RWF'
+                    'Cake for ' . $cake->customer_name . ' delivered. Total: ' . number_format($cakeTotal) . ' RWF'
                 );
             }
         }
 
-        // ── Generate and stream the PDF ───────────────────────────────────────
+        // Generate PDF
         $pdf = app(DeliveryNoteService::class)->generate(
             orders:      $orders,
             cakeOrders:  $cakeOrders,
@@ -312,19 +409,9 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-
-    // ── UPDATE REQUEST ────────────────────────────────────────────────────────
-    // Allows the store keeper to update an order's status and/or adjust
-    // individual item quantities before dispatching.
-    //
-    // PUT /api/storekeeper/requests/{id}
-    // {
-    //   "status": "dispatched",          // optional: pending|dispatched|delivered
-    //   "items": [                        // optional: adjust quantities
-    //     { "id": 1, "quantity": 80 },
-    //     { "id": 2, "quantity": 50 }
-    //   ]
-    // }
+    /**
+     * UPDATE REQUEST STATUS AND ITEMS
+     */
     public function updateRequest(Request $request, $id)
     {
         $request->validate([
@@ -336,27 +423,23 @@ class StoreKeeperController extends Controller
 
         $order = Order::with('items.product')->findOrFail($id);
 
-        // Update status if provided
         if ($request->filled('status')) {
             $order->update(['status' => $request->status]);
 
-            // Notify the shop when status changes
             SendNotificationJob::dispatch(
                 'shop_manager_' . $order->location,
-                'Your order #' . $order->id . ' is now ' . $request->status
+                'Order #' . $order->id . ' is now ' . $request->status
             );
         }
 
-        // Update individual item quantities if provided
         if (!empty($request->items)) {
             foreach ($request->items as $itemData) {
                 OrderItem::where('id', $itemData['id'])
-                    ->where('order_id', $order->id) // security: ensure item belongs to this order
+                    ->where('order_id', $order->id)
                     ->update(['quantity' => $itemData['quantity']]);
             }
         }
 
-        // Return the fresh order with updated items
         return $order->fresh()->load('items.product');
     }
 }
