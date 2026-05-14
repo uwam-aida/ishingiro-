@@ -178,7 +178,7 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::middleware('role:sales_coordinator')->prefix('sales')->group(function () {
         Route::get('/dashboard', [SalesController::class, 'dashboard']);
-
+        Route::post('/cake-order/{id}/payment', [SalesController::class, 'addCakeOrderPayment']);
         Route::get('/requests', [SalesController::class, 'requests']);
         Route::get('/baked', [SalesController::class, 'baked']);
         Route::get('/delivered', [SalesController::class, 'delivered']);

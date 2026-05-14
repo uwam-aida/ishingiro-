@@ -10,6 +10,7 @@ use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Production;
+use App\Models\Revenue;
 use App\Models\Stock;
 use App\Services\DeliveryNoteService;
 use Illuminate\Http\Request;
@@ -181,11 +182,12 @@ class StoreKeeperController extends Controller
     public function deliver(Request $request)
     {
         $request->validate([
-            'order_ids'        => 'nullable|array',
-            'order_ids.*'      => 'integer|exists:orders,id',
-            'cake_order_ids'   => 'nullable|array',
-            'cake_order_ids.*' => 'integer|exists:cake_orders,id',
-            'recipient_name'   => 'nullable|string',
+            'order_ids'         => 'nullable|array',
+            'order_ids.*'       => 'integer|exists:orders,id',
+            'cake_order_ids'    => 'nullable|array',
+            'cake_order_ids.*'  => 'integer|exists:cake_orders,id',
+            'recipient_name'    => 'nullable|string',
+            'payment_received'  => 'nullable|boolean',  // NEW
         ]);
 
         if (empty($request->order_ids) && empty($request->cake_order_ids)) {
@@ -196,6 +198,7 @@ class StoreKeeperController extends Controller
 
         $orders     = collect();
         $cakeOrders = collect();
+        $totalRevenue = 0;
 
         // ── Regular orders ────────────────────────────────────────────────────
         if (!empty($request->order_ids)) {
@@ -204,9 +207,17 @@ class StoreKeeperController extends Controller
                 ->get();
 
             foreach ($orders as $order) {
-                $order->update(['status' => 'delivered']);
+                // Skip if already delivered
+                if ($order->status === 'delivered') {
+                    continue;
+                }
+
+                $orderTotal = 0;
 
                 foreach ($order->items as $item) {
+                    $itemTotal = $item->quantity * $item->price;
+                    $orderTotal += $itemTotal;
+
                     // 1. Record the delivery
                     Delivery::create([
                         'product_id'    => $item->product_id,
@@ -215,7 +226,7 @@ class StoreKeeperController extends Controller
                         'to_location'   => $order->location,
                     ]);
 
-                    // 2. Reduce factory stock — don't go below zero
+                    // 2. Reduce factory stock
                     $factoryStock = Stock::where('product_id', $item->product_id)
                         ->where('location', 'factory')
                         ->first();
@@ -224,11 +235,32 @@ class StoreKeeperController extends Controller
                         $newQty = max(0, $factoryStock->quantity - $item->quantity);
                         $factoryStock->update(['quantity' => $newQty]);
                     }
+
+                    // 3. INCREASE SHOP STOCK (products arriving at shop)
+                    $shopStock = Stock::firstOrCreate([
+                        'product_id' => $item->product_id,
+                        'location'   => $order->location,
+                    ]);
+                    $shopStock->increment('quantity', $item->quantity);
                 }
 
+                // 4. Create revenue record if payment was received
+                if ($request->input('payment_received', true)) {
+                    Revenue::create([
+                        'amount'   => $orderTotal,
+                        'source'   => 'order_' . $order->id,
+                        'location' => $order->location,
+                    ]);
+                    $totalRevenue += $orderTotal;
+                }
+
+                // 5. Update order status
+                $order->update(['status' => 'delivered']);
+
+                // 6. Send notification
                 SendNotificationJob::dispatch(
                     'shop_manager_' . $order->location,
-                    'Your order #' . $order->id . ' has been delivered'
+                    'Your order #' . $order->id . ' has been delivered. Total: ' . number_format($orderTotal) . ' RWF'
                 );
             }
         }
@@ -238,11 +270,30 @@ class StoreKeeperController extends Controller
             $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
 
             foreach ($cakeOrders as $cake) {
+                // Skip if already delivered
+                if ($cake->status === 'delivered') {
+                    continue;
+                }
+
+                $cakeTotal = $cake->quantity * $cake->price;
+
+                // Create revenue record if payment was received
+                if ($request->input('payment_received', true)) {
+                    Revenue::create([
+                        'amount'   => $cakeTotal,
+                        'source'   => 'cake_order_' . $cake->id,
+                        'location' => $cake->location,
+                    ]);
+                    $totalRevenue += $cakeTotal;
+                }
+
+                // Update cake order status
                 $cake->update(['status' => 'delivered']);
 
+                // Send notification
                 SendNotificationJob::dispatch(
                     'shop_manager_' . $cake->location,
-                    'Cake order for ' . $cake->customer_name . ' has been delivered'
+                    'Cake order for ' . $cake->customer_name . ' has been delivered. Total: ' . number_format($cakeTotal) . ' RWF'
                 );
             }
         }
@@ -260,6 +311,7 @@ class StoreKeeperController extends Controller
             'Content-Disposition' => 'attachment; filename="delivery-note-' . now()->format('Y-m-d-His') . '.pdf"',
         ]);
     }
+
 
     // ── UPDATE REQUEST ────────────────────────────────────────────────────────
     // Allows the store keeper to update an order's status and/or adjust
