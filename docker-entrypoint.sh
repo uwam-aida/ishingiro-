@@ -26,13 +26,33 @@ php artisan db:seed --class=ProductSeeder --force
 echo "Creating test users..."
 php artisan app:seed-system-users
 
-# Clear cache
-echo "Optimizing application..."
+# ============================================
+# CRITICAL: Rebuild Composer Autoloader
+# ============================================
+echo "Rebuilding Composer autoloader..."
+composer dump-autoload --optimize --no-interaction
+
+# ============================================
+# Clear all caches
+# ============================================
+echo "Clearing all caches..."
+php artisan optimize:clear
 php artisan config:clear
 php artisan cache:clear
+php artisan view:clear
+php artisan route:clear
+
+# ============================================
+# Re-optimize for production
+# ============================================
+echo "Optimizing application..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
 php artisan optimize
 
 # Create storage link if not exists
+echo "Setting up storage link..."
 php artisan storage:link
 
 echo "Starting Apache..."
