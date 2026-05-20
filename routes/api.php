@@ -203,6 +203,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/targets', [SalesController::class, 'storeTarget']);
         Route::put('/targets/{id}', [SalesController::class, 'updateTarget']);
         Route::delete('/targets/{id}', [SalesController::class, 'destroyTarget']);
+
+        //NEW
+        Route::get('/requests/{id}', [SalesController::class, 'getRequestDetails']);
+        Route::get('/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
+
+        //stock
+        Route::get('/stock/{location}', [StockController::class, 'salesStockByLocation']);
+
     });
 
 

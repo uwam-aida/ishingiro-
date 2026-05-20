@@ -288,4 +288,99 @@ class SalesController extends Controller
 
         return response()->noContent();
     }
+
+    //Get single order with full details including items
+    
+    public function getRequestDetails($id)
+    {
+        $order = Order::with('items.product', 'user')->findOrFail($id);
+        
+        return response()->json([
+            'id' => $order->id,
+            'status' => $order->status,
+            'location' => $order->location,
+            'created_at' => $order->created_at,
+            'updated_at' => $order->updated_at,
+            'requested_by' => optional($order->user)->name,
+            'items' => $order->items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => optional($item->product)->name,
+                    'product_price' => optional($item->product)->price,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->price,
+                    'total' => $item->quantity * $item->price,
+                ];
+            })->toArray(),
+            'total_amount' => $order->items->sum(function ($item) {
+                return $item->quantity * $item->price;
+            }),
+        ]);
+    }
+
+    /**
+     * Get single cake order with full details including payment info
+     * GET /api/sales/cake-orders/{id}
+     */
+    public function getCakeOrderDetails($id)
+    {
+        $cakeOrder = CakeOrder::findOrFail($id);
+        
+        // Add image URL if exists
+        if ($cakeOrder->inspo_image_path) {
+            $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
+        }
+        
+        // Calculate payment summary
+        $paymentSummary = [
+            'total_price' => (float) $cakeOrder->price,
+            'advance_payment' => (float) $cakeOrder->advance_payment,
+            'total_paid' => (float) $cakeOrder->total_paid,
+            'remaining_payment' => (float) $cakeOrder->remaining_payment,
+            'payment_status' => $cakeOrder->getPaymentStatusAttribute(),
+            'payment_method' => $cakeOrder->payment_method,
+            'payer_name' => $cakeOrder->payer_name,
+        ];
+        
+        // Get payment history from revenues
+        $paymentHistory = Revenue::where(function ($query) use ($cakeOrder) {
+                $query->where('source', 'cake_order_advance')
+                      ->orWhere('source', 'cake_order_payment');
+            })
+            ->where('location', $cakeOrder->location)
+            ->orderBy('created_at', 'desc')
+            ->get()
+            ->map(function ($revenue) {
+                return [
+                    'amount' => (float) $revenue->amount,
+                    'type' => $revenue->source === 'cake_order_advance' ? 'Advance Payment' : 'Additional Payment',
+                    'date' => $revenue->created_at->toDateString(),
+                    'time' => $revenue->created_at->format('h:i A'),
+                ];
+            });
+        
+        return response()->json([
+            'id' => $cakeOrder->id,
+            'customer_name' => $cakeOrder->customer_name,
+            'phone' => $cakeOrder->phone,
+            'cake_type' => $cakeOrder->cake_type,
+            'quantity' => $cakeOrder->quantity,
+            'location' => $cakeOrder->location,
+            'delivery_date' => $cakeOrder->delivery_date,
+            'status' => $cakeOrder->status,
+            'cake_message' => $cakeOrder->cake_message,
+            'cake_size' => $cakeOrder->cake_size,
+            'frosting_cream' => $cakeOrder->frosting_cream,
+            'frosting_color' => $cakeOrder->frosting_color,
+            'special_instructions' => $cakeOrder->special_instructions,
+            'reception_location' => $cakeOrder->reception_location,
+            'needs_sample' => $cakeOrder->needs_sample,
+            'inspo_image_url' => $cakeOrder->inspo_image_url,
+            'created_at' => $cakeOrder->created_at,
+            'updated_at' => $cakeOrder->updated_at,
+            'payment' => $paymentSummary,
+            'payment_history' => $paymentHistory,
+        ]);
+    }
 }

@@ -152,4 +152,32 @@ class StockController extends Controller
             'timestamp' => $m->created_at->format('Y-m-d H:i:s'),
         ]);
     }
+
+    /**
+     * Get stock by location (accessible by sales coordinator)
+     * GET /api/sales/stock/{location}
+     */
+    public function salesStockByLocation($location)
+    {
+        // Validate location
+        if (!in_array($location, ['kabuga', 'masaka', 'factory'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        return Stock::with('product')
+            ->where('location', $location)
+            ->get()
+            ->map(function ($stock) {
+                return [
+                    'id' => $stock->id,
+                    'product_id' => $stock->product_id,
+                    'product_name' => optional($stock->product)->name,
+                    'product_price' => optional($stock->product)->price,
+                    'quantity' => $stock->quantity,
+                    'location' => $stock->location,
+                    'unit' => $stock->unit ?? 'pieces',
+                    'last_updated' => $stock->updated_at->toDateTimeString(),
+                ];
+            });
+    }
 }
