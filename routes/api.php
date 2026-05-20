@@ -14,7 +14,6 @@ use App\Http\Controllers\Api\SalesController;
 use App\Http\Controllers\Api\ShopManagerController;
 use App\Http\Controllers\Api\StockController;
 use App\Http\Controllers\Api\StoreKeeperController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,6 +32,9 @@ Route::post('/reset-password', [PasswordController::class, 'resetWithCode']);
 */
 Route::middleware('auth:sanctum')->group(function () {
 
+    //NEW: Get authenticated user info
+    Route::get('/me', [AuthController::class, 'me']);
+    
     Route::get('/user', fn() => auth()->user());
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/save-player-id', [AuthController::class, 'savePlayerId']);
@@ -40,6 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // Any authenticated user can view products
     Route::get('/products', [ProductController::class, 'index']);
     Route::get('/products/{product}', [ProductController::class, 'show']);
+
+    //NEW: Stock movement history (any authenticated user can view)
+    Route::get('/stock/history', [StockController::class, 'getHistory']);
 
     /*
     |--------------------------------------------------------------------------
@@ -85,6 +90,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
         Route::post('/deliver', [StoreKeeperController::class, 'deliver']);
         Route::put('/requests/{id}', [StoreKeeperController::class, 'updateRequest']);
+        // NEW: Stock movement history for store keeper
+        Route::get('/movements', [StoreKeeperController::class, 'history']);
     });
 
 

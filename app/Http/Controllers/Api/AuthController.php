@@ -67,6 +67,30 @@ class AuthController extends Controller
     }
 
     /**
+     * Get authenticated user with role and permissions
+     * GET /api/me
+     */
+    public function me(Request $request)
+    {
+        $user = $request->user()->load('role.permissions');
+        
+        return response()->json([
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'role' => $user->role ? [
+                'id' => $user->role->id,
+                'name' => $user->role->name,
+            ] : null,
+            'permissions' => $user->role ? $user->role->permissions->pluck('name') : [],
+            'player_id' => $user->player_id,
+            'normalized_name' => $user->normalized_name,
+            'created_at' => $user->created_at,
+            'updated_at' => $user->updated_at,
+        ]);
+    }
+
+    /**
      * Normalize name for flexible login
      */
     private function normalizeName($name)
