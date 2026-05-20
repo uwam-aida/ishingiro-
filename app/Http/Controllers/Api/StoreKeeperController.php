@@ -9,6 +9,7 @@ use App\Models\Damage;
 use App\Models\Delivery;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Product;
 use App\Models\Production;
 use App\Models\Revenue;
 use App\Models\Stock;
@@ -45,7 +46,7 @@ class StoreKeeperController extends Controller
             'unit'        => 'nullable|string',
         ]);
 
-        $product = \App\Models\Product::find($request->product_id);
+        $product = Product::find($request->product_id);
         $type = $request->type ?? $product->type ?? 'regular';
 
         // 1. CREATE/UPDATE STOCK
