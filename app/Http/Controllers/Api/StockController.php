@@ -4,112 +4,81 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\SendNotificationJob;
-use App\Models\CakeOrder;
 use App\Models\Production;
 use App\Models\Stock;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class StockController extends Controller
 {
-    /**
-     * Add stock with automatic categorization
-     * 
-     * Rules:
-     * - Regular item → Stock only
-     * - Baked item → Stock + Production
-     * - Cake item → Stock + CakeOrder request
-     */
+    // ADD STOCK
+    // - type = baked  → also creates Production record
+    // - Always logs StockMovement (in)
+    // - Low-stock alert if qty < 10
     public function addStock(Request $request)
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
             'quantity'   => 'required|integer|min:1',
-            'location'   => 'required|in:kabuga,masaka',
-            'type'       => 'nullable|in:baked,cake,regular', // Item type
+            'location'   => 'required|in:kabuga,masaka,factory',
+            'type'       => 'nullable|in:baked,regular',
         ]);
 
-        $product = \App\Models\Product::find($validated['product_id']);
-        $type = $validated['type'] ?? $product->type ?? 'regular';
+        $product = \App\Models\Product::findOrFail($validated['product_id']);
+        $type    = $validated['type'] ?? $product->type ?? 'regular';
 
-        // 1. ADD TO STOCK
-        $stock = Stock::firstOrCreate([
-            'product_id' => $validated['product_id'],
-            'location'   => $validated['location']
-        ]);
-
-        $stock->increment('quantity', $validated['quantity']);
-
-        // 2. LOG IN STOCK MOVEMENT (History)
-        StockMovement::create([
-            'product_id' => $validated['product_id'],
-            'type'       => 'in',
-            'quantity'   => $validated['quantity'],
-            'location'   => $validated['location'],
-            'user_id'    => auth()->id()
-        ]);
-
-        // 3. CATEGORIZE BASED ON ITEM TYPE
-        if ($type === 'baked') {
-            // Add to Production (Baked Products)
-            Production::create([
+        $stock = DB::transaction(function () use ($validated, $type) {
+            $stock = Stock::firstOrCreate([
                 'product_id' => $validated['product_id'],
+                'location'   => $validated['location'],
+            ]);
+
+            $stock->increment('quantity', $validated['quantity']);
+
+            StockMovement::create([
+                'product_id' => $validated['product_id'],
+                'type'       => 'in',
                 'quantity'   => $validated['quantity'],
-                'location'   => $validated['location']
+                'location'   => $validated['location'],
+                'user_id'    => auth()->id(),
             ]);
 
-            // Notify shop managers
-            SendNotificationJob::dispatch(
-                'shop_manager_' . $validated['location'],
-                "New baked items added: {$product->name} x{$validated['quantity']}"
-            );
-        } 
-        elseif ($type === 'cake') {
-            // Create cake order request
-            CakeOrder::create([
-                'customer_name' => 'Store Item',
-                'phone'         => 'N/A',
-                'cake_type'     => $product->name,
-                'quantity'      => $validated['quantity'],
-                'price'         => $product->price,
-                'location'      => $validated['location'],
-                'delivery_date' => now()->addDays(1),
-                'status'        => 'pending'
-            ]);
+            if ($type === 'baked') {
+                Production::create([
+                    'product_id' => $validated['product_id'],
+                    'quantity'   => $validated['quantity'],
+                    'location'   => $validated['location'],
+                ]);
+            }
 
-            // Notify store keeper about cake request
-            SendNotificationJob::dispatch(
-                'store_keeper',
-                "New cake item request: {$product->name} x{$validated['quantity']}"
-            );
-        }
+            return $stock;
+        });
 
-        // 4. LOW STOCK ALERT
         if ($stock->quantity < 10) {
             SendNotificationJob::dispatch(
                 'operations_manager',
-                "⚠️ Low stock alert: {$product->name} ({$stock->quantity} remaining)"
+                "Low stock: {$product->name} ({$stock->quantity} units at {$validated['location']})"
             );
         }
 
         return response()->json([
             'status'   => 'success',
-            'message'  => "Added {$validated['quantity']} {$product->name} to stock",
-            'data'     => $stock,
+            'message'  => "Added {$validated['quantity']} {$product->name} to {$validated['location']}",
+            'data'     => $stock->load('product'),
             'type'     => $type,
-            'location' => $validated['location']
         ], 201);
     }
 
-    /**
-     * Reduce stock
-     */
+    // REDUCE STOCK
+    // - Validates sufficient quantity
+    // - Logs StockMovement (out)
     public function reduceStock(Request $request)
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
             'quantity'   => 'required|integer|min:1',
-            'location'   => 'required|in:kabuga,masaka'
+            'location'   => 'required|in:kabuga,masaka,factory',
         ]);
 
         $stock = Stock::where('product_id', $validated['product_id'])
@@ -120,23 +89,22 @@ class StockController extends Controller
             return response()->json(['error' => 'Not enough stock'], 400);
         }
 
-        $stock->decrement('quantity', $validated['quantity']);
+        DB::transaction(function () use ($validated, $stock) {
+            $stock->decrement('quantity', $validated['quantity']);
 
-        // Log the movement
-        StockMovement::create([
-            'product_id' => $validated['product_id'],
-            'type'       => 'out',
-            'quantity'   => $validated['quantity'],
-            'location'   => $validated['location'],
-            'user_id'    => auth()->id()
-        ]);
+            StockMovement::create([
+                'product_id' => $validated['product_id'],
+                'type'       => 'out',
+                'quantity'   => $validated['quantity'],
+                'location'   => $validated['location'],
+                'user_id'    => auth()->id(),
+            ]);
+        });
 
-        return response()->json(['status' => 'success'], 200);
+        return response()->json(['status' => 'success']);
     }
 
-    /**
-     * Get stock by location
-     */
+    // GET STOCK BY LOCATION
     public function byLocation($location)
     {
         return Stock::with('product')
@@ -144,53 +112,44 @@ class StockController extends Controller
             ->get();
     }
 
-    /**
-     * Get factory stock (baked items)
-     */
+    // GET FACTORY STOCK (baked products only)
     public function factoryStock()
     {
         return Stock::with('product')
-            ->whereHas('product', function ($q) {
-                $q->where('type', 'baked');
-            })
+            ->whereHas('product', fn($q) => $q->where('type', 'baked'))
             ->get();
     }
 
-    /**
-     * Get stock history/movement log
-     * 
-     * @param Request $request
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
+    // GET STOCK MOVEMENT HISTORY
+    // Supports: ?location=  ?product_id=  ?type=in|out  ?limit=
     public function getHistory(Request $request)
     {
         $query = StockMovement::with('product', 'user')->latest();
 
-        // Filter by location if provided
-        if ($request->has('location')) {
+        if ($request->filled('location')) {
             $query->where('location', $request->location);
         }
 
-        // Filter by product if provided
-        if ($request->has('product_id')) {
+        if ($request->filled('product_id')) {
             $query->where('product_id', $request->product_id);
         }
 
-        // Limit results
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
         $limit = (int) $request->query('limit', 100);
 
-        return $query->take($limit)->get()->map(function ($movement) {
-            return [
-                'id'          => $movement->id,
-                'product'     => optional($movement->product)->name,
-                'type'        => $movement->type, // 'in' or 'out'
-                'quantity'    => $movement->quantity,
-                'location'    => $movement->location,
-                'user'        => optional($movement->user)->name,
-                'timestamp'   => $movement->created_at->format('Y-m-d H:i:s'),
-                'date'        => $movement->created_at->toDateString(),
-                'time'        => $movement->created_at->format('H:i A'),
-            ];
-        });
+        return $query->take($limit)->get()->map(fn($m) => [
+            'id'        => $m->id,
+            'product'   => optional($m->product)->name,
+            'type'      => $m->type,
+            'quantity'  => $m->quantity,
+            'location'  => $m->location,
+            'user'      => optional($m->user)->name,
+            'date'      => $m->created_at->toDateString(),
+            'time'      => $m->created_at->format('h:i A'),
+            'timestamp' => $m->created_at->format('Y-m-d H:i:s'),
+        ]);
     }
 }

@@ -73,7 +73,9 @@ class CakeOrder extends Model
     public function getInspoImageUrlAttribute()
     {
         if ($this->inspo_image_path) {
-            return Storage::disk('public')->url($this->inspo_image_path);
+            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+            $disk = Storage::disk('public');
+            return $disk->url($this->inspo_image_path);
         }
         if ($this->inspo_image) {
             return $this->inspo_image; // Legacy support for old URL field

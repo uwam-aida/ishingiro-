@@ -16,109 +16,90 @@ use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Services\DeliveryNoteService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class StoreKeeperController extends Controller
 {
-    /**
-     * VIEW ALL STOCK
-     */
+    // VIEW ALL STOCK
     public function index()
     {
         return Stock::with('product')->get();
     }
 
-    /**
-     * ADD / INCREMENT STOCK
-     * 
-     * Automatically categorizes items:
-     * - Baked items → Added to Production
-     * - Cake items → Added to CakeOrder requests
-     * - Regular items → Stock only
-     */
+    // ADD / INCREMENT STOCK
+    // - Baked type  → also creates Production record
+    // - Any type    → logs StockMovement (type = in)
+    // - Alerts on low stock (< 10)
     public function store(Request $request)
     {
         $request->validate([
             'product_id'  => 'required|exists:products,id',
             'quantity'    => 'required|integer|min:1',
-            'location'    => 'required|in:kabuga,masaka',
-            'type'        => 'nullable|in:baked,cake,regular',
+            'location'    => 'required|in:kabuga,masaka,factory',
+            'type'        => 'nullable|in:baked,regular',
             'description' => 'nullable|string',
             'unit'        => 'nullable|string',
         ]);
 
-        $product = Product::find($request->product_id);
-        $type = $request->type ?? $product->type ?? 'regular';
+        $product = Product::findOrFail($request->product_id);
+        $type    = $request->type ?? $product->type ?? 'regular';
+        $stock   = null;
 
-        // 1. CREATE/UPDATE STOCK
-        $stock = Stock::firstOrCreate([
-            'product_id' => $request->product_id,
-            'location'   => $request->location,
-        ]);
-
-        $stock->increment('quantity', $request->quantity);
-
-        $stock->update(array_filter([
-            'description' => $request->description,
-            'unit'        => $request->unit,
-        ], fn($v) => !is_null($v)));
-
-        // 2. LOG STOCK MOVEMENT (HISTORY)
-        StockMovement::create([
-            'product_id' => $request->product_id,
-            'type'       => 'in',
-            'quantity'   => $request->quantity,
-            'location'   => $request->location,
-            'user_id'    => auth()->id()
-        ]);
-
-        // 3. HANDLE BAKED ITEMS
-        if ($type === 'baked') {
-            Production::create([
+        DB::transaction(function () use ($request, $product, $type, &$stock) {
+            $stock = Stock::firstOrCreate([
                 'product_id' => $request->product_id,
+                'location'   => $request->location,
+            ]);
+
+            $stock->increment('quantity', $request->quantity);
+
+            $stock->update(array_filter([
+                'description' => $request->description,
+                'unit'        => $request->unit,
+            ], fn($v) => !is_null($v)));
+
+            StockMovement::create([
+                'product_id' => $request->product_id,
+                'type'       => 'in',
                 'quantity'   => $request->quantity,
-                'location'   => $request->location
+                'location'   => $request->location,
+                'user_id'    => auth()->id(),
             ]);
+
+            // If baked, also record in production
+            if ($type === 'baked') {
+                Production::create([
+                    'product_id' => $request->product_id,
+                    'quantity'   => $request->quantity,
+                    'location'   => $request->location,
+                ]);
+            }
+        });
+
+        if ($stock === null) {
+            throw new \RuntimeException('Failed to create or retrieve stock record.');
         }
 
-        // 4. HANDLE CAKE ITEMS
-        if ($type === 'cake') {
-            CakeOrder::create([
-                'customer_name' => 'Store Added',
-                'phone'         => auth()->user()->id,
-                'cake_type'     => $product->name,
-                'quantity'      => $request->quantity,
-                'price'         => $product->price,
-                'location'      => $request->location,
-                'delivery_date' => now()->addDays(1),
-                'status'        => 'pending'
-            ]);
-        }
-
-        // 5. LOW STOCK ALERT
         if ($stock->quantity < 10) {
             SendNotificationJob::dispatch(
                 'operations_manager',
-                "Low stock: {$product->name} ({$stock->quantity} units)"
+                "Low stock: {$product->name} ({$stock->quantity} units at {$request->location})"
             );
         }
 
-        return $stock->fresh();
+        return $stock->fresh()->load('product');
     }
 
-    /**
-     * UPDATE STOCK COUNT DIRECTLY
-     */
+    // UPDATE STOCK COUNT DIRECTLY
     public function update(Request $request, $id)
     {
         $stock = Stock::findOrFail($id);
         $stock->update($request->only(['quantity', 'description', 'unit']));
 
-        return $stock;
+        return $stock->load('product');
     }
 
-    /**
-     * INCOMING PRODUCT REQUESTS (pending orders from shop managers)
-     */
+    // INCOMING PRODUCT REQUESTS (pending orders from shop managers)
     public function requests()
     {
         return Order::with('items.product')
@@ -131,288 +112,8 @@ class StoreKeeperController extends Controller
             });
     }
 
-    /**
-     * RECORD A DELIVERY
-     */
-    public function storeDelivery(Request $request)
-    {
-        $request->validate([
-            'product_id'    => 'required|exists:products,id',
-            'quantity'      => 'required|integer|min:1',
-            'from_location' => 'nullable|string',
-            'to_location'   => 'nullable|string',
-        ]);
-
-        return Delivery::create($request->all());
-    }
-
-    /**
-     * DELIVERY HISTORY
-     */
-    public function deliveryHistory()
-    {
-        return Delivery::with('product')
-            ->latest()
-            ->get()
-            ->each(function ($d) {
-                $d->time = $d->created_at->format('h:i A');
-                $d->date = $d->created_at->toDateString();
-            });
-    }
-
-    /**
-     * RECORD DAMAGE
-     */
-    public function storeDamage(Request $request)
-    {
-        $request->validate([
-            'product_id'  => 'required|exists:products,id',
-            'quantity'    => 'required|integer|min:1',
-            'location'    => 'required|string',
-            'reason'      => 'nullable|string',
-            'description' => 'nullable|string',
-            'unit'        => 'nullable|string',
-        ]);
-
-        $damage = Damage::create($request->all());
-
-        if ($damage->quantity > 20) {
-            SendNotificationJob::dispatch('operations_manager', 'High damage detected');
-            SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert');
-        }
-
-        return $damage;
-    }
-
-    /**
-     * GET DAMAGE LOG
-     */
-    public function damages()
-    {
-        return Damage::with('product')
-            ->latest()
-            ->get()
-            ->each(function ($d) {
-                $d->time = $d->created_at->format('h:i A');
-                $d->date = $d->created_at->toDateString();
-            });
-    }
-
-    /**
-     * GET PRODUCTION LOG
-     */
-    public function productionLog()
-    {
-        return Production::with('product')
-            ->latest()
-            ->get()
-            ->each(function ($p) {
-                $p->time = $p->created_at->format('h:i A');
-                $p->date = $p->created_at->toDateString();
-            });
-    }
-
-    /**
-     * ALL CAKE ORDERS
-     */
-    public function cakeOrders()
-    {
-        return CakeOrder::latest()
-            ->get()
-            ->each(function ($c) {
-                $c->time = $c->created_at->format('h:i A');
-                $c->date = $c->created_at->toDateString();
-            });
-    }
-
-    /**
-     * PENDING CAKE REQUESTS ONLY
-     */
-    public function cakeRequests()
-    {
-        return CakeOrder::where('status', 'pending')
-            ->latest()
-            ->get()
-            ->each(function ($c) {
-                $c->time = $c->created_at->format('h:i A');
-                $c->date = $c->created_at->toDateString();
-            });
-    }
-
-    /**
-     * FULL HISTORY OF ADDED PRODUCTS
-     * 
-     * Logs every single item added to stock
-     * Shows what, when, by whom, and from where
-     */
-    public function history(Request $request)
-    {
-        $query = StockMovement::with('product', 'user')->latest();
-
-        // Filter by type if provided (in/out)
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
-        }
-
-        // Filter by location if provided
-        if ($request->has('location')) {
-            $query->where('location', $request->location);
-        }
-
-        $limit = (int) $request->query('limit', 100);
-
-        return $query->take($limit)->get()->map(function ($movement) {
-            return [
-                'id'           => $movement->id,
-                'product_id'   => $movement->product_id,
-                'product_name' => optional($movement->product)->name,
-                'type'         => $movement->type === 'in' ? 'Added' : 'Removed',
-                'quantity'     => $movement->quantity,
-                'location'     => $movement->location,
-                'added_by'     => optional($movement->user)->name ?? 'System',
-                'created_at'   => $movement->created_at,
-                'date'         => $movement->created_at->toDateString(),
-                'time'         => $movement->created_at->format('H:i A'),
-                'timestamp'    => $movement->created_at->format('Y-m-d H:i:s'),
-            ];
-        });
-    }
-
-    /**
-     * DELIVER ORDERS AND GENERATE PDF
-     * 
-     * Marks orders as delivered, reduces factory stock,
-     * increases shop stock, and generates delivery note
-     */
-    public function deliver(Request $request)
-    {
-        $request->validate([
-            'order_ids'         => 'nullable|array',
-            'order_ids.*'       => 'integer|exists:orders,id',
-            'cake_order_ids'    => 'nullable|array',
-            'cake_order_ids.*'  => 'integer|exists:cake_orders,id',
-            'recipient_name'    => 'nullable|string',
-            'payment_received'  => 'nullable|boolean',
-        ]);
-
-        if (empty($request->order_ids) && empty($request->cake_order_ids)) {
-            return response()->json([
-                'error' => 'Provide at least one order_id or cake_order_id'
-            ], 422);
-        }
-
-        $orders     = collect();
-        $cakeOrders = collect();
-        $totalRevenue = 0;
-
-        // ── Regular orders ────────────────────────────────────────────────
-        if (!empty($request->order_ids)) {
-            $orders = Order::with('items.product')
-                ->whereIn('id', $request->order_ids)
-                ->get();
-
-            foreach ($orders as $order) {
-                if ($order->status === 'delivered') {
-                    continue;
-                }
-
-                $orderTotal = 0;
-
-                foreach ($order->items as $item) {
-                    $itemTotal = $item->quantity * $item->price;
-                    $orderTotal += $itemTotal;
-
-                    // Record delivery
-                    Delivery::create([
-                        'product_id'    => $item->product_id,
-                        'quantity'      => $item->quantity,
-                        'from_location' => 'factory',
-                        'to_location'   => $order->location,
-                    ]);
-
-                    // Reduce factory stock
-                    $factoryStock = Stock::where('product_id', $item->product_id)
-                        ->where('location', 'factory')
-                        ->first();
-
-                    if ($factoryStock) {
-                        $newQty = max(0, $factoryStock->quantity - $item->quantity);
-                        $factoryStock->update(['quantity' => $newQty]);
-                    }
-
-                    // Increase shop stock
-                    $shopStock = Stock::firstOrCreate([
-                        'product_id' => $item->product_id,
-                        'location'   => $order->location,
-                    ]);
-                    $shopStock->increment('quantity', $item->quantity);
-                }
-
-                // Create revenue record
-                if ($request->input('payment_received', true)) {
-                    Revenue::create([
-                        'amount'   => $orderTotal,
-                        'source'   => 'order_' . $order->id,
-                        'location' => $order->location,
-                    ]);
-                    $totalRevenue += $orderTotal;
-                }
-
-                $order->update(['status' => 'delivered']);
-
-                SendNotificationJob::dispatch(
-                    'shop_manager_' . $order->location,
-                    'Order #' . $order->id . ' delivered. Total: ' . number_format($orderTotal) . ' RWF'
-                );
-            }
-        }
-
-        // ── Cake orders ───────────────────────────────────────────────────
-        if (!empty($request->cake_order_ids)) {
-            $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
-
-            foreach ($cakeOrders as $cake) {
-                if ($cake->status === 'delivered') {
-                    continue;
-                }
-
-                $cakeTotal = $cake->quantity * $cake->price;
-
-                if ($request->input('payment_received', true)) {
-                    Revenue::create([
-                        'amount'   => $cakeTotal,
-                        'source'   => 'cake_order_' . $cake->id,
-                        'location' => $cake->location,
-                    ]);
-                    $totalRevenue += $cakeTotal;
-                }
-
-                $cake->update(['status' => 'delivered']);
-
-                SendNotificationJob::dispatch(
-                    'shop_manager_' . $cake->location,
-                    'Cake for ' . $cake->customer_name . ' delivered. Total: ' . number_format($cakeTotal) . ' RWF'
-                );
-            }
-        }
-
-        // Generate PDF
-        $pdf = app(DeliveryNoteService::class)->generate(
-            orders:      $orders,
-            cakeOrders:  $cakeOrders,
-            recipient:   $request->input('recipient_name', 'Shop'),
-            deliveredAt: now(),
-        );
-
-        return response($pdf, 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="delivery-note-' . now()->format('Y-m-d-His') . '.pdf"',
-        ]);
-    }
-
-    /**
-     * UPDATE REQUEST STATUS AND ITEMS
-     */
+    // UPDATE REQUEST STATUS + OPTIONAL ITEM QUANTITY ADJUSTMENTS
+    // - Notifies shop manager on every status change
     public function updateRequest(Request $request, $id)
     {
         $request->validate([
@@ -442,5 +143,356 @@ class StoreKeeperController extends Controller
         }
 
         return $order->fresh()->load('items.product');
+    }
+
+    // DELIVER ORDERS + GENERATE PDF DELIVERY NOTE
+    // - Marks orders as delivered
+    // - Creates Delivery records per item
+    // - Reduces factory stock per item (logs StockMovement out)
+    // - Increases shop stock per item (logs StockMovement in)
+    // - Records Revenue per order (unless payment_received = false)
+    // - Notifies shop managers
+    // - Returns PDF
+    public function deliver(Request $request)
+    {
+        $request->validate([
+            'order_ids'        => 'nullable|array',
+            'order_ids.*'      => 'integer|exists:orders,id',
+            'cake_order_ids'   => 'nullable|array',
+            'cake_order_ids.*' => 'integer|exists:cake_orders,id',
+            'recipient_name'   => 'nullable|string',
+            'payment_received' => 'nullable|boolean',
+        ]);
+
+        if (empty($request->order_ids) && empty($request->cake_order_ids)) {
+            return response()->json([
+                'error' => 'Provide at least one order_id or cake_order_id',
+            ], 422);
+        }
+
+        $orders     = collect();
+        $cakeOrders = collect();
+
+        DB::transaction(function () use ($request, &$orders, &$cakeOrders) {
+            // ── Regular orders ────────────────────────────────────────────
+            if (!empty($request->order_ids)) {
+                $orders = Order::with('items.product')
+                    ->whereIn('id', $request->order_ids)
+                    ->get();
+
+                foreach ($orders as $order) {
+                    if ($order->status === 'delivered') {
+                        continue;
+                    }
+
+                    $orderTotal = 0;
+
+                    foreach ($order->items as $item) {
+                        $itemTotal   = $item->quantity * $item->price;
+                        $orderTotal += $itemTotal;
+
+                        // Record delivery
+                        Delivery::create([
+                            'product_id'    => $item->product_id,
+                            'quantity'      => $item->quantity,
+                            'from_location' => 'factory',
+                            'to_location'   => $order->location,
+                        ]);
+
+                        // Reduce factory stock
+                        $factoryStock = Stock::where('product_id', $item->product_id)
+                            ->where('location', 'factory')
+                            ->first();
+
+                        if ($factoryStock) {
+                            $newQty = max(0, $factoryStock->quantity - $item->quantity);
+                            $factoryStock->update(['quantity' => $newQty]);
+
+                            StockMovement::create([
+                                'product_id' => $item->product_id,
+                                'type'       => 'out',
+                                'quantity'   => $item->quantity,
+                                'location'   => 'factory',
+                                'user_id'    => auth()->id(),
+                            ]);
+                        }
+
+                        // Increase shop stock
+                        $shopStock = Stock::firstOrCreate([
+                            'product_id' => $item->product_id,
+                            'location'   => $order->location,
+                        ]);
+                        $shopStock->increment('quantity', $item->quantity);
+
+                        StockMovement::create([
+                            'product_id' => $item->product_id,
+                            'type'       => 'in',
+                            'quantity'   => $item->quantity,
+                            'location'   => $order->location,
+                            'user_id'    => auth()->id(),
+                        ]);
+                    }
+
+                    $order->update(['status' => 'delivered']);
+
+                    if ($request->input('payment_received', true)) {
+                        Revenue::create([
+                            'amount'   => $orderTotal,
+                            'source'   => 'order_' . $order->id,
+                            'location' => $order->location,
+                        ]);
+                    }
+
+                    SendNotificationJob::dispatch(
+                        'shop_manager_' . $order->location,
+                        'Order #' . $order->id . ' delivered — ' . number_format($orderTotal) . ' RWF'
+                    );
+                }
+            }
+
+            // ── Cake orders ───────────────────────────────────────────────
+            if (!empty($request->cake_order_ids)) {
+                $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
+
+                foreach ($cakeOrders as $cake) {
+                    if ($cake->status === 'delivered') {
+                        continue;
+                    }
+
+                    $cake->update(['status' => 'delivered']);
+
+                    // Only record outstanding revenue (price minus what's already been paid)
+                    $outstanding = $cake->price - ($cake->total_paid ?? 0);
+                    if ($request->input('payment_received', true) && $outstanding > 0) {
+                        Revenue::create([
+                            'amount'   => $outstanding,
+                            'source'   => 'cake_order_' . $cake->id,
+                            'location' => $cake->location,
+                        ]);
+
+                        // Mark fully paid
+                        $cake->update([
+                            'total_paid'        => $cake->price,
+                            'remaining_payment' => 0,
+                        ]);
+                    }
+
+                    SendNotificationJob::dispatch(
+                        'shop_manager_' . $cake->location,
+                        'Cake for ' . $cake->customer_name . ' delivered'
+                    );
+                }
+            }
+        });
+
+        $pdf = app(DeliveryNoteService::class)->generate(
+            orders:      $orders,
+            cakeOrders:  $cakeOrders,
+            recipient:   $request->input('recipient_name', 'Shop'),
+            deliveredAt: now(),
+        );
+
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="delivery-note-' . now()->format('Y-m-d-His') . '.pdf"',
+        ]);
+    }
+
+    // RECORD A DELIVERY MANUALLY (without full deliver flow)
+    // - Creates Delivery record
+    // - Reduces from_location stock + logs movement
+    // - Increases to_location stock + logs movement
+    public function storeDelivery(Request $request)
+    {
+        $request->validate([
+            'product_id'    => 'required|exists:products,id',
+            'quantity'      => 'required|integer|min:1',
+            'from_location' => 'nullable|string',
+            'to_location'   => 'nullable|string',
+        ]);
+
+        $delivery = null;
+
+        DB::transaction(function () use ($request, &$delivery) {
+            $delivery = Delivery::create($request->only([
+                'product_id', 'quantity', 'from_location', 'to_location',
+            ]));
+
+            if ($request->from_location) {
+                $from = Stock::where('product_id', $request->product_id)
+                    ->where('location', $request->from_location)
+                    ->first();
+
+                if ($from) {
+                    $from->decrement('quantity', $request->quantity);
+
+                    StockMovement::create([
+                        'product_id' => $request->product_id,
+                        'type'       => 'out',
+                        'quantity'   => $request->quantity,
+                        'location'   => $request->from_location,
+                        'user_id'    => auth()->id(),
+                    ]);
+                }
+            }
+
+            if ($request->to_location) {
+                $to = Stock::firstOrCreate([
+                    'product_id' => $request->product_id,
+                    'location'   => $request->to_location,
+                ]);
+                $to->increment('quantity', $request->quantity);
+
+                StockMovement::create([
+                    'product_id' => $request->product_id,
+                        'type'       => 'in',
+                        'quantity'   => $request->quantity,
+                        'location'   => $request->to_location,
+                        'user_id'    => auth()->id(),
+                    ]);
+            }
+        });
+
+        if (!$delivery) {
+            throw new \RuntimeException('Failed to create delivery record.');
+        }
+
+        return $delivery->load('product');
+    }
+
+    // DELIVERY HISTORY
+    public function deliveryHistory()
+    {
+        return Delivery::with('product')
+            ->latest()
+            ->get()
+            ->each(function ($d) {
+                $d->time = $d->created_at->format('h:i A');
+                $d->date = $d->created_at->toDateString();
+            });
+    }
+
+    // RECORD DAMAGE
+    // - Creates Damage record
+    // - Decrements stock at location + logs StockMovement (out)
+    // - Alerts if qty > 20
+    public function storeDamage(Request $request)
+    {
+        $request->validate([
+            'product_id'  => 'required|exists:products,id',
+            'quantity'    => 'required|integer|min:1',
+            'location'    => 'required|string',
+            'reason'      => 'nullable|string',
+            'description' => 'nullable|string',
+            'unit'        => 'nullable|string',
+        ]);
+
+        $damage = DB::transaction(function () use ($request) {
+            $damage = Damage::create($request->only([
+                'product_id', 'quantity', 'location', 'reason', 'description', 'unit',
+            ]));
+
+            $stock = Stock::where('product_id', $request->product_id)
+                ->where('location', $request->location)
+                ->first();
+
+            if ($stock && $stock->quantity >= $request->quantity) {
+                $stock->decrement('quantity', $request->quantity);
+
+                StockMovement::create([
+                    'product_id' => $request->product_id,
+                    'type'       => 'out',
+                    'quantity'   => $request->quantity,
+                    'location'   => $request->location,
+                    'user_id'    => auth()->id(),
+                ]);
+            }
+
+            return $damage;
+        });
+
+        if ($damage->quantity > 20) {
+            SendNotificationJob::dispatch('operations_manager', 'High damage detected');
+            SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert');
+        }
+
+        return $damage->load('product');
+    }
+
+    // GET DAMAGE LOG
+    public function damages()
+    {
+        return Damage::with('product')
+            ->latest()
+            ->get()
+            ->each(function ($d) {
+                $d->time = $d->created_at->format('h:i A');
+                $d->date = $d->created_at->toDateString();
+            });
+    }
+
+    // GET PRODUCTION LOG
+    public function productionLog()
+    {
+        return Production::with('product')
+            ->latest()
+            ->get()
+            ->each(function ($p) {
+                $p->time = $p->created_at->format('h:i A');
+                $p->date = $p->created_at->toDateString();
+            });
+    }
+
+    // ALL CAKE ORDERS
+    public function cakeOrders()
+    {
+        return CakeOrder::latest()
+            ->get()
+            ->each(function ($c) {
+                $c->time = $c->created_at->format('h:i A');
+                $c->date = $c->created_at->toDateString();
+            });
+    }
+
+    // PENDING CAKE REQUESTS ONLY
+    public function cakeRequests()
+    {
+        return CakeOrder::where('status', 'pending')
+            ->latest()
+            ->get()
+            ->each(function ($c) {
+                $c->time = $c->created_at->format('h:i A');
+                $c->date = $c->created_at->toDateString();
+            });
+    }
+
+    // FULL STOCK MOVEMENT HISTORY
+    // Supports: ?type=in|out  ?location=  ?limit=
+    public function history(Request $request)
+    {
+        $query = StockMovement::with('product', 'user')->latest();
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+
+        if ($request->filled('location')) {
+            $query->where('location', $request->location);
+        }
+
+        $limit = (int) $request->query('limit', 100);
+
+        return $query->take($limit)->get()->map(fn($m) => [
+            'id'           => $m->id,
+            'product_id'   => $m->product_id,
+            'product_name' => optional($m->product)->name,
+            'type'         => $m->type === 'in' ? 'Added' : 'Removed',
+            'quantity'     => $m->quantity,
+            'location'     => $m->location,
+            'added_by'     => optional($m->user)->name ?? 'System',
+            'date'         => $m->created_at->toDateString(),
+            'time'         => $m->created_at->format('h:i A'),
+            'timestamp'    => $m->created_at->format('Y-m-d H:i:s'),
+        ]);
     }
 }

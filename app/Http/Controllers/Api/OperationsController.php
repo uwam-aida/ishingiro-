@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
 
 class OperationsController extends Controller
 {
-    // DASHBOARD SUMMARY — all category counts
+    // DASHBOARD SUMMARY
     public function summary()
     {
         return [
@@ -27,7 +27,7 @@ class OperationsController extends Controller
         ];
     }
 
-    // DASHBOARD DETAILS — list data for all tables
+    // DASHBOARD DETAILS
     public function details()
     {
         return [
@@ -40,8 +40,7 @@ class OperationsController extends Controller
         ];
     }
 
-    // STOCK ---------------------------------------------------------------
-
+    // STOCK
     public function updateStock(Request $request, $id)
     {
         $stock = Stock::findOrFail($id);
@@ -57,8 +56,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // PRODUCTION ----------------------------------------------------------
-
+    // PRODUCTION
     public function updateProduction(Request $request, $id)
     {
         $production = Production::findOrFail($id);
@@ -74,9 +72,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // DISTRIBUTION --------------------------------------------------------
-
-    // GET all distributions with product name, time, and date
+    // DISTRIBUTION
     public function getDistribution()
     {
         return Distribution::with('product')
@@ -103,8 +99,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // DELIVERY ------------------------------------------------------------
-
+    // DELIVERY
     public function updateDelivery(Request $request, $id)
     {
         $delivery = Delivery::findOrFail($id);
@@ -120,8 +115,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // ORDERS --------------------------------------------------------------
-
+    // ORDERS
     public function updateOrder(Request $request, $id)
     {
         $order = Order::findOrFail($id);
@@ -137,8 +131,7 @@ class OperationsController extends Controller
         return response()->noContent();
     }
 
-    // DAMAGE --------------------------------------------------------------
-
+    // DAMAGE
     public function deleteDamage($id)
     {
         Damage::findOrFail($id)->delete();
