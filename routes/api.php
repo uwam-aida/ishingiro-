@@ -92,6 +92,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/requests/{id}', [StoreKeeperController::class, 'updateRequest']);
         // NEW: Stock movement history for store keeper
         Route::get('/movements', [StoreKeeperController::class, 'history']);
+        
+        // NEW: Single stock item endpoints
+        Route::get('/stock/{id}', [StoreKeeperController::class, 'getStockItem']);
+        Route::delete('/stock/{id}', [StoreKeeperController::class, 'deleteStockItem']);
+        
+        // NEW: Stock movement history
+        Route::get('/stock/movements', [StoreKeeperController::class, 'getStockMovements']);
     });
 
 

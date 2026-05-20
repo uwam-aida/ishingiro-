@@ -495,4 +495,101 @@ class StoreKeeperController extends Controller
             'timestamp'    => $m->created_at->format('Y-m-d H:i:s'),
         ]);
     }
+
+    /**
+     * Get single stock item by ID with full details
+     * GET /api/storekeeper/stock/{id}
+     */
+    public function getStockItem($id)
+    {
+        $stock = Stock::with('product')->findOrFail($id);
+        
+        return response()->json([
+            'id' => $stock->id,
+            'product_id' => $stock->product_id,
+            'product_name' => optional($stock->product)->name,
+            'product_price' => optional($stock->product)->price,
+            'product_cost' => optional($stock->product)->cost,
+            'product_type' => optional($stock->product)->type,
+            'location' => $stock->location,
+            'quantity' => $stock->quantity,
+            'description' => $stock->description,
+            'unit' => $stock->unit,
+            'created_at' => $stock->created_at,
+            'updated_at' => $stock->updated_at,
+        ]);
+    }
+
+    /**
+     * Delete a stock item
+     * DELETE /api/storekeeper/stock/{id}
+     */
+    public function deleteStockItem($id)
+    {
+        $stock = Stock::findOrFail($id);
+        
+        // Log the deletion in stock movements
+        StockMovement::create([
+            'product_id' => $stock->product_id,
+            'type' => 'out',
+            'quantity' => $stock->quantity,
+            'location' => $stock->location,
+            'user_id' => auth()->id(),
+            'note' => 'Stock item deleted from inventory'
+        ]);
+        
+        $stock->delete();
+        
+        return response()->json(['message' => 'Stock item deleted successfully'], 200);
+    }
+
+    /**
+     * Get detailed stock movement history for store keeper
+     * GET /api/storekeeper/stock/movements
+     * 
+     * Query Parameters:
+     * - type: 'in' or 'out'
+     * - location: kabuga, masaka, factory
+     * - product_id: filter by product
+     * - limit: number of records (default 100)
+     */
+    public function getStockMovements(Request $request)
+    {
+        $query = StockMovement::with('product', 'user')->latest();
+        
+        if ($request->filled('type')) {
+            $query->where('type', $request->type);
+        }
+        
+        if ($request->filled('location')) {
+            $query->where('location', $request->location);
+        }
+        
+        if ($request->filled('product_id')) {
+            $query->where('product_id', $request->product_id);
+        }
+        
+        $limit = (int) $request->query('limit', 100);
+        
+        $movements = $query->take($limit)->get();
+        
+        return response()->json([
+            'total' => $movements->count(),
+            'data' => $movements->map(function ($movement) {
+                return [
+                    'id' => $movement->id,
+                    'product_id' => $movement->product_id,
+                    'product_name' => optional($movement->product)->name,
+                    'type' => $movement->type === 'in' ? 'Added' : 'Removed',
+                    'type_code' => $movement->type,
+                    'quantity' => $movement->quantity,
+                    'location' => $movement->location,
+                    'performed_by' => optional($movement->user)->name ?? 'System',
+                    'date' => $movement->created_at->toDateString(),
+                    'time' => $movement->created_at->format('h:i A'),
+                    'full_timestamp' => $movement->created_at->toISOString(),
+                ];
+            }),
+        ]);
+    }
 }
