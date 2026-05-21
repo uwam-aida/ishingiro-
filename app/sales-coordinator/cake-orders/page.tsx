@@ -1,8 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation'; 
-import { Cake, Check, X, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { 
+  Cake, 
+  Check, 
+  X, 
+  ArrowLeft, 
+  Eye,
+  LogOut 
+} from 'lucide-react';
 
 // Import the step components from your components folder
 import Step1Purpose from '../../components/cake-form/step1Purpose';
@@ -14,25 +22,61 @@ import Step5Payment from '../../components/cake-form/Step5Payment';
 export default function CakeOrderForm() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const [step, setStep] = useState(0); 
   const [showError, setShowError] = useState(false);
   const [generatedCode, setGeneratedCode] = useState(''); 
   
   const [formData, setFormData] = useState({
-    purpose: '', size: '', flavor: '', needsSample: '', 
+    purpose: '', 
+    size: '', 
+    flavor: '', 
+    needsSample: '', 
     cakeFile: null as File | null, 
-    frostingCream: '', frostingColor: '', decorationColor: '',
-    cakeMessage: '', specialInstructions: '',
-    customerFullName: '', customerPhoneNumber: '',
-    orderReceiverName: '', orderDate: '', orderLocation: '',
-    cakeCode: '', pickupDate: '', receptionLocation: '',
-    paymentMethod: '', totalAmount: '7000', paidAmount: '', payerName: ''
+    frostingCream: '', 
+    frostingColor: '', 
+    decorationColor: '',
+    cakeMessage: '', 
+    specialInstructions: '',
+    customerFullName: '', 
+    customerPhoneNumber: '',
+    orderReceiverName: '', 
+    orderDate: '', 
+    orderLocation: '',
+    cakeCode: '', 
+    pickupDate: '', 
+    receptionLocation: '',
+    paymentMethod: '', 
+    totalAmount: '7000', 
+    paidAmount: '', 
+    payerName: ''
   });
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Logout function
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch(`${baseUrl}/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.clear();
+      router.push('/login');
+    }
+  };
 
   if (!isMounted) return null;
 
@@ -46,24 +90,27 @@ export default function CakeOrderForm() {
 
   const handleNext = () => {
     if (step === 1 && (!formData.purpose || !formData.size || !formData.flavor)) {
-        setShowError(true); return;
+        setShowError(true); 
+        return;
     }
     setShowError(false);
     setStep(step + 1);
   };
 
- const handleSubmit = async () => {
-    // 1. Check validation before starting
+  const handleSubmit = async () => {
+    // Check validation before starting
     if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
         setShowError(true); 
         return;
     }
 
-   try {
+    try {
       const token = localStorage.getItem('token');
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-      // Declare submitData ONLY ONCE
       const submitData = new FormData();
       
       // Core Contact & Order Info
@@ -75,12 +122,12 @@ export default function CakeOrderForm() {
       submitData.append('location', formData.orderLocation || "kabuga");
       submitData.append('delivery_date', formData.pickupDate || new Date().toISOString().split('T')[0]);
       
-      // Financials (Mapping correctly to backend keys)
+      // Financials
       submitData.append('payment_method', formData.paymentMethod);
       submitData.append('advance_payment', formData.paidAmount); 
       submitData.append('payer_name', formData.payerName);
 
-      // Detailed Specs (These were missing before)
+      // Detailed Specs
       submitData.append('cake_size', formData.size);
       submitData.append('frosting_cream', formData.frostingCream);
       submitData.append('frosting_color', formData.frostingColor);
@@ -89,7 +136,7 @@ export default function CakeOrderForm() {
       submitData.append('reception_location', formData.receptionLocation || "N/A");
       submitData.append('needs_sample', formData.needsSample === 'yes' ? 'true' : 'false');
 
-      // Image (Mapping to backend key "inspo_image")
+      // Image
       if (formData.cakeFile) {
         submitData.append('inspo_image', formData.cakeFile);
       }
@@ -98,7 +145,6 @@ export default function CakeOrderForm() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}` 
-          // Note: Do NOT set Content-Type header; FormData handles it
         },
         body: submitData
       });
@@ -108,14 +154,16 @@ export default function CakeOrderForm() {
         setGeneratedCode(result.id ? `KS-${result.id}` : `KS-${Math.floor(Math.random() * 100)}`);
         setStep(6); 
       } else {
-        alert("Failed to submit order. Please check permissions.");
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.message || "Failed to submit order. Please check permissions.");
         setShowError(true);
       }
     } catch (error) {
       console.error("Failed to submit cake order:", error);
-      alert("Network error.");
+      alert("Network error. Please try again.");
     }
   };
+
   const handlePrev = () => {
     if (step === 1) router.back();
     else setStep(step - 1);
@@ -126,13 +174,37 @@ export default function CakeOrderForm() {
   return (
     <div className="min-h-screen bg-white pb-20 relative font-sans text-gray-800">
       
+      {/* Logout Button */}
+      <div className="fixed top-4 right-4 z-[100] flex gap-3">
+        <Link 
+          href="/sales-coordinator/cake-orders/manage"
+          className="flex items-center gap-2 px-4 py-2 bg-[#5D4037] text-white rounded-xl text-xs font-bold hover:bg-[#4E342E] transition-colors shadow-md"
+        >
+          <Eye size={16} /> View All Orders
+        </Link>
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-colors shadow-md"
+        >
+          <LogOut size={16} />
+          {isLoggingOut ? 'Logging out...' : 'Logout'}
+        </button>
+      </div>
+
       {showError && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] p-4 text-center">
-          <div className="bg-white w-full max-sm rounded-lg shadow-2xl p-8 flex flex-col items-center border border-gray-100">
+          <div className="bg-white w-full max-w-sm rounded-lg shadow-2xl p-8 flex flex-col items-center border border-gray-100">
             <div className="w-20 h-20 rounded-full border-4 border-red-100 flex items-center justify-center mb-6">
               <X className="text-red-500" size={48} strokeWidth={3} />
             </div>
             <h2 className="text-2xl font-bold text-gray-700 mb-4">Validation Error</h2>
+            <p className="text-gray-500 text-sm mb-6 text-center">
+              Please check all required fields:
+              {!formData.paymentMethod && <li className="text-left">Payment method is required</li>}
+              {!formData.paidAmount && <li className="text-left">Payment amount is required</li>}
+              {!formData.payerName && <li className="text-left">Payer name is required</li>}
+            </p>
             <button onClick={() => setShowError(false)} className="bg-red-500 text-white px-8 py-2 rounded-md font-bold uppercase text-xs hover:bg-red-600 transition-colors">OK</button>
           </div>
         </div>
@@ -221,10 +293,36 @@ export default function CakeOrderForm() {
       
       {step === 6 && (
         <div className="fixed inset-0 bg-white flex flex-col items-center justify-center z-[200] p-6 text-center">
-            <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center mb-6 shadow-lg"><Check size={40} className="text-white" strokeWidth={4} /></div>
+            <div className="w-20 h-20 bg-[#5D4037] rounded-full flex items-center justify-center mb-6 shadow-lg">
+              <Check size={40} className="text-white" strokeWidth={4} />
+            </div>
             <h2 className="text-3xl font-black text-[#5D4037] mb-4">Order Submitted!</h2>
             <p className="text-[#A67C37] font-black text-xl mb-8 tracking-widest uppercase">Code: {generatedCode}</p>
-            <button onClick={() => setStep(0)} className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors">New Order</button>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => { 
+                  setStep(0); 
+                  setFormData({
+                    purpose: '', size: '', flavor: '', needsSample: '', 
+                    cakeFile: null, frostingCream: '', frostingColor: '', decorationColor: '',
+                    cakeMessage: '', specialInstructions: '',
+                    customerFullName: '', customerPhoneNumber: '',
+                    orderReceiverName: '', orderDate: '', orderLocation: '',
+                    cakeCode: '', pickupDate: '', receptionLocation: '',
+                    paymentMethod: '', totalAmount: '7000', paidAmount: '', payerName: ''
+                  });
+                }} 
+                className="bg-[#5D4037] text-white px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-[#4E342E] transition-colors"
+              >
+                New Order
+              </button>
+              <button 
+                onClick={() => router.push('/sales-coordinator/cake-orders/manage')} 
+                className="bg-gray-200 text-gray-700 px-10 py-3 rounded-md font-bold uppercase text-xs hover:bg-gray-300 transition-colors"
+              >
+                View All Orders
+              </button>
+            </div>
         </div>
       )}
     </div>

@@ -7,46 +7,79 @@ import { getBakerMenu } from '../lib/menus';
 
 export default function BakerLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  
-  // --- NOTIFICATION STATE (Added to fix the error) ---
-  const [unreadCount, setUnreadCount] = useState(0); 
-  const clearNotifications = () => setUnreadCount(0);
-
-  // --- FIX: Prevent empty screen/Hydration crash ---
   const [isMounted, setIsMounted] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+  // Fetch unread notification count
+  const fetchUnreadCount = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${baseUrl}/notifications/unread-count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadCount(data.count);
+      }
+    } catch (error) {
+      console.error("Failed to fetch unread count:", error);
+    }
+  };
+
+  // Mark all notifications as read
+  const clearNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      await fetch(`${baseUrl}/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to clear notifications:", error);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
+    fetchUnreadCount();
+    
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (!isMounted) return null;
 
-  // Call your new function that has no parameters
   const menuItems = getBakerMenu();
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex overflow-hidden">
       
-      {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex w-72 flex-col fixed inset-y-0 z-50 bg-gray-50">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-72 flex-col fixed inset-y-0 z-50 bg-gray-50 border-r border-gray-100">
         <Sidebar 
           isOpen={isMobileMenuOpen} 
           onClose={() => setIsMobileMenuOpen(false)}
           menuItems={menuItems} 
           footerTitle="Baker Assistant" 
           footerInitial="B" 
-          // ✅ Added missing prop
           onNotificationClick={clearNotifications}
         />
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex-1 md:ml-72 flex flex-col min-h-screen">
         <Header 
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title="Baker Assistant"
           notificationHref="/baker-assistant/notifications"
-          // ✅ Added missing props to fix the TS error
           unreadCount={unreadCount}
           onBellClick={clearNotifications}
         />
@@ -56,7 +89,7 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
         </main>
       </div>
 
-      {/* Mobile Sidebar Logic */}
+      {/* Mobile Sidebar */}
       <div className="md:hidden">
         <Sidebar 
           isOpen={isMobileMenuOpen} 
@@ -64,7 +97,6 @@ export default function BakerLayout({ children }: { children: React.ReactNode })
           menuItems={menuItems} 
           footerTitle="Baker Assistant" 
           footerInitial="B"
-          // ✅ Added missing prop
           onNotificationClick={clearNotifications}
         />
       </div>

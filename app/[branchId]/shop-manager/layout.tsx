@@ -9,17 +9,56 @@ import { getShopManagerMenu } from '../../lib/menus';
 export default function BranchLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  
   const [unreadCount, setUnreadCount] = useState(0);
-  const clearNotifications = () => setUnreadCount(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const params = useParams();
   const pathname = usePathname();
-  
   const branchId = params?.branchId as string;
+
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+  // Fetch unread notification count
+  const fetchUnreadCount = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${baseUrl}/notifications/unread-count`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUnreadCount(data.count);
+      }
+    } catch (error) {
+      console.error("Failed to fetch unread count:", error);
+    }
+  };
+
+  // Mark all notifications as read
+  const clearNotifications = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      await fetch(`${baseUrl}/notifications/read-all`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to clear notifications:", error);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
+    fetchUnreadCount();
+    
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (!isMounted) return null;
@@ -32,44 +71,30 @@ export default function BranchLayout({ children }: { children: React.ReactNode }
     );
   }
 
-  const getActiveMenu = () => {
-    if (pathname.includes('/shop-manager')) return getShopManagerMenu(branchId);
-    return []; 
-  };
-
-  const branchName = branchId 
-    ? branchId.charAt(0).toUpperCase() + branchId.slice(1).toLowerCase() 
-    : 'Shop';
-
-  // --- FIX: Logic to force the professional title ---
-  const displayTitle = `${branchName.toUpperCase()} SHOP MANAGER`;
+  const branchName = branchId.charAt(0).toUpperCase() + branchId.slice(1).toLowerCase();
 
   return (
-    /* FIX: h-screen and overflow-hidden here locks the Sidebar and Header in place */
     <div className="h-screen bg-[#FDFDFD] flex overflow-hidden">
       
       <Sidebar 
         isOpen={isMobileMenuOpen} 
         onClose={() => setIsMobileMenuOpen(false)}
-        menuItems={getActiveMenu()} 
+        menuItems={getShopManagerMenu(branchId)} 
         footerTitle={`${branchName} Branch`}
         branchId={branchId}
         onNotificationClick={clearNotifications}
       />
 
-      {/* FIX: h-full ensures this container matches the screen height */}
       <div className="flex-1 flex flex-col h-full min-w-0">
         
         <Header 
-            onMenuClick={() => setIsMobileMenuOpen(true)} 
-            title={displayTitle}
-            /* FIX: Added 's' to notification to prevent 404 */
-            notificationHref={`/${branchId}/shop-manager/notifications`}
-            unreadCount={unreadCount}
-            onBellClick={clearNotifications}
+          onMenuClick={() => setIsMobileMenuOpen(true)} 
+          title={`${branchName.toUpperCase()} SHOP MANAGER`}
+          notificationHref={`/${branchId}/shop-manager/notifications`}
+          unreadCount={unreadCount}
+          onBellClick={clearNotifications}
         />
 
-        {/* FIX: overflow-y-auto here ensures ONLY the children scroll */}
         <main className="flex-1 overflow-y-auto">
           {children}
         </main>

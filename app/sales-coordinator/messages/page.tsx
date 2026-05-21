@@ -2,29 +2,48 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft } from 'lucide-react'; 
+import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft, LogOut } from 'lucide-react'; 
 
 export default function SalesBroadcastPage() {
   const router = useRouter(); 
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const [message, setMessage] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // --- THE TARGET ROLES ---
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
   const targetRoles = [
     { id: 'all', label: 'All Staff (Allowed Roles)' },
-    { id: 'shop_manager_kabuga', label: 'Kabuga Shop Manager' }, // Updated ID to match API doc example
-    { id: 'shop_manager_masaka', label: 'Masaka Shop Manager' }, // Updated ID to match standard convention
-    { id: 'store_keeper', label: 'Store Keeper' },               // Updated ID to match standard convention
-    { id: 'baker_assistant', label: 'Baker Assistant' },         // Updated ID to match standard convention
-    { id: 'operations_manager', label: 'Production Manager' },   // Updated ID to match standard convention
+    { id: 'shop_manager_kabuga', label: 'Kabuga Shop Manager' },
+    { id: 'shop_manager_masaka', label: 'Masaka Shop Manager' },
+    { id: 'store_keeper', label: 'Store Keeper' },
+    { id: 'baker_assistant', label: 'Baker Assistant' },
+    { id: 'operations_manager', label: 'Production Manager' },
     { id: 'cicm', label: 'CICM (Audit)' },
   ];
 
-  // --- UPDATED: HANDLE REAL API REQUEST ---
-  // --- UPDATED: HANDLE REAL API REQUEST ---
+  // Logout
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        await fetch(`${baseUrl}/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.clear();
+      router.push('/login');
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -34,7 +53,6 @@ export default function SalesBroadcastPage() {
 
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
       const response = await fetch(`${baseUrl}/sales/messages`, {
         method: 'POST',
@@ -53,14 +71,10 @@ export default function SalesBroadcastPage() {
         setMessage('');
         setTimeout(() => setSuccess(false), 3000);
       } else {
-        // --- ADDED THIS TO CATCH THE REAL BACKEND ERROR ---
         const errorData = await response.json().catch(() => ({}));
         console.error("Backend Error Details:", errorData);
-        
-        // Show the actual backend message if it exists, otherwise show default
         const errorMessage = errorData.message || errorData.error || "Please check your permissions or input.";
         
-        // If it's a validation error (422), show the specific field errors
         if (errorData.errors && errorData.errors.recipient_role) {
            alert(`Validation Error: ${errorData.errors.recipient_role[0]}`);
         } else {
@@ -77,9 +91,21 @@ export default function SalesBroadcastPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
-      {/* HEADER - UPDATED WITH BACK ARROW */}
+      
+      {/* Logout Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-colors shadow-md"
+        >
+          <LogOut size={16} />
+          {isLoggingOut ? 'Logging out...' : 'Logout'}
+        </button>
+      </div>
+
+      {/* HEADER */}
       <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
-        
         <button 
           onClick={() => router.back()}
           className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
@@ -101,7 +127,6 @@ export default function SalesBroadcastPage() {
         <div className="md:col-span-2 bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
           <form onSubmit={handleSendMessage} className="space-y-6">
             
-            {/* RADIO BUTTON SELECTION */}
             <div className="space-y-3">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Select Recipient Group</label>
               <div className="grid grid-cols-1 gap-2">
