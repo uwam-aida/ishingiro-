@@ -132,6 +132,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/shop/cake-orders/{location}', [ShopManagerController::class, 'cakeOrdersByLocation']);
         Route::get('/shop/damages/{location}', [ShopManagerController::class, 'damagesByLocation']);
         Route::get('/factory/stock', [StockController::class, 'factoryStock']);
+
+        // NEW: Single order details
+        Route::get('/orders/{id}', [ShopManagerController::class, 'getOrderDetails']);
+        
+        // NEW: Update order status
+        Route::put('/orders/{id}/status', [ShopManagerController::class, 'updateOrderStatus']);
+        
+        // NEW: Shop stock management
+        Route::get('/shop/stock/{id}', [ShopManagerController::class, 'getStockItem']);
+        Route::put('/shop/stock/{id}', [ShopManagerController::class, 'updateStockItem']);
+
+        // NEW: Feedback endpoints
+        Route::get('/shop/feedback', [ShopManagerController::class, 'getFeedback']);
+        
+        // NEW: Cake orders with filters
+        Route::get('/shop/cake-orders', [ShopManagerController::class, 'getAllCakeOrders']);
+        
+        // NEW: Dashboard summary
+        Route::get('/shop/dashboard', [ShopManagerController::class, 'getDashboardSummary']);
     });
 
 

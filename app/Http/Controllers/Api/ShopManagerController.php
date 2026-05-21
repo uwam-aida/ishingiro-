@@ -315,4 +315,255 @@ class ShopManagerController extends Controller
 
         return $damage ? $damage->load('product') : null;
     }
+
+
+    /**
+     * Get single order with full details including items
+     * GET /api/orders/{id}
+     */
+    public function getOrderDetails($id)
+    {
+        /** @var Order $order */
+        $order = Order::with('items.product', 'user')->findOrFail($id);
+        
+        // Check if the order belongs to this manager's branch
+        $myLocation = $this->myLocation();
+        if ($order->location !== $myLocation) {
+            return response()->json(['error' => 'Unauthorized to view this order'], 403);
+        }
+        
+        return response()->json([
+            'id' => $order->id,
+            'status' => $order->status,
+            'location' => $order->location,
+            'created_at' => $order->created_at,
+            'updated_at' => $order->updated_at,
+            'requested_by' => optional($order->user)->name,
+            'items' => $order->items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => optional($item->product)->name,
+                    'product_price' => optional($item->product)->price,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->price,
+                    'total' => $item->quantity * $item->price,
+                ];
+            }),
+            'total_amount' => $order->items->sum(function ($item) {
+                return $item->quantity * $item->price;
+            }),
+        ]);
+    }
+
+    /**
+     * Get single stock item by ID for shop manager
+     * GET /api/shop/stock/{id}
+     */
+    public function getStockItem($id)
+    {
+        $stock = Stock::with('product')->findOrFail($id);
+        
+        // Check if stock belongs to this manager's branch
+        $myLocation = $this->myLocation();
+        if ($stock->location !== $myLocation) {
+            return response()->json(['error' => 'Unauthorized to view this stock'], 403);
+        }
+        
+        return response()->json([
+            'id' => $stock->id,
+            'product_id' => $stock->product_id,
+            'product_name' => optional($stock->product)->name,
+            'product_price' => optional($stock->product)->price,
+            'product_cost' => optional($stock->product)->cost,
+            'product_type' => optional($stock->product)->type,
+            'location' => $stock->location,
+            'quantity' => $stock->quantity,
+            'description' => $stock->description,
+            'unit' => $stock->unit,
+            'created_at' => $stock->created_at,
+            'updated_at' => $stock->updated_at,
+        ]);
+    }
+
+    /**
+     * Update stock quantity for shop manager
+     * PUT /api/shop/stock/{id}
+     */
+    public function updateStockItem(Request $request, $id)
+    {
+        $stock = Stock::with('product')->findOrFail($id);
+        
+        // Check if stock belongs to this manager's branch
+        $myLocation = $this->myLocation();
+        if ($stock->location !== $myLocation) {
+            return response()->json(['error' => 'Unauthorized to update this stock'], 403);
+        }
+        
+        $request->validate([
+            'quantity' => 'required|integer|min:0',
+            'description' => 'nullable|string',
+            'unit' => 'nullable|string',
+        ]);
+        
+        $oldQuantity = $stock->quantity;
+        $stock->update([
+            'quantity' => $request->quantity,
+            'description' => $request->description ?? $stock->description,
+            'unit' => $request->unit ?? $stock->unit,
+        ]);
+        
+        // Log stock adjustment
+        $difference = $request->quantity - $oldQuantity;
+        if ($difference != 0) {
+            StockMovement::create([
+                'product_id' => $stock->product_id,
+                'type' => $difference > 0 ? 'in' : 'out',
+                'quantity' => abs($difference),
+                'location' => $stock->location,
+                'user_id' => auth()->id(),
+                'note' => 'Manual adjustment by shop manager',
+            ]);
+        }
+        
+        return response()->json([
+            'message' => 'Stock updated successfully',
+            'stock' => $stock->fresh('product'),
+        ]);
+    }
+
+    /**
+     * Get all feedback for this branch
+     * GET /api/shop/feedback
+     */
+    public function getFeedback(Request $request)
+    {
+        $myLocation = $this->myLocation();
+        
+        $query = Feedback::where('location', $myLocation)->latest();
+        
+        if ($request->filled('rating')) {
+            $query->where('rating', $request->rating);
+        }
+        
+        $limit = (int) $request->query('limit', 50);
+        $feedback = $query->take($limit)->get();
+        
+        return response()->json([
+            'total' => $feedback->count(),
+            'average_rating' => $feedback->avg('rating'),
+            'data' => $feedback->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'customer_name' => $item->customer_name,
+                    'message' => $item->message,
+                    'rating' => $item->rating,
+                    'location' => $item->location,
+                    'created_at' => $item->created_at,
+                    'date' => $item->created_at->toDateString(),
+                    'time' => $item->created_at->format('h:i A'),
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * Get all cake orders with filtering options
+     * GET /api/shop/cake-orders (with query params)
+     */
+    public function getAllCakeOrders(Request $request)
+    {
+        $myLocation = $this->myLocation();
+        
+        $query = CakeOrder::where('location', $myLocation)->latest();
+        
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        if ($request->filled('date_from')) {
+            $query->whereDate('delivery_date', '>=', $request->date_from);
+        }
+        
+        if ($request->filled('date_to')) {
+            $query->whereDate('delivery_date', '<=', $request->date_to);
+        }
+        
+        $limit = (int) $request->query('limit', 100);
+        $orders = $query->take($limit)->get();
+        
+        return response()->json([
+            'total' => $orders->count(),
+            'data' => $orders->map(function ($order) {
+                if ($order->inspo_image_path) {
+                    $order->inspo_image_url = asset('storage/' . $order->inspo_image_path);
+                }
+                return $order;
+            }),
+        ]);
+    }
+
+    /**
+     * Update order status (pending → dispatched → received)
+     * PUT /api/shop/orders/{id}/status
+     */
+    public function updateOrderStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,dispatched,received,delivered,cancelled',
+        ]);
+        
+        $order = Order::where('location', $this->myLocation())->findOrFail($id);
+        
+        $oldStatus = $order->status;
+        $order->update(['status' => $request->status]);
+        
+        // Notify store keeper about status change
+        SendNotificationJob::dispatch(
+            'store_keeper',
+            "Order #{$id} status changed from {$oldStatus} to {$request->status}"
+        );
+        
+        return response()->json([
+            'message' => 'Order status updated successfully',
+            'order' => $order->fresh('items.product'),
+        ]);
+    }
+
+    /**
+     * Get dashboard summary for shop manager
+     * GET /api/shop/dashboard
+     */
+    public function getDashboardSummary()
+    {
+        $myLocation = $this->myLocation();
+        
+        $pendingOrders = Order::where('location', $myLocation)
+            ->where('status', 'pending')
+            ->count();
+        
+        $completedOrders = Order::where('location', $myLocation)
+            ->where('status', 'received')
+            ->count();
+        
+        $totalStock = Stock::where('location', $myLocation)->sum('quantity');
+        
+        $pendingCakeOrders = CakeOrder::where('location', $myLocation)
+            ->where('status', 'pending')
+            ->count();
+        
+        $totalDamages = Damage::where('location', $myLocation)->sum('quantity');
+        
+        $totalRevenue = Revenue::where('location', $myLocation)->sum('amount');
+        
+        return response()->json([
+            'pending_orders' => $pendingOrders,
+            'completed_orders' => $completedOrders,
+            'total_stock_items' => $totalStock,
+            'pending_cake_orders' => $pendingCakeOrders,
+            'total_damages' => $totalDamages,
+            'total_revenue' => $totalRevenue,
+        ]);
+    }
+
 }
