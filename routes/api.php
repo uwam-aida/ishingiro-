@@ -99,6 +99,11 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // NEW: Stock movement history
         Route::get('/stock/movements', [StoreKeeperController::class, 'getStockMovements']);
+
+        // NEW: Delivery Notes endpoints
+    Route::get('/delivery-notes', [StoreKeeperController::class, 'getDeliveryNotes']);
+    Route::get('/delivery-notes/{id}', [StoreKeeperController::class, 'getDeliveryNote']);
+    Route::get('/delivery-notes/{id}/pdf', [StoreKeeperController::class, 'regenerateDeliveryNotePdf']);
     });
 
 

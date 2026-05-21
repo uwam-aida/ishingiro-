@@ -296,7 +296,6 @@ class SalesController extends Controller
         /** @var Order $order */
         $order = Order::with('items.product', 'user')->findOrFail($id);
         
-        
         return response()->json([
             'id' => $order->id,
             'status' => $order->status,
@@ -327,8 +326,6 @@ class SalesController extends Controller
      */
     public function getCakeOrderDetails($id)
     {
-        
-        /** @var CakeOrder $cakeOrder */
         $cakeOrder = CakeOrder::findOrFail($id);
         
         // Add image URL if exists
