@@ -18,14 +18,42 @@ export default function LoginPage() {
   
   const [statusMessage, setStatusMessage] = useState('');
 
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+  // Save OneSignal player ID after login
+  const savePlayerIdAfterLogin = async (token: string) => {
+    try {
+      let playerId = localStorage.getItem('pending_player_id');
+      
+      if (!playerId && window.OneSignal) {
+        // @ts-ignore - getUserId exists in the actual OneSignal SDK
+        playerId = await new Promise((resolve) => {
+          // @ts-ignore
+          window.OneSignal.getUserId(resolve);
+        });
+      }
+      
+      if (playerId) {
+        await fetch(`${baseUrl}/save-player-id`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ player_id: playerId }),
+        });
+        localStorage.removeItem('pending_player_id');
+      }
+    } catch (error) {
+      console.error('Error saving player ID:', error);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage('Connecting to server...');
 
     try {
-      // 1. URL points to your live backend login endpoint
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
       const response = await fetch(`${baseUrl}/login`, {
         method: 'POST',
         headers: {
@@ -42,14 +70,15 @@ export default function LoginPage() {
       console.log("Server Response:", data);
 
       if (response.ok) {
-        // 2. Store the token and user details from the new API response
         localStorage.setItem('token', data.token);
         localStorage.setItem('userName', data.user.name);
         localStorage.setItem('userId', data.user.id.toString());
         localStorage.setItem('roleId', data.user.role_id.toString());
         
-        // 3. Extract Role and Location based on the API name
-        let role = data.user.normalized_name; // e.g., "shopmanagerkabuga"
+        // Save OneSignal player ID
+        await savePlayerIdAfterLogin(data.token);
+        
+        let role = data.user.normalized_name;
         let userLoc = data.user.location;
 
         if (!role && data.user.name) {
@@ -62,31 +91,23 @@ export default function LoginPage() {
             }
         }
 
-        // Clean up the string (removes spaces and underscores)
         let cleanRole = (role || '').toLowerCase().replace(/_/g, '').replace(/\s/g, '');
 
-        // --- THE MAGIC FIX FOR "shopmanagerkabuga" ---
-        // If the string starts with shopmanager but has extra text attached (like kabuga)
         if (cleanRole.startsWith('shopmanager')) {
-            // Extract the location (removes "shopmanager", leaves "kabuga" or "masaka")
             const extractedBranch = cleanRole.replace('shopmanager', '');
             if (extractedBranch.length > 0) {
                 userLoc = extractedBranch;
             }
-            // Reset the role so it perfectly matches the switch case below!
             cleanRole = 'shopmanager'; 
         }
 
-        // Set the final branch ID for the URL
         const branchId = (userLoc || 'kabuga').toLowerCase();
 
-        // Save to local storage for the rest of the app to use
         localStorage.setItem('userRole', cleanRole);
         localStorage.setItem('userLocation', branchId);
 
         setStatusMessage(`Login successful! Redirecting...`);
 
-        // 4. Role-based Redirects
         switch (cleanRole) {
           case 'marketingmanager': 
             router.push('/marketing-manager');
@@ -119,7 +140,6 @@ export default function LoginPage() {
             router.push('/');
         }
       } else {
-        // Handle incorrect passwords or missing users
         setStatusMessage(data.message || 'Invalid username or password.');
       }
     } catch (error) {
@@ -128,14 +148,11 @@ export default function LoginPage() {
     }
   };
 
-  // --- NEW: HANDLE PASSWORD RESET API ---
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatusMessage('Resetting password...');
 
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
       const response = await fetch(`${baseUrl}/reset-password`, {
         method: 'POST',
         headers: {
@@ -153,10 +170,10 @@ export default function LoginPage() {
 
       if (response.ok) {
         setStatusMessage(data.message || 'Password updated successfully! You can now log in.');
-        setIsResetMode(false); // Switch back to login view
+        setIsResetMode(false);
         setResetCode('');
         setNewPassword('');
-        setUserPassword(''); // Clear old password from state
+        setUserPassword('');
       } else {
         setStatusMessage(data.message || 'Failed to reset password. Please check your code.');
       }
@@ -173,7 +190,6 @@ export default function LoginPage() {
       </h2>
       
       {!isResetMode ? (
-        // --- STANDARD LOGIN FORM ---
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Username</label>
@@ -212,7 +228,6 @@ export default function LoginPage() {
           </button>
         </form>
       ) : (
-        // --- NEW: RESET PASSWORD FORM ---
         <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600' }}>Your User ID</label>
