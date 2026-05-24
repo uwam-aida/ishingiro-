@@ -16,6 +16,7 @@ use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Collection;
 
 class ShopManagerController extends Controller
 {
@@ -56,10 +57,6 @@ class ShopManagerController extends Controller
     }
 
     // MARK ORDER AS RECEIVED
-    // - Updates order status → received
-    // - Increments shop stock for every item
-    // - Logs StockMovement (type = in) for every item
-    // - Notifies store_keeper and sales_coordinator
     public function receiveOrder(Request $request, $id)
     {
         $order = Order::with('items.product')
@@ -103,10 +100,6 @@ class ShopManagerController extends Controller
     }
 
     // CREATE CAKE ORDER
-    // - Full payment fields: advance_payment, remaining_payment, total_paid
-    // - Uploads inspo image to public disk
-    // - Records advance payment as Revenue if > 0
-    // - Wraps in DB transaction for safety
     public function storeCakeOrder(Request $request)
     {
         $request->validate([
@@ -115,7 +108,7 @@ class ShopManagerController extends Controller
             'cake_type'            => 'required|string|max:255',
             'quantity'             => 'required|integer|min:1',
             'price'                => 'required|numeric|min:0',
-            'advance_payment'      => 'nullable|numeric|min:0',
+            'advance_payment'      => 'nullable|numeric|min:0|max:' . ($request->price ?? 0),
             'location'             => 'required|in:kabuga,masaka',
             'delivery_date'        => 'required|date|after_or_equal:today',
             'cake_message'         => 'nullable|string',
@@ -162,7 +155,6 @@ class ShopManagerController extends Controller
                 'payer_name'           => $request->payer_name,
             ]);
 
-            // Record advance as revenue immediately
             if ($advance > 0) {
                 Revenue::create([
                     'amount'   => $advance,
@@ -187,9 +179,6 @@ class ShopManagerController extends Controller
     }
 
     // UPDATE CAKE ORDER
-    // - Scoped to manager's branch only
-    // - Handles additional_payment: updates total_paid/remaining, records Revenue
-    // - Replaces inspo image if new one uploaded
     public function updateCakeOrder(Request $request, $id)
     {
         $cakeOrder = CakeOrder::where('location', $this->myLocation())->findOrFail($id);
@@ -211,7 +200,6 @@ class ShopManagerController extends Controller
         ]);
 
         DB::transaction(function () use ($request, $cakeOrder) {
-            // Additional payment
             if ($request->filled('additional_payment') && $request->additional_payment > 0) {
                 $newTotal = $cakeOrder->total_paid + $request->additional_payment;
 
@@ -229,7 +217,6 @@ class ShopManagerController extends Controller
                 ]);
             }
 
-            // Replace inspo image
             if ($request->hasFile('inspo_image')) {
                 if ($cakeOrder->inspo_image_path) {
                     Storage::disk('public')->delete($cakeOrder->inspo_image_path);
@@ -253,13 +240,57 @@ class ShopManagerController extends Controller
     // GET MANAGER'S CAKE ORDERS (branch-scoped)
     public function cakeOrdersLocation()
     {
-        return CakeOrder::where('location', $this->myLocation())
+        $orders = CakeOrder::where('location', $this->myLocation())
             ->latest()
-            ->get()
-            ->map(fn($c) => array_merge($c->toArray(), [
+            ->get();
+        
+        $result = [];
+        foreach ($orders as $c) {
+            $result[] = array_merge($c->toArray(), [
                 'time' => $c->created_at->format('h:i A'),
                 'date' => $c->created_at->toDateString(),
-            ]));
+            ]);
+        }
+        
+        return response()->json($result);
+    }
+
+    // GET CAKE ORDERS BY LOCATION (for route parameter)
+    public function cakeOrdersByLocation($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        $cakeOrders = CakeOrder::where('location', $location)
+            ->latest()
+            ->get();
+        
+        $result = [];
+        foreach ($cakeOrders as $cake) {
+            $cakeData = $cake->toArray();
+            if ($cake->inspo_image_path) {
+                $cakeData['inspo_image_url'] = asset('storage/' . $cake->inspo_image_path);
+            }
+            $result[] = $cakeData;
+        }
+        
+        return response()->json($result);
+    }
+
+    // GET DAMAGES BY LOCATION
+    public function damagesByLocation($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        $damages = Damage::with('product')
+            ->where('location', $location)
+            ->latest()
+            ->get();
+        
+        return response()->json($damages);
     }
 
     // CREATE FEEDBACK
@@ -276,8 +307,6 @@ class ShopManagerController extends Controller
     }
 
     // RECORD DAMAGE
-    // - Creates Damage record
-    // - Decrements shop stock + logs StockMovement (out)
     public function recordDamage(Request $request)
     {
         $request->validate([
@@ -286,6 +315,8 @@ class ShopManagerController extends Controller
             'reason'     => 'nullable|string',
             'location'   => 'nullable|string',
         ]);
+
+        $damage = null;
 
         DB::transaction(function () use ($request, &$damage) {
             $damage = Damage::create($request->all());
@@ -316,6 +347,9 @@ class ShopManagerController extends Controller
         return $damage ? $damage->load('product') : null;
     }
 
+    // ============================================
+    // ADDITIONAL ENDPOINTS
+    // ============================================
 
     /**
      * Get single order with full details including items
@@ -323,14 +357,29 @@ class ShopManagerController extends Controller
      */
     public function getOrderDetails($id)
     {
-        /** @var Order $order */
         $order = Order::with('items.product', 'user')->findOrFail($id);
         
-        // Check if the order belongs to this manager's branch
         $myLocation = $this->myLocation();
         if ($order->location !== $myLocation) {
             return response()->json(['error' => 'Unauthorized to view this order'], 403);
         }
+        
+        $items = [];
+        foreach ($order->items as $item) {
+            $items[] = [
+                'id' => $item->id,
+                'product_id' => $item->product_id,
+                'product_name' => optional($item->product)->name,
+                'product_price' => optional($item->product)->price,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->price,
+                'total' => $item->quantity * $item->price,
+            ];
+        }
+        $totalAmount = 0;
+
+        foreach ($order->items as $item) {
+            $totalAmount += $item->quantity * $item->price;
         
         return response()->json([
             'id' => $order->id,
@@ -339,21 +388,13 @@ class ShopManagerController extends Controller
             'created_at' => $order->created_at,
             'updated_at' => $order->updated_at,
             'requested_by' => optional($order->user)->name,
-            'items' => $order->items->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'product_name' => optional($item->product)->name,
-                    'product_price' => optional($item->product)->price,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->price,
-                    'total' => $item->quantity * $item->price,
-                ];
-            }),
-            'total_amount' => $order->items->sum(function ($item) {
-                return $item->quantity * $item->price;
-            }),
+            'items' => $items,
+            'total_amount' => $totalAmount,
         ]);
+                    
+}
+
+
     }
 
     /**
@@ -364,7 +405,6 @@ class ShopManagerController extends Controller
     {
         $stock = Stock::with('product')->findOrFail($id);
         
-        // Check if stock belongs to this manager's branch
         $myLocation = $this->myLocation();
         if ($stock->location !== $myLocation) {
             return response()->json(['error' => 'Unauthorized to view this stock'], 403);
@@ -394,7 +434,6 @@ class ShopManagerController extends Controller
     {
         $stock = Stock::with('product')->findOrFail($id);
         
-        // Check if stock belongs to this manager's branch
         $myLocation = $this->myLocation();
         if ($stock->location !== $myLocation) {
             return response()->json(['error' => 'Unauthorized to update this stock'], 403);
@@ -413,7 +452,6 @@ class ShopManagerController extends Controller
             'unit' => $request->unit ?? $stock->unit,
         ]);
         
-        // Log stock adjustment
         $difference = $request->quantity - $oldQuantity;
         if ($difference != 0) {
             StockMovement::create([
@@ -422,7 +460,6 @@ class ShopManagerController extends Controller
                 'quantity' => abs($difference),
                 'location' => $stock->location,
                 'user_id' => auth()->id(),
-                'note' => 'Manual adjustment by shop manager',
             ]);
         }
         
@@ -449,21 +486,24 @@ class ShopManagerController extends Controller
         $limit = (int) $request->query('limit', 50);
         $feedback = $query->take($limit)->get();
         
+        $data = [];
+        foreach ($feedback as $item) {
+            $data[] = [
+                'id' => $item->id,
+                'customer_name' => $item->customer_name,
+                'message' => $item->message,
+                'rating' => $item->rating,
+                'location' => $item->location,
+                'created_at' => $item->created_at,
+                'date' => $item->created_at->toDateString(),
+                'time' => $item->created_at->format('h:i A'),
+            ];
+        }
+        
         return response()->json([
-            'total' => $feedback->count(),
+            'total' => count($feedback),
             'average_rating' => $feedback->avg('rating'),
-            'data' => $feedback->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'customer_name' => $item->customer_name,
-                    'message' => $item->message,
-                    'rating' => $item->rating,
-                    'location' => $item->location,
-                    'created_at' => $item->created_at,
-                    'date' => $item->created_at->toDateString(),
-                    'time' => $item->created_at->format('h:i A'),
-                ];
-            }),
+            'data' => $data,
         ]);
     }
 
@@ -492,20 +532,24 @@ class ShopManagerController extends Controller
         $limit = (int) $request->query('limit', 100);
         $orders = $query->take($limit)->get();
         
+        $result = [];
+        foreach ($orders as $order) {
+            $orderData = $order->toArray();
+            if ($order->inspo_image_path) {
+                $orderData['inspo_image_url'] = asset('storage/' . $order->inspo_image_path);
+            }
+            $result[] = $orderData;
+        }
+        
         return response()->json([
             'total' => $orders->count(),
-            'data' => $orders->map(function ($order) {
-                if ($order->inspo_image_path) {
-                    $order->inspo_image_url = asset('storage/' . $order->inspo_image_path);
-                }
-                return $order;
-            }),
+            'data' => $result,
         ]);
     }
 
     /**
      * Update order status (pending → dispatched → received)
-     * PUT /api/shop/orders/{id}/status
+     * PUT /api/orders/{id}/status
      */
     public function updateOrderStatus(Request $request, $id)
     {
@@ -518,7 +562,6 @@ class ShopManagerController extends Controller
         $oldStatus = $order->status;
         $order->update(['status' => $request->status]);
         
-        // Notify store keeper about status change
         SendNotificationJob::dispatch(
             'store_keeper',
             "Order #{$id} status changed from {$oldStatus} to {$request->status}"
@@ -565,5 +608,4 @@ class ShopManagerController extends Controller
             'total_revenue' => $totalRevenue,
         ]);
     }
-
 }
