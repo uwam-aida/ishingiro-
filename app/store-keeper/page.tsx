@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { 
   Package, Bell, ShoppingBag, AlertCircle, FileText, X, ArrowLeft, 
   CheckCheck, ClipboardList, Edit3, CheckSquare, Square, Printer, 
-  ChefHat, ShieldAlert, PackageCheck 
+  ChefHat, ShieldAlert, PackageCheck, Download, Eye
 } from 'lucide-react';
 
 interface Product {
@@ -94,6 +94,84 @@ export default function StoreKeeperDashboard() {
   const [damagedProducts, setDamagedProducts] = useState<any[]>([]);
   const [bakedProducts, setBakedProducts] = useState<any[]>([]);
   const [issuedNotes, setIssuedNotes] = useState<any[]>([]);
+  
+  // NEW STATE FOR DELIVERY NOTES API
+  const [deliveryNotesList, setDeliveryNotesList] = useState<any[]>([]);
+  const [selectedDeliveryNote, setSelectedDeliveryNote] = useState<any>(null);
+  const [showDeliveryNoteModal, setShowDeliveryNoteModal] = useState(false);
+
+  // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS ---
+
+  // GET /storekeeper/delivery-notes - Fetch all delivery notes
+  const fetchAllDeliveryNotes = async () => {
+    const token = localStorage.getItem('token');
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json' 
+    };
+
+    try {
+      const response = await fetch(`${baseUrl}/storekeeper/delivery-notes`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setDeliveryNotesList(data);
+        return data;
+      }
+    } catch (err) {
+      console.error("Failed to fetch delivery notes", err);
+    }
+    return [];
+  };
+
+  // GET /storekeeper/delivery-notes/{id} - Fetch single delivery note by ID
+  const fetchDeliveryNoteById = async (noteId: number) => {
+    const token = localStorage.getItem('token');
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json' 
+    };
+
+    try {
+      const response = await fetch(`${baseUrl}/storekeeper/delivery-notes/${noteId}`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedDeliveryNote(data);
+        setShowDeliveryNoteModal(true);
+        return data;
+      }
+    } catch (err) {
+      console.error("Failed to fetch delivery note", err);
+    }
+    return null;
+  };
+
+  // GET /storekeeper/delivery-notes/{id}/pdf - Download PDF
+  const downloadDeliveryNotePDF = async (noteId: number) => {
+    const token = localStorage.getItem('token');
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/pdf' 
+    };
+
+    try {
+      const response = await fetch(`${baseUrl}/storekeeper/delivery-notes/${noteId}/pdf`, { headers });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `delivery-note-${noteId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        console.error("Failed to download PDF");
+      }
+    } catch (err) {
+      console.error("Failed to download PDF", err);
+    }
+  };
 
   // --- 1. INITIAL FETCH LOGIC ---
   useEffect(() => {
@@ -125,7 +203,7 @@ export default function StoreKeeperDashboard() {
           setMyStock(mappedStock);
         }
 
-        // Fetch 2: Shop Requests
+        // Fetch 2: Shop Requests - GET /api/storekeeper/requests
         const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
         if (reqRes.ok) {
           const data = await reqRes.json();
@@ -165,7 +243,7 @@ export default function StoreKeeperDashboard() {
           setDeliveryHistory(mappedHistory);
         }
 
-        // Fetch 4: Cake Orders (UPDATED MAPPING HERE)
+        // Fetch 4: Cake Orders - GET /storekeeper/cake-orders
         const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
         if (cakeOrderRes.ok) {
           const data = await cakeOrderRes.json();
@@ -184,7 +262,7 @@ export default function StoreKeeperDashboard() {
           setCakeOrders(mappedCakes);
         }
 
-        // Fetch 5: Cake Requests
+        // Fetch 5: Cake Requests - GET /storekeeper/cake-requests
         const cakeReqRes = await fetch(`${baseUrl}/storekeeper/cake-requests`, { headers });
         if (cakeReqRes.ok) {
           const data = await cakeReqRes.json();
@@ -228,6 +306,9 @@ export default function StoreKeeperDashboard() {
           setDamagedProducts(mappedDamaged);
         }
 
+        // Fetch 8: Delivery Notes - GET /storekeeper/delivery-notes
+        await fetchAllDeliveryNotes();
+
       } catch (err) {
         console.error("Failed to fetch storekeeper data", err);
       }
@@ -269,8 +350,8 @@ export default function StoreKeeperDashboard() {
         body: JSON.stringify({
           order_ids: uniqueOrderIds,
           cake_order_ids: [], 
-          recipient_name: destinationBranch, // FIXED: Comma added here!
-          payment_received: true             // FIXED: Value added here!
+          recipient_name: destinationBranch,
+          payment_received: true
         })
       });
 
@@ -290,6 +371,9 @@ export default function StoreKeeperDashboard() {
         setIssuedNotes(prev => [noteData, ...prev]);
         setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
         setSelectedProductIds([]);
+        
+        // Refresh delivery notes list after successful delivery
+        await fetchAllDeliveryNotes();
       }
     } catch (err) {
       console.error("Delivery recording failed", err);
@@ -353,7 +437,6 @@ export default function StoreKeeperDashboard() {
 
       if (response.ok) {
         alert("Payment recorded successfully!");
-        // Instantly update the UI so the balance shows 0
         setCakeOrders(prev => prev.map(cake => 
           cake.id === cakeId ? { ...cake, remaining: 0, paid: cake.paid + amount } : cake
         ));
@@ -373,7 +456,7 @@ export default function StoreKeeperDashboard() {
     { id: 'cake_requests', label: 'Cake Requests', value: cakeRequests.length.toString(), icon: Package }, 
     { id: 'delivered', label: 'Full Added Products', value: deliveryHistory.length.toString(), icon: CheckCheck },
     { id: 'damaged', label: 'Damaged', value: damagedProducts.length.toString(), icon: ShieldAlert },
-    { id: 'notes', label: 'Delivery Notes', value: issuedNotes.length.toString(), icon: FileText },
+    { id: 'notes', label: 'Delivery Notes', value: deliveryNotesList.length.toString(), icon: FileText },
   ];
 
   return (
@@ -381,6 +464,39 @@ export default function StoreKeeperDashboard() {
       <style jsx global>{`
         @media print { body * { visibility: hidden; } #printable-note, #printable-note * { visibility: visible; } #printable-note { position: absolute; left: 0; top: 0; width: 100%; border: none !important; } .no-print { display: none !important; } }
       `}</style>
+
+      {/* --- DELIVERY NOTE DETAIL MODAL --- */}
+      {showDeliveryNoteModal && selectedDeliveryNote && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 no-print">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+            <div className="bg-[#F57C00] text-white p-4 flex justify-between items-center">
+              <h3 className="font-black uppercase text-sm">Delivery Note Details</h3>
+              <button onClick={() => setShowDeliveryNoteModal(false)} className="text-white hover:opacity-80">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6">
+              <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-xl overflow-auto max-h-[500px]">
+                {JSON.stringify(selectedDeliveryNote, null, 2)}
+              </pre>
+              <div className="flex justify-end gap-3 mt-6">
+                <button 
+                  onClick={() => downloadDeliveryNotePDF(selectedDeliveryNote.id)}
+                  className="px-6 py-2 bg-[#F57C00] text-white rounded-xl font-black uppercase text-xs flex items-center gap-2"
+                >
+                  <Download size={14} /> Download PDF
+                </button>
+                <button 
+                  onClick={() => setShowDeliveryNoteModal(false)}
+                  className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- EDIT POPUP --- */}
       {editingItem && (
@@ -492,6 +608,13 @@ export default function StoreKeeperDashboard() {
       {/* --- HEADER --- */}
       <div className="flex items-center gap-4 pt-6 no-print text-black">
         <h1 className="text-2xl font-black text-black uppercase tracking-tight">STORE KEEPER</h1>
+        <button 
+          onClick={fetchAllDeliveryNotes}
+          className="ml-auto bg-gray-100 hover:bg-gray-200 p-3 rounded-2xl transition-all"
+          title="Refresh Delivery Notes"
+        >
+          🔄
+        </button>
       </div>
 
       {/* --- STATS GRID --- */}
@@ -528,6 +651,12 @@ export default function StoreKeeperDashboard() {
 
            {activeFilter === 'requests' && selectedProductIds.length > 0 && (
              <button onClick={handleBulkDelivery} className="bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-all"><PackageCheck size={16} /> Generate Delivery Note ({selectedProductIds.length})</button>
+           )}
+           
+           {activeFilter === 'notes' && (
+             <button onClick={fetchAllDeliveryNotes} className="bg-[#F57C00] text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#E65100] transition-all">
+               🔄 Refresh Notes
+             </button>
            )}
         </div>
 
@@ -602,7 +731,49 @@ export default function StoreKeeperDashboard() {
           </div>
         )}
 
-        {/* --- FIXED CAKE ORDERS WITH PAYMENT API LOGIC --- */}
+        {/* --- DELIVERY NOTES SECTION - GET /storekeeper/delivery-notes --- */}
+        {activeFilter === 'notes' && (
+          <div className="overflow-x-auto p-8">
+            <div className="mb-6">
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4">All Delivery Notes</h3>
+              <div className="grid gap-4">
+                {deliveryNotesList.map((note: any) => (
+                  <div key={note.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+                    <div className="flex justify-between items-start flex-wrap gap-4">
+                      <div>
+                        <p className="font-black text-[#F57C00] text-lg">DN-{note.id}</p>
+                        <p className="text-xs text-gray-500 mt-1">{note.date || note.created_at}</p>
+                        <p className="text-xs font-bold mt-2">Recipient: {note.recipient || note.to_location}</p>
+                        {note.items && (
+                          <p className="text-xs text-gray-500 mt-1">Items: {note.items.length} product(s)</p>
+                        )}
+                      </div>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => fetchDeliveryNoteById(note.id)}
+                          className="px-4 py-2 bg-[#F57C00] text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-[#E65100] transition-all"
+                        >
+                          <Eye size={14} /> View Details
+                        </button>
+                        <button 
+                          onClick={() => downloadDeliveryNotePDF(note.id)}
+                          className="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-gray-900 transition-all"
+                        >
+                          <Download size={14} /> Download PDF
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {deliveryNotesList.length === 0 && (
+                  <div className="p-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Delivery Notes Found</div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- CAKE ORDERS WITH PAYMENT API LOGIC --- */}
         {activeFilter === 'cake_orders' && (
           <div className="overflow-x-auto">
             <table className="w-full text-left font-bold">

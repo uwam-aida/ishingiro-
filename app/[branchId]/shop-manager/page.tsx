@@ -241,43 +241,74 @@ export default function DynamicShopDashboard() {
   const bakedItemsAvailable = selectedItem ? (factoryStock.find(s => s.item === selectedItem)?.quantity || 0) : 0;
   const isOverLimit = (parseInt(requestQty) || 0) > bakedItemsAvailable;
 
-  // --- 4. BACKEND INTEGRATION FOR ADD REQUEST ---
-  const handleAddRequest = async () => {
-    if (!requestQty || isOverLimit || !selectedItem) return;
-    
-    const token = localStorage.getItem('token');
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-    
-    const realDbProduct = realProducts.find(p => p.name.toLowerCase() === selectedItem.toLowerCase());
-    const dbProductId = realDbProduct ? realDbProduct.id : 1; 
+  // --- 4. BACKEND INTEGRATION FOR ADD REQUEST (CALLS BOTH APIS) ---
+const handleAddRequest = async () => {
+  if (!requestQty || isOverLimit || !selectedItem) return;
+  
+  const token = localStorage.getItem('token');
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+  
+  const realDbProduct = realProducts.find(p => p.name.toLowerCase() === selectedItem.toLowerCase());
+  const dbProductId = realDbProduct ? realDbProduct.id : 1; 
 
-    try {
-        const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
-            })
-        });
-        
-        if (response.ok) { 
-          console.log("Order saved to backend"); 
-          // SHOW SUCCESS MESSAGE
-          setShowRequestSuccess(true);
-          setTimeout(() => setShowRequestSuccess(false), 3000);
-        }
-    } catch (e) { console.error(e); }
-
-    const qtyToDeduct = parseInt(requestQty);
-    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
-    setMyRequests([{ id: Date.now(), item: selectedItem, quantity: qtyToDeduct, status: 'Pending Dispatch', time: currentTime }, ...myRequests]);
-    setRequestQty(''); 
-    setRestQty(''); 
-    setProductSearch(''); 
-    setSelectedItem(null);
+  const requestBody = {
+    items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
   };
 
+  const storekeeperBody = {
+    location: branchIdString,
+    items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
+  };
+
+  try {
+    // API 1: Post to shop's own orders endpoint (for shop's records)
+    const orderResponse = await fetch(`${baseUrl}/orders/${branchIdString}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (orderResponse.ok) {
+      console.log("Order saved to shop's orders endpoint");
+    }
+
+    // API 2: Post to storekeeper's requests endpoint (for store keeper to see)
+    const storekeeperResponse = await fetch(`${baseUrl}/storekeeper/requests`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(storekeeperBody)
+    });
+    
+    if (storekeeperResponse.ok) { 
+      console.log("Order sent to Store Keeper successfully!"); 
+      setShowRequestSuccess(true);
+      setTimeout(() => setShowRequestSuccess(false), 3000);
+    } else {
+      const errorData = await storekeeperResponse.json();
+      console.error("Store Keeper API error:", errorData);
+    }
+  } catch (e) { 
+    console.error("Error sending order:", e); 
+  }
+
+  // Update local state (optimistic update)
+  const qtyToDeduct = parseInt(requestQty);
+  const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
+  setMyRequests([{ 
+    id: Date.now(), 
+    item: selectedItem, 
+    quantity: qtyToDeduct, 
+    status: 'Pending Dispatch', 
+    time: currentTime 
+  }, ...myRequests]);
+  
+  // Reset form
+  setRequestQty(''); 
+  setRestQty(''); 
+  setProductSearch(''); 
+  setSelectedItem(null);
+};
   // --- 5. BACKEND INTEGRATION FOR REPORT DAMAGE ---
   const handleReportDamage = async () => {
     if (!damagedItem || !damagedQty || typeError || notFound) return;
