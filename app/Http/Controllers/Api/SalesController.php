@@ -212,18 +212,7 @@ class SalesController extends Controller
         ]);
     }
 
-    // SEND MESSAGE TO A ROLE GROUP
-    public function sendMessage(Request $request)
-    {
-        $request->validate([
-            'recipient_role' => 'required|string',
-            'message'        => 'required|string',
-        ]);
-
-        SendNotificationJob::dispatch($request->recipient_role, $request->message);
-
-        return response()->json(['status' => 'sent']);
-    }
+    
 
     // GET TARGETS WITH LIVE PROGRESS
     public function targets()
@@ -382,6 +371,106 @@ class SalesController extends Controller
             'updated_at' => $cakeOrder->updated_at,
             'payment' => $paymentSummary,
             'payment_history' => $paymentHistory,
+        ]);
+    }
+
+    public function sendMessage(Request $request)
+    {
+        $request->validate([
+            'recipient_roles' => 'sometimes|array',
+            'recipient_roles.*' => 'string|in:shop_manager_kabuga,shop_manager_masaka,store_keeper,baker_assistant,production_manager,sales_coordinator,cicm',
+            'recipient_role' => 'sometimes|string|in:shop_manager_kabuga,shop_manager_masaka,store_keeper,baker_assistant,production_manager,sales_coordinator,cicm,all',
+            'message' => 'required|string|min:1|max:1000',
+        ]);
+
+        $message = $request->message;
+        
+        // Get list of roles to send to
+        $roles = [];
+        
+        if ($request->has('recipient_roles')) {
+            // Multiple roles selected
+            $roles = $request->recipient_roles;
+        } elseif ($request->has('recipient_role')) {
+            // Single role or "all"
+            if ($request->recipient_role === 'all') {
+                // All roles except marketing_manager and finance_chief
+                $roles = [
+                    'shop_manager_kabuga',
+                    'shop_manager_masaka',
+                    'store_keeper',
+                    'baker_assistant',
+                    'production_manager',
+                    'sales_coordinator',
+                    'cicm'
+                ];
+            } else {
+                $roles = [$request->recipient_role];
+            }
+        } else {
+            return response()->json([
+                'error' => 'Please provide recipient_role or recipient_roles'
+            ], 422);
+        }
+
+        // Exclude forbidden roles (security)
+        $forbiddenRoles = ['marketing_manager', 'finance_chief'];
+        $roles = array_diff($roles, $forbiddenRoles);
+
+        if (empty($roles)) {
+            return response()->json([
+                'error' => 'No valid recipient roles selected'
+            ], 422);
+        }
+
+        // Send notification to each role
+        $sentCount = 0;
+        foreach ($roles as $role) {
+            SendNotificationJob::dispatch($role, $message);
+            $sentCount++;
+        }
+
+        // Also create a record for the sender (sales coordinator) to see sent messages
+        DB::table('sent_messages')->insert([
+            'sender_id' => auth()->id(),
+            'recipient_roles' => json_encode($roles),
+            'message' => $message,
+            'created_at' => now(),
+        ]);
+
+        return response()->json([
+            'status' => 'sent',
+            'message' => 'Message sent to ' . count($roles) . ' role(s)',
+            'recipient_roles' => $roles,
+            'sent_at' => now()->toISOString()
+        ]);
+    }
+
+    /**
+     * Get sent messages history (for sales coordinator)
+     * GET /api/sales/messages/history
+     */
+    public function getSentMessagesHistory(Request $request)
+    {
+        $messages = DB::table('sent_messages')
+            ->where('sender_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->take(50)
+            ->get()
+            ->map(function ($msg) {
+                return [
+                    'id' => $msg->id,
+                    'recipient_roles' => json_decode($msg->recipient_roles),
+                    'message' => $msg->message,
+                    'sent_at' => $msg->created_at,
+                    'date' => date('Y-m-d', strtotime($msg->created_at)),
+                    'time' => date('h:i A', strtotime($msg->created_at)),
+                ];
+            });
+
+        return response()->json([
+            'total' => $messages->count(),
+            'data' => $messages
         ]);
     }
 }

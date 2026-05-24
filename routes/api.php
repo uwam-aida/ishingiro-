@@ -229,6 +229,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cake-order', [SalesController::class, 'storeCakeOrder']);
 
         Route::post('/messages', [SalesController::class, 'sendMessage']);
+        Route::get('/messages/history', [SalesController::class, 'getSentMessagesHistory']);
 
         Route::get('/targets', [SalesController::class, 'targets']);
         Route::post('/targets', [SalesController::class, 'storeTarget']);
