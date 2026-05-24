@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
@@ -8,54 +8,12 @@ import { getMarketingManagerMenu } from '../lib/menus';
 
 export default function MarketingAdminLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
   const router = useRouter();
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
-  // Fetch unread notification count from backend
-  const fetchUnreadCount = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await fetch(`${baseUrl}/notifications/unread-count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
-      }
-    } catch (error) {
-      console.error("Failed to fetch unread count:", error);
-    }
-  };
-
-  // Mark all notifications as read when bell is clicked
-  const handleBellClick = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      await fetch(`${baseUrl}/notifications/read-all`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      setUnreadCount(0);
-      router.push('/marketing-manager/notifications');
-    } catch (error) {
-      console.error("Failed to clear notifications:", error);
-      router.push('/marketing-manager/notifications');
-    }
-  };
-
-  // Poll for new notifications every 30 seconds
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  // --- MOCK NOTIFICATION COUNT ---
+  // You can set this to a real number from a database later
+  const unreadNotifications = 3;
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] flex relative">
@@ -85,13 +43,14 @@ export default function MarketingAdminLayout({ children }: { children: React.Rea
       {/* --- MAIN CONTENT AREA --- */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
-        {/* --- GLOBAL ADMIN HEADER --- */}
+        {/* --- GLOBAL ADMIN HEADER (FIXED PROPS) --- */}
         <Header 
           onMenuClick={() => setIsMobileMenuOpen(true)} 
           title="Marketing Management Admin"
-          notificationHref="/marketing-manager/notifications"
-          unreadCount={unreadCount}
-          onBellClick={handleBellClick}
+          notificationHref="/marketing-manager/notification"
+          // FIX: Added the missing properties required by HeaderProps
+          unreadCount={unreadNotifications}
+          onBellClick={() => router.push('/marketing-manager/notification')}
         />
         
         {/* --- SCROLLABLE CONTENT --- */}

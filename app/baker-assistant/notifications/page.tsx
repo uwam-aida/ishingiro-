@@ -1,197 +1,82 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Bell, Clock, ArrowLeft, CheckCircle2, Loader2, ChefHat, Scale, Package, AlertCircle } from 'lucide-react';
-
-interface Notification {
-  id: number;
-  role: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-}
+import React from 'react';
+import { useRouter } from 'next/navigation'; // <-- ADDED THIS
+import { Bell, Clock, Package, Scale, ChefHat, ArrowLeft } from 'lucide-react';
 
 export default function BakerNotificationsPage() {
-  const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const router = useRouter(); // <-- ADDED THIS
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
-  // Fetch all notifications
-  const fetchNotifications = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    setIsLoading(true);
-    try {
-      const response = await fetch(`${baseUrl}/notifications`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-        setUnreadCount(data.filter((n: Notification) => !n.is_read).length);
-      }
-    } catch (error) {
-      console.error("Failed to fetch notifications:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Mark single notification as read
-  const markAsRead = async (id: number) => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await fetch(`${baseUrl}/notifications/${id}/read`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setNotifications(prev => prev.map(n => 
-          n.id === id ? { ...n, is_read: true } : n
-        ));
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      }
-    } catch (error) {
-      console.error("Failed to mark as read:", error);
-    }
-  };
-
-  // Mark all as read
-  const markAllAsRead = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await fetch(`${baseUrl}/notifications/read-all`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-        setUnreadCount(0);
-      }
-    } catch (error) {
-      console.error("Failed to mark all as read:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getNotificationIcon = (message: string) => {
-    if (message.toLowerCase().includes('production') || message.toLowerCase().includes('baked')) 
-      return <ChefHat size={18} />;
-    if (message.toLowerCase().includes('ingredient') || message.toLowerCase().includes('stock')) 
-      return <Scale size={18} />;
-    if (message.toLowerCase().includes('damage')) 
-      return <AlertCircle size={18} />;
-    return <Package size={18} />;
-  };
-
-  const getNotificationColor = (message: string) => {
-    if (message.toLowerCase().includes('production')) return 'bg-orange-50 text-orange-600';
-    if (message.toLowerCase().includes('ingredient')) return 'bg-green-50 text-green-600';
-    if (message.toLowerCase().includes('damage')) return 'bg-red-50 text-red-600';
-    return 'bg-blue-50 text-blue-600';
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    return date.toLocaleDateString();
-  };
+  const notifications = [
+    { id: 1, text: "Production Order: 300 White Loaves requested", time: "Just now", type: 'order', status: 'unread' },
+    { id: 2, text: "Inventory Alert: Wheat Flour below 50kg", time: "2 hours ago", type: 'stock', status: 'unread' },
+    { id: 3, text: "Batch #104 Quality Check Passed", time: "5 hours ago", type: 'quality', status: 'read' },
+  ];
 
   return (
-    <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6 p-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Header */}
-      <div className="flex items-center gap-4 pb-6 border-b border-gray-100">
+      {/* HEADER - UPDATED WITH BACK ARROW */}
+      <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
+        
+        {/* <-- ADDED BACK BUTTON --> */}
         <button 
           onClick={() => router.back()}
-          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 transition-all"
+          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
         >
           <ArrowLeft size={22} strokeWidth={2} />
         </button>
-        <div className="p-3 bg-[#1C1C1C] rounded-2xl text-white shadow-lg">
+
+        <div className="p-3 bg-[#1C1C1C] rounded-2xl text-white shadow-lg shadow-black/20">
           <Bell size={24} />
         </div>
-        <div className="flex-1">
-          <h1 className="text-2xl font-black uppercase tracking-tight text-[#1C1C1C]">Notifications</h1>
-          <p className="text-[#F57C00] text-[10px] font-black uppercase tracking-widest">Baker Assistant Alerts</p>
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-[#1C1C1C]">Baker Notifications</h1>
+          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Live Production Alerts</p>
         </div>
-        
-        {unreadCount > 0 && (
-          <button 
-            onClick={markAllAsRead}
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors"
-          >
-            <CheckCircle2 size={14} /> Mark all read ({unreadCount})
-          </button>
-        )}
       </div>
 
-      {/* Notifications List */}
-      {isLoading ? (
-        <div className="flex justify-center items-center py-20">
-          <Loader2 className="animate-spin text-[#F57C00]" size={32} />
-        </div>
-      ) : notifications.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 rounded-[3rem] border border-dashed border-gray-200">
-          <Bell size={40} className="mx-auto text-gray-200 mb-4" />
-          <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No notifications yet</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {notifications.map((notification) => (
-            <div 
-              key={notification.id} 
-              onClick={() => !notification.is_read && markAsRead(notification.id)}
-              className={`p-5 rounded-[2rem] border transition-all flex items-start gap-4 cursor-pointer ${
-                !notification.is_read 
-                  ? 'bg-white border-orange-100 shadow-sm' 
-                  : 'bg-gray-50/50 border-transparent opacity-70'
-              }`}
-            >
-              <div className={`p-3 rounded-2xl ${getNotificationColor(notification.message)}`}>
-                {getNotificationIcon(notification.message)}
+      {/* NOTIFICATION LIST */}
+      <div className="space-y-3">
+        {notifications.map((n) => (
+          <div 
+            key={n.id} 
+            className={`p-5 rounded-[2.5rem] border transition-all flex items-center justify-between ${
+              n.status === 'unread' ? 'bg-white border-blue-100 shadow-sm' : 'bg-gray-50/50 border-transparent opacity-70'
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-2xl ${
+                n.type === 'order' ? 'bg-blue-50 text-blue-600' : 
+                n.type === 'stock' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'
+              }`}>
+                {n.type === 'order' ? <ChefHat size={20}/> : 
+                 n.type === 'stock' ? <Scale size={20}/> : <Package size={20}/>}
               </div>
-              <div className="flex-1">
-                <p className={`text-sm font-bold ${!notification.is_read ? 'text-gray-900' : 'text-gray-500'}`}>
-                  {notification.message}
+              <div>
+                <p className={`text-sm font-bold ${n.status === 'unread' ? 'text-gray-900' : 'text-gray-500'}`}>
+                  {n.text}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <Clock size={12} className="text-gray-400" />
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                    {formatDate(notification.created_at)}
-                  </span>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{n.time}</span>
                 </div>
               </div>
-              {!notification.is_read && (
-                <div className="w-2.5 h-2.5 bg-[#F57C00] rounded-full animate-pulse" />
-              )}
             </div>
-          ))}
-        </div>
-      )}
+            
+            {n.status === 'unread' && (
+              <div className="w-2.5 h-2.5 bg-blue-600 rounded-full animate-pulse mr-2" />
+            )}
+          </div>
+        ))}
+
+        {notifications.length === 0 && (
+          <div className="text-center py-20 bg-gray-50 rounded-[3rem] border border-dashed border-gray-200">
+            <Bell size={40} className="mx-auto text-gray-200 mb-4" />
+            <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No new alerts for today</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

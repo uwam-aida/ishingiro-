@@ -2,8 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Target, Plus, ArrowLeft, TrendingUp, AlertCircle, CheckCircle2, Trash2, Edit2, LogOut } from 'lucide-react';
+import { Target, Plus, ArrowLeft, TrendingUp, AlertCircle, CheckCircle2, Trash2, Edit2 } from 'lucide-react';
 
+// --- OFFICIAL PRODUCT LIST (For Dropdown & ID Mapping) ---
+// Using an array of objects to map names to dummy IDs for the POST request
+// In a real app, this list would likely be fetched from a /products endpoint
 const MARKETING_PRODUCTS = [
   { id: 1, name: 'big milk' }, { id: 2, name: 'small milk' }, { id: 3, name: 'pcpn' }, { id: 4, name: 'sen' }, 
   { id: 5, name: 'salted bread' }, { id: 6, name: 'baguette' }, { id: 7, name: 'milk slice bread' }, { id: 8, name: 'crubes' }, 
@@ -24,34 +27,15 @@ const MARKETING_PRODUCTS = [
 export default function WeeklyTargetsPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // --- STATE FOR WEEKLY TARGETS ---
   const [weeklyTargets, setWeeklyTargets] = useState<any[]>([]);
+
   const [targetItem, setTargetItem] = useState('');
   const [targetQty, setTargetQty] = useState('');
   const [targetUnit, setTargetUnit] = useState('pieces'); 
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
-  // Logout
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await fetch(`${baseUrl}/logout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      localStorage.clear();
-      router.push('/login');
-    }
-  };
-
-  // Fetch targets
+  // --- FETCH TARGETS ON LOAD ---
   useEffect(() => {
     setIsMounted(true);
     
@@ -61,6 +45,8 @@ export default function WeeklyTargetsPage() {
         router.push('/login');
         return;
       }
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       
       try {
         const response = await fetch(`${baseUrl}/sales/targets`, {
@@ -69,11 +55,12 @@ export default function WeeklyTargetsPage() {
 
         if (response.ok) {
           const data = await response.json();
+          // Map backend response to UI structure
           setWeeklyTargets(data.map((t: any) => ({
              id: t.id,
              item: t.product_name,
              targetQty: t.target_volume,
-             currentQty: t.actual_volume || 0,
+             currentQty: t.actual_volume || 0, // Fallback if API is missing this field temporarily
              unit: t.unit,
              status: t.status || 'On Track'
           })));
@@ -84,18 +71,22 @@ export default function WeeklyTargetsPage() {
     };
 
     fetchTargets();
-  }, [router, baseUrl]);
+  }, [router]);
 
-  // Save new target
+  // --- SAVE NEW TARGET (POST) ---
   const handleSaveTarget = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetItem || !targetQty) return;
 
     try {
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+      // Find the ID for the selected product name
       const selectedProduct = MARKETING_PRODUCTS.find(p => p.name === targetItem);
       const productId = selectedProduct ? selectedProduct.id : 1;
 
+      // Define default start/end dates for the "Weekly" target payload
       const today = new Date();
       const nextWeek = new Date();
       nextWeek.setDate(today.getDate() + 7);
@@ -103,7 +94,7 @@ export default function WeeklyTargetsPage() {
       const payload = {
         product_id: productId,
         target_volume: Number(targetQty),
-        unit: targetUnit.toLowerCase(),
+        unit: targetUnit.toLowerCase(), // API expects 'pieces' or 'kg'
         start_date: today.toISOString().split('T')[0],
         end_date: nextWeek.toISOString().split('T')[0]
       };
@@ -119,6 +110,8 @@ export default function WeeklyTargetsPage() {
 
       if (response.ok) {
         const newTarget = await response.json();
+        
+        // Optimistically update UI
         setWeeklyTargets([
           { 
             id: newTarget.id || Date.now(), 
@@ -130,6 +123,7 @@ export default function WeeklyTargetsPage() {
           },
           ...weeklyTargets
         ]);
+        
         setTargetItem('');
         setTargetQty('');
         setTargetUnit('pieces'); 
@@ -142,7 +136,7 @@ export default function WeeklyTargetsPage() {
     }
   };
 
-  // Edit target
+  // --- EDIT TARGET (PUT) ---
   const handleEditTarget = async (id: number, currentTargetQty: number, currentUnit: string) => {
     const newQtyStr = prompt(`Enter new target volume:`, currentTargetQty.toString());
     const newQty = parseInt(newQtyStr || '');
@@ -153,6 +147,7 @@ export default function WeeklyTargetsPage() {
 
     try {
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
       const response = await fetch(`${baseUrl}/sales/targets/${id}`, {
         method: 'PUT',
@@ -175,12 +170,13 @@ export default function WeeklyTargetsPage() {
     }
   };
 
-  // Delete target
+  // --- DELETE TARGET (DELETE) ---
   const handleDeleteTarget = async (id: number) => {
     if (!confirm("Are you sure you want to delete this target?")) return;
 
     try {
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
       const response = await fetch(`${baseUrl}/sales/targets/${id}`, {
         method: 'DELETE',
@@ -207,21 +203,9 @@ export default function WeeklyTargetsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans">
-      {/* Logout Button */}
-      <div className="fixed top-4 right-4 z-50">
-        <button
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-colors shadow-md"
-        >
-          <LogOut size={16} />
-          {isLoggingOut ? 'Logging out...' : 'Logout'}
-        </button>
-      </div>
-
       <div className="max-w-7xl mx-auto space-y-8 px-4 md:px-8 pt-8">
         
-        {/* HEADER */}
+        {/* --- HEADER --- */}
         <div className="flex items-center gap-4 pb-2">
           <button 
             onClick={() => router.back()}
@@ -235,7 +219,7 @@ export default function WeeklyTargetsPage() {
           </div>
         </div>
 
-        {/* ADD NEW TARGET FORM */}
+        {/* TOP: ADD NEW TARGET FORM */}
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden p-8 animate-in fade-in">
           <h2 className="text-sm font-black text-[#F57C00] uppercase tracking-widest mb-6 flex items-center gap-2">
             <Target size={18} /> Assign New Target
@@ -287,7 +271,7 @@ export default function WeeklyTargetsPage() {
           </form>
         </div>
 
-        {/* TRACKING TABLE */}
+        {/* BOTTOM: TRACKING TABLE */}
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden animate-in fade-in delay-100">
           <div className="p-8 border-b border-gray-50 flex items-center justify-between">
             <h2 className="text-lg font-black text-[#5D4037] uppercase">Active Targets & Live Progress</h2>
@@ -312,7 +296,13 @@ export default function WeeklyTargetsPage() {
 
                   return (
                     <tr key={target.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-8 py-6 font-black text-[#5D4037] uppercase text-sm">{target.item}</td>
+                      
+                      {/* Product Name */}
+                      <td className="px-8 py-6 font-black text-[#5D4037] uppercase text-sm">
+                        {target.item}
+                      </td>
+                      
+                      {/* Visual Progress Bar */}
                       <td className="px-8 py-6 w-1/3">
                         <div className="flex flex-col gap-2">
                           <div className="flex justify-between text-[10px] font-black text-gray-500">
@@ -329,9 +319,13 @@ export default function WeeklyTargetsPage() {
                           </div>
                         </div>
                       </td>
+
+                      {/* Target Quantity & Unit */}
                       <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">
                         {target.targetQty.toLocaleString()} <span className="text-[10px] text-gray-400 font-black uppercase ml-1">{target.unit}</span>
                       </td>
+
+                      {/* Status Badge */}
                       <td className="px-8 py-6 text-right">
                         {isComplete || target.status === 'Completed' ? (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-50 text-green-600 border border-green-100 shadow-sm">
@@ -347,16 +341,27 @@ export default function WeeklyTargetsPage() {
                           </span>
                         )}
                       </td>
+                      
+                      {/* Action Buttons (Edit & Delete) */}
                       <td className="px-8 py-6 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => handleEditTarget(target.id, target.targetQty, target.unit)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
-                            <Edit2 size={16} />
+                          <button 
+                             onClick={() => handleEditTarget(target.id, target.targetQty, target.unit)} 
+                             className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                             title="Edit Target"
+                          >
+                             <Edit2 size={16} />
                           </button>
-                          <button onClick={() => handleDeleteTarget(target.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
-                            <Trash2 size={16} />
+                          <button 
+                             onClick={() => handleDeleteTarget(target.id)} 
+                             className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                             title="Delete Target"
+                          >
+                             <Trash2 size={16} />
                           </button>
                         </div>
                       </td>
+
                     </tr>
                   );
                 })}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 import { cheifFinanceMenu } from '../lib/menus'; 
@@ -8,50 +8,8 @@ import { Calendar, ShieldCheck } from 'lucide-react';
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
-  // Fetch unread notification count from backend
-  const fetchUnreadCount = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await fetch(`${baseUrl}/notifications/unread-count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
-      }
-    } catch (error) {
-      console.error("Failed to fetch unread count:", error);
-    }
-  };
-
-  // Mark all notifications as read when bell is clicked
-  const handleBellClick = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      await fetch(`${baseUrl}/notifications/read-all`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      setUnreadCount(0);
-    } catch (error) {
-      console.error("Failed to clear notifications:", error);
-    }
-  };
-
-  // Poll for new notifications every 30 seconds
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const [unreadCount, setUnreadCount] = useState(3); 
+  const handleBellClick = () => setUnreadCount(0);
 
   const today = new Date().toLocaleDateString('en-GB', { 
     weekday: 'long', 
@@ -68,7 +26,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] font-sans overflow-x-hidden selection:bg-[#5D4037]/10">
       
-      {/* 1. DESKTOP SIDEBAR */}
+      {/* 1. DESKTOP SIDEBAR - Changed to w-64 for standard alignment */}
       <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-200/60 bg-white shadow-[4px_0_24px_rgba(0,0,0,0.02)] print:hidden">
         <Sidebar 
           menuItems={cheifFinanceMenu}
@@ -98,7 +56,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         />
       )}
 
-      {/* 4. MAIN CONTENT AREA */}
+      {/* 4. MAIN CONTENT AREA - md:ml-64 now perfectly clears the sidebar */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
         
         {/* HEADER */}
@@ -127,7 +85,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
            </div>
         </div>
 
-        {/* PAGE CONTENT */}
+        {/* PAGE CONTENT - Added md:px-12 for better space between sidebar and dashboard */}
         <main className="flex-1 px-4 py-4 md:px-12 md:py-8 w-full max-w-7xl mx-auto overflow-y-auto print:bg-white print:p-0">
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
             {children}

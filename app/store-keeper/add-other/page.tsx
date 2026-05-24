@@ -11,8 +11,7 @@ import {
   PlusCircle, 
   ClipboardList,
   UtensilsCrossed,
-  ArrowLeft,
-  LogOut
+  ArrowLeft 
 } from 'lucide-react';
 
 interface Product {
@@ -23,24 +22,92 @@ interface Product {
   type?: string;
 }
 
-// Product list (keeping as is from your code)
+// --- OFFICIAL PRODUCT LIST (FALLBACK) ---
 const STORE_PRODUCTS = [
-    // ... your full product list
+       // BREAD (Baked)
+    { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
+    { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
+    { name: 'sen', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'salted bread', price: 1100, category: 'BREAD', type: 'baked' },
+    { name: 'baguette', price: 500, category: 'BREAD', type: 'baked' },
+    { name: 'milk slice bread', price: 200, category: 'BREAD', type: 'baked' },
+    { name: 'crubes', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'sen pieces', price: 100, category: 'BREAD', type: 'baked' },
+    { name: 'brown sanduich', price: 250, category: 'BREAD', type: 'baked' },
+    { name: 'mult graine', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'milk mult graine', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'brown bread', price: 800, category: 'BREAD', type: 'baked' },
+ 
+    // CAKES (Baked)
+    { name: 'tea cake', price: 1000, category: 'CAKES', type: 'baked' },
+    { name: 'marble cake', price: 1200, category: 'CAKES', type: 'baked' },
+    { name: 'brown cake', price: 250, category: 'CAKES', type: 'baked' },
+    { name: 'oliver corn cake', price: 350, category: 'CAKES', type: 'baked' },
+    { name: 'muffin cake', price: 170, category: 'CAKES', type: 'baked' },
+
+    // AMANDAZI (Baked)
+    { name: 'ishingiro', price: 150, category: 'AMANDAZI', type: 'baked' },
+    { name: 's.begne', price: 70, category: 'AMANDAZI', type: 'baked' },
+    { name: 'dark donut', price: 450, category: 'AMANDAZI', type: 'baked' },
+    { name: 'choc donuts', price: 450, category: 'AMANDAZI', type: 'baked' },
+    { name: 'kk donuts', price: 250, category: 'AMANDAZI', type: 'baked' },
+    { name: 'triangle', price: 150, category: 'AMANDAZI', type: 'baked' },
+
+    // OTHERS (Mixed)
+    { name: 'meat samosa', price: 450, category: 'OTHERS', type: 'baked' },
+    { name: 'biscuits', price: 85, category: 'OTHERS', type: 'baked' },
+    { name: 'ISH.MILK Cookie', price: 130, category: 'OTHERS', type: 'baked' },
+    { name: 'butter biscuits', price: 130, category: 'OTHERS', type: 'baked' },
+    { name: 'chocolate biscuits', price: 140, category: 'OTHERS', type: 'baked' },
+    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'baked' },
+    
+    // UNBAKED OTHERS
+    { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ikinyuranyo 3kg', price: 4500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ikinyuranyo 5kg', price: 7500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ikinyuranyo (0.5)kg', price: 1200, category: 'OTHERS', type: 'unbaked' },
+    { name: 'yellow c flour 1kg', price: 1700, category: 'OTHERS', type: 'unbaked' },
+    { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS', type: 'unbaked' },
+    { name: 'cashnewnuts', price: 5500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'cornfresh cream', price: 500, category: 'OTHERS', type: 'unbaked' },
+
+    // BIG CAKES (Baked)
+    { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 20000', price: 20000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 24000', price: 24000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 19000', price: 19000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake18000', price: 18000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 15000', price: 15000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 14000', price: 14000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 13000', price: 13000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 12000', price: 12000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 10000', price: 10000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 9000', price: 9000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 8000', price: 8000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 7000', price: 7000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
 export default function AddOtherProduct() {
   const router = useRouter(); 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
+  // --- VIEW STATE: 'grid' or 'form' ---
   const [view, setView] = useState<'grid' | 'form'>('grid');
+  
   const [category, setCategory] = useState('Clients');
   const [unit, setUnit] = useState('pcs'); 
   const [productName, setProductName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // NEW STATE: For live products and dynamic categories
   const [liveProducts, setLiveProducts] = useState<Product[]>(STORE_PRODUCTS);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  // Fallback categories if API fails
   const [dynamicCategories, setDynamicCategories] = useState([
     { id: 'Tiku', icon: Star },
     { id: 'Clients', icon: UserCircle },
@@ -49,26 +116,7 @@ export default function AddOtherProduct() {
     { id: 'Ingaruka', icon: UtensilsCrossed }
   ]);
 
-  // Logout
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await fetch(`${baseUrl}/logout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
-      localStorage.clear();
-      router.push('/login');
-    }
-  };
-
-  // Fetch live products & categories
+  // --- 1. FETCH LIVE PRODUCTS & CATEGORIES ON MOUNT ---
   useEffect(() => {
     const fetchData = async () => {
       const token = localStorage.getItem('token');
@@ -77,28 +125,37 @@ export default function AddOtherProduct() {
         return;
       }
 
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       const headers = { 'Authorization': `Bearer ${token}` };
 
       try {
+        // Fetch 1: Products
         const prodRes = await fetch(`${baseUrl}/products`, { headers });
         if (prodRes.ok) {
           const data = await prodRes.json();
           if (data && data.length > 0) setLiveProducts(data);
         }
 
+        // Fetch 2: Categories (New from API Documentation)
         const catRes = await fetch(`${baseUrl}/distribution/categories`, { headers });
         if (catRes.ok) {
            const data: string[] = await catRes.json();
+           
+           // Map the plain text strings from the backend to your UI icons
            const mappedCategories = data.map((catName) => {
-              let IconToUse = PlusCircle;
+              let IconToUse = PlusCircle; // Default icon
               if (catName.toLowerCase() === 'tiku') IconToUse = Star;
               else if (catName.toLowerCase() === 'events') IconToUse = Calendar;
               else if (catName.toLowerCase() === 'guests') IconToUse = Users;
               else if (catName.toLowerCase() === 'clients') IconToUse = UserCircle;
               else if (catName.toLowerCase() === 'ingaruka') IconToUse = UtensilsCrossed;
+              
               return { id: catName, icon: IconToUse };
            });
-           if(mappedCategories.length > 0) setDynamicCategories(mappedCategories);
+           
+           if(mappedCategories.length > 0) {
+             setDynamicCategories(mappedCategories);
+           }
         }
       } catch (error) {
         console.error("Failed to load initial data", error);
@@ -106,12 +163,14 @@ export default function AddOtherProduct() {
     };
 
     fetchData();
-  }, [router, baseUrl]);
+  }, [router]);
 
+  // Filter products based on input (using live data if available)
   const filteredProducts = liveProducts.filter(p => 
     p.name.toLowerCase().includes(productName.toLowerCase())
   );
 
+  // Validation Check
   const isInvalidProduct = productName.trim().length > 0 && !liveProducts.some(p => p.name.toLowerCase() === productName.toLowerCase());
 
   const handleCategoryClick = (id: string) => {
@@ -119,12 +178,16 @@ export default function AddOtherProduct() {
     setView('form');
   };
 
+  // --- 2. SUBMIT TO DISTRIBUTION API ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isInvalidProduct || !productName) return;
     setIsSubmitting(true);
     
     const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+    // Find the actual database ID of the selected product
     const selectedProd = liveProducts.find(p => p.name.toLowerCase() === productName.toLowerCase());
     const productId = selectedProd?.id;
 
@@ -145,7 +208,7 @@ export default function AddOtherProduct() {
           product_id: productId,
           quantity: Number(quantity),
           category: category,
-          location: 'kabuga',
+          location: 'kabuga', // Defaulting to kabuga based on UI note for Tiku
           notes: `Unit: ${unit}` 
         })
       });
@@ -169,21 +232,11 @@ export default function AddOtherProduct() {
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-10 px-4 font-sans text-gray-700">
       
-      {/* Logout Button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleLogout}
-          disabled={isLoggingOut}
-          className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-colors shadow-md"
-        >
-          <LogOut size={16} />
-          {isLoggingOut ? 'Logging out...' : 'Logout'}
-        </button>
-      </div>
-
-      {/* VIEW 1: GRID */}
+      {/* --- VIEW 1: THE CLICKABLE GRID --- */}
       {view === 'grid' && (
         <div className="animate-in fade-in zoom-in-95 duration-300">
+          
+          {/* <-- NEW HEADER DESIGN WITH BOX ARROW --> */}
           <div className="flex items-center gap-4 mb-8">
             <button 
               onClick={() => router.back()}
@@ -214,7 +267,7 @@ export default function AddOtherProduct() {
         </div>
       )}
 
-      {/* VIEW 2: FORM */}
+      {/* --- VIEW 2: THE FORM PAGE --- */}
       {view === 'form' && (
         <div className="animate-in slide-in-from-right duration-300">
           <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
@@ -234,6 +287,7 @@ export default function AddOtherProduct() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-8">
+              {/* Product Name with Suggestions logic integrated */}
               <div className="space-y-2 relative">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Product Name</label>
                 <input 
@@ -246,6 +300,7 @@ export default function AddOtherProduct() {
                   className={`w-full bg-gray-50 border rounded-xl p-4 text-sm font-bold text-gray-700 focus:ring-2 outline-none transition-all ${isInvalidProduct ? 'border-red-500 focus:ring-red-100' : 'border-gray-100 focus:ring-[#F57C00]/20'}`}
                 />
                 
+                {/* SUGGESTIONS LIST DROPDOWN */}
                 {showSuggestions && productName && filteredProducts.length > 0 && (
                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-gray-100 shadow-2xl rounded-xl max-h-48 overflow-y-auto">
                       {filteredProducts.map((p, i) => (
@@ -265,6 +320,7 @@ export default function AddOtherProduct() {
                 )}
               </div>
 
+              {/* Quantity & Unit */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-2">
                   <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Quantity</label>
@@ -299,6 +355,7 @@ export default function AddOtherProduct() {
                 </div>
               </div>
 
+              {/* Submit Button */}
               <button 
                 type="submit"
                 disabled={isSubmitting || isInvalidProduct || !productName}

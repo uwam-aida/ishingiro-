@@ -9,18 +9,19 @@ import {
   Search,
   Key,
   RefreshCw,
+  LogOut,
   ChevronRight,
   Activity,      
   ExternalLink,
-  UserCog,
-  Bell,
-  LogOut
+  UserCog
 } from 'lucide-react';
 
+// Define the interface for our User data
 interface SystemUser {
   id: number;
   name: string;
   role_id: number;
+  // Added for UI display
   displayName: string;
   displayRole: string;
 }
@@ -36,9 +37,6 @@ export default function MarketingManagerAdmin() {
   const [actionMessage, setActionMessage] = useState({ text: '', type: '' });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
   // 1. FETCH USERS API (GET /api/users)
   useEffect(() => {
@@ -48,10 +46,11 @@ export default function MarketingManagerAdmin() {
         const currentUserId = localStorage.getItem('userId');
 
         if (!token) {
-          router.push('/login');
+          router.push('/');
           return;
         }
 
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
         const response = await fetch(`${baseUrl}/users`, {
           method: 'GET',
           headers: {
@@ -70,13 +69,7 @@ export default function MarketingManagerAdmin() {
                
                let displayRole = 'System Role';
                if(user.role_id === 2) displayRole = 'Baker Assistant';
-               if(user.role_id === 3) displayRole = 'Shop Manager Kabuga';
-               if(user.role_id === 4) displayRole = 'Shop Manager Masaka';
-               if(user.role_id === 5) displayRole = 'Store Keeper';
-               if(user.role_id === 6) displayRole = 'Sales Coordinator';
-               if(user.role_id === 7) displayRole = 'Production Manager';
-               if(user.role_id === 8) displayRole = 'Chief of Finance';
-               if(user.role_id === 9) displayRole = 'CICM';
+               if(user.role_id === 4) displayRole = 'Shop Manager';
 
                return {
                   ...user,
@@ -87,12 +80,14 @@ export default function MarketingManagerAdmin() {
           
           setAllUsers(mappedUsers);
         } else {
+          // --- AUTO-RECOVERY LOGIC ---
+          // If we fail to load because of permissions, check if we have a saved manager token
           const savedManagerToken = localStorage.getItem('manager_token');
           
           if (savedManagerToken) {
              localStorage.setItem('token', savedManagerToken);
              localStorage.removeItem('manager_token');
-             window.location.reload();
+             window.location.reload(); // Instantly restore admin access
              return;
           }
           
@@ -107,7 +102,7 @@ export default function MarketingManagerAdmin() {
     };
 
     fetchUsers();
-  }, [router, baseUrl]);
+  }, [router]);
 
   const filteredUsers = allUsers.filter(u => 
     u.displayName.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -121,11 +116,12 @@ export default function MarketingManagerAdmin() {
 
   // 2. GENERATE CODE API (POST /api/generate-code/{userId})
   const handleGenerateCode = async (userId: number) => {
-    setGeneratedCode(null);
+    setGeneratedCode(null); // Clear any old code first
     showMessage('Generating code...', 'success');
     
     try {
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       
       const response = await fetch(`${baseUrl}/generate-code/${userId}`, {
         method: 'POST',
@@ -138,7 +134,7 @@ export default function MarketingManagerAdmin() {
       const data = await response.json();
       
       if (response.ok) {
-        setGeneratedCode(data.code);
+        setGeneratedCode(data.code); // Now 'response' is defined and safe to use
         showMessage(`Code Generated: ${data.code}`, 'success');
       } else {
         showMessage(`Error: ${data.message || 'Failed to generate code'}`, 'error');
@@ -147,18 +143,14 @@ export default function MarketingManagerAdmin() {
       showMessage('Network error while generating code.', 'error');
     }
   };
-
-  // 3. ADMIN RESET PASSWORD (POST /api/admin-reset/{userId})
   const handleAdminReset = async (userId: number) => {
     const newPass = prompt("Enter the new password for this user:");
-    if (!newPass || newPass.length < 6) {
-      alert("Password must be at least 6 characters");
-      return;
-    }
+    if (!newPass) return;
     
     showMessage('Resetting password...', 'success');
     try {
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       const response = await fetch(`${baseUrl}/admin-reset/${userId}`, {
         method: 'POST',
         headers: { 
@@ -180,11 +172,11 @@ export default function MarketingManagerAdmin() {
     }
   };
 
-  // 4. IMPERSONATE USER (POST /api/impersonate/{userId})
   const handleImpersonate = async (userId: number, userName: string) => {
     showMessage(`Switching to ${userName}'s account...`, 'success');
     try {
       const token = localStorage.getItem('token');
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       const response = await fetch(`${baseUrl}/impersonate/${userId}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
@@ -199,14 +191,12 @@ export default function MarketingManagerAdmin() {
         let redirectPath = '/';
         const nameLower = data.user.name.toLowerCase();
 
-        if (nameLower.includes('baker')) {
+        if (selectedUser?.role_id === 2 || nameLower.includes('baker')) {
             redirectPath = '/baker-assistant';
         } 
-        else if (nameLower.includes('kabuga')) {
-            redirectPath = `/kabuga/shop-manager`;
-        } 
-        else if (nameLower.includes('masaka')) {
-            redirectPath = `/masaka/shop-manager`;
+        else if (selectedUser?.role_id === 4 || nameLower.includes('shop')) {
+            const branchId = nameLower.includes('masaka') ? 'masaka' : 'kabuga';
+            redirectPath = `/${branchId}/shop-manager`;
         } 
         else if (nameLower.includes('store')) {
             redirectPath = '/store-keeper';
@@ -215,9 +205,9 @@ export default function MarketingManagerAdmin() {
             redirectPath = '/sales-coordinator';
         }
         else if (nameLower.includes('finance')) {
-            redirectPath = '/chief-finance';
+            redirectPath = '/cheif-finance';
         }
-        else if (nameLower.includes('production')) {
+        else if (nameLower.includes('production') || nameLower.includes('operation')) {
             redirectPath = '/production-manager';
         }
         else if (nameLower.includes('cicm')) {
@@ -235,23 +225,9 @@ export default function MarketingManagerAdmin() {
     }
   };
 
-  // 5. LOGOUT (POST /api/logout)
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (token) {
-        await fetch(`${baseUrl}/logout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      }
-    } catch (error) {
-      console.error("Logout error:", error);
-    } finally {
+  const handleLogout = () => {
       localStorage.clear();
-      router.push('/login');
-    }
+      router.push('/');
   };
 
   if (isLoading) {
@@ -265,7 +241,7 @@ export default function MarketingManagerAdmin() {
                  <ShieldCheck className="w-12 h-12 text-red-500 mx-auto mb-4" />
                  <h2 className="text-xl font-bold text-gray-900 mb-2">Access Error</h2>
                  <p className="text-gray-600 mb-6">{error}</p>
-                 <button onClick={() => router.push('/login')} className="bg-red-500 text-white px-6 py-2 rounded-lg font-medium hover:bg-red-600">Return to Login</button>
+                 <button onClick={() => router.push('/')} className="bg-red-500 text-white px-6 py-2 rounded-lg font-medium hover:bg-red-600">Return to Login</button>
               </div>
           </div>
       );
@@ -275,18 +251,6 @@ export default function MarketingManagerAdmin() {
     <div className="bg-[#FAFAFB] min-h-screen font-sans text-[#1C1C1C]">
       <div className="p-6 md:p-12 max-w-6xl mx-auto">
         
-        {/* Logout Button in Top Right */}
-        <div className="flex justify-end mb-6">
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-xs font-bold hover:bg-red-600 transition-colors shadow-md"
-          >
-            <LogOut size={16} />
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
-          </button>
-        </div>
-
         {view === 'dashboard' && (
           <div className="space-y-10 animate-in fade-in duration-500">
             <div className="flex flex-col gap-2 border-l-8 border-[#F57C00] pl-6">
@@ -389,15 +353,6 @@ export default function MarketingManagerAdmin() {
                     </p>
                 </div>
             </div>
-
-            {/* Generated Code Display */}
-            {generatedCode && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">Reset Code</p>
-                <p className="text-2xl font-black text-blue-800 font-mono tracking-wider">{generatedCode}</p>
-                <p className="text-[9px] text-blue-500 mt-1">Share this code with the user. It expires in 10 minutes.</p>
-              </div>
-            )}
 
             {actionMessage.text && (
                 <div className={`p-4 rounded-xl border font-bold text-sm flex items-center gap-3 animate-in fade-in zoom-in-95 ${actionMessage.type === 'success' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>

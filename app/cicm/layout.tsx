@@ -1,56 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Sidebar from '../components/layout/Sidebar';
 import Header from '../components/layout/Header';
 import { cicmMenu } from '../lib/menus';
 
 export default function CICMLayout({ children }: { children: React.ReactNode }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
 
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
-  // Fetch unread notification count from backend
-  const fetchUnreadCount = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      const response = await fetch(`${baseUrl}/notifications/unread-count`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setUnreadCount(data.count);
-      }
-    } catch (error) {
-      console.error("Failed to fetch unread count:", error);
-    }
+  const [unreadCount, setUnreadCount] = useState(1); 
+  const handleBellClick = () => {
+    setUnreadCount(0); 
   };
-
-  // Mark all notifications as read when bell is clicked
-  const handleBellClick = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    try {
-      await fetch(`${baseUrl}/notifications/read-all`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      setUnreadCount(0);
-    } catch (error) {
-      console.error("Failed to clear notifications:", error);
-    }
-  };
-
-  // Poll for new notifications every 30 seconds
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
 
   const CONFIG = {
     menu: cicmMenu,
@@ -93,6 +54,7 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* 4. MAIN CONTENT */}
+      {/* md:ml-64 ensures the content starts exactly where the sidebar ends */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen transition-all duration-300">
         
         <div className="print:hidden">
@@ -105,6 +67,7 @@ export default function CICMLayout({ children }: { children: React.ReactNode }) 
           />
         </div>
         
+        {/* ✅ FIXED: Increased desktop padding to md:p-12 to give more space from the sidebar */}
         <main className="flex-1 p-4 md:p-12 overflow-y-auto bg-[#FDFDFD] print:bg-white print:p-0 print:m-0 w-full">
           <div className="max-w-7xl mx-auto">
             {children}
