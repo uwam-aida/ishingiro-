@@ -261,7 +261,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/chart', [FinanceController::class, 'chart']);
         Route::get('/ledger', [FinanceController::class, 'ledger']);
-        Route::get('/measured-products', [FinanceController::class, 'measuredProducts']);
+        Route::get('/measured-products', [FinanceController::class, 'ingredientUsage']);
 
         Route::get('/inventory/measured', [FinanceController::class, 'inventoryMeasured']);
         Route::get('/inventory/baked', [FinanceController::class, 'inventoryBaked']);
@@ -269,6 +269,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/analytics/summary', [FinanceController::class, 'analyticsSummary']);
         Route::get('/analytics/performance', [FinanceController::class, 'analyticsPerformance']);
         Route::get('/analytics/activities', [FinanceController::class, 'analyticsActivities']);
+        Route::get('/production', [StoreKeeperController::class, 'productionLog']);
+
+        //new
+        Route::get('/dashboard/summary', [FinanceController::class, 'dashboardSummary']);
+        Route::get('/weekly-revenue', [FinanceController::class, 'weeklyRevenue']);
+        Route::get('/monthly-revenue', [FinanceController::class, 'monthlyRevenue']);
+        Route::get('/top-products', [FinanceController::class, 'topProducts']);
+        Route::get('/recent-transactions', [FinanceController::class, 'recentTransactions']);
+        Route::get('/profit-margins', [FinanceController::class, 'profitMargins']);
+        Route::get('/branch-performance', [FinanceController::class, 'branchPerformance']);
+        Route::get('/cash-flow', [FinanceController::class, 'cashFlow']);
     });
 
 
