@@ -7,6 +7,7 @@ use App\Jobs\SendNotificationJob;
 use App\Models\CakeOrder;
 use App\Models\Damage;
 use App\Models\Delivery;
+use App\Models\DeliveryNote;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -152,6 +153,7 @@ class StoreKeeperController extends Controller
     // - Increases shop stock per item (logs StockMovement in)
     // - Records Revenue per order (unless payment_received = false)
     // - Notifies shop managers
+    // - Saves delivery note to database
     // - Returns PDF
     public function deliver(Request $request)
     {
@@ -172,8 +174,9 @@ class StoreKeeperController extends Controller
 
         $orders     = collect();
         $cakeOrders = collect();
+        $deliveryNote = null;
 
-        DB::transaction(function () use ($request, &$orders, &$cakeOrders) {
+        DB::transaction(function () use ($request, &$orders, &$cakeOrders, &$deliveryNote) {
             // ── Regular orders ────────────────────────────────────────────
             if (!empty($request->order_ids)) {
                 $orders = Order::with('items.product')
@@ -282,6 +285,39 @@ class StoreKeeperController extends Controller
                         'Cake for ' . $cake->customer_name . ' delivered'
                     );
                 }
+            }
+
+            // ── Save delivery note to database ────────────────────────────
+            $allItems = collect();
+
+            foreach ($orders as $order) {
+                foreach ($order->items as $item) {
+                    $allItems->push([
+                        'product_name' => optional($item->product)->name ?? 'Unknown Product',
+                        'quantity'     => $item->quantity,
+                        'unit_price'   => $item->price,
+                        'total'        => $item->quantity * $item->price,
+                    ]);
+                }
+            }
+
+            foreach ($cakeOrders as $cake) {
+                $allItems->push([
+                    'product_name' => $cake->cake_type,
+                    'quantity'     => $cake->quantity,
+                    'unit_price'   => $cake->price,
+                    'total'        => $cake->quantity * $cake->price,
+                ]);
+            }
+
+            if ($allItems->count() > 0) {
+                $deliveryNote = DeliveryNote::create([
+                    'user_id'        => auth()->id(),
+                    'recipient_name' => $request->input('recipient_name', 'Shop'),
+                    'location'       => $orders->first()?->location ?? $cakeOrders->first()?->location ?? 'unknown',
+                    'items'          => $allItems->toArray(),
+                    'total_amount'   => $allItems->sum('total'),
+                ]);
             }
         });
 
@@ -590,6 +626,89 @@ class StoreKeeperController extends Controller
                     'full_timestamp' => $movement->created_at->toISOString(),
                 ];
             }),
+        ]);
+    }
+
+    // ============================================
+    // DELIVERY NOTES METHODS
+    // ============================================
+
+    /**
+     * Get all delivery notes history
+     * GET /api/storekeeper/delivery-notes
+     */
+    public function getDeliveryNotes(Request $request)
+    {
+        $query = DeliveryNote::with('user')->latest();
+        
+        if ($request->filled('location')) {
+            $query->where('location', $request->location);
+        }
+        
+        $limit = (int) $request->query('limit', 100);
+        $notes = $query->take($limit)->get();
+        
+        return response()->json([
+            'total' => $notes->count(),
+            'data' => $notes->map(function ($note) {
+                return [
+                    'id' => $note->id,
+                    'note_number' => $note->note_number,
+                    'recipient_name' => $note->recipient_name,
+                    'location' => $note->location,
+                    'items_count' => count($note->items),
+                    'total_amount' => $note->total_amount,
+                    'created_by' => optional($note->user)->name,
+                    'date' => $note->created_at->toDateString(),
+                    'time' => $note->created_at->format('h:i A'),
+                    'created_at' => $note->created_at,
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * Get single delivery note by ID with full details
+     * GET /api/storekeeper/delivery-notes/{id}
+     */
+    public function getDeliveryNote($id)
+    {
+        $note = DeliveryNote::with('user')->findOrFail($id);
+        
+        return response()->json([
+            'id' => $note->id,
+            'note_number' => $note->note_number,
+            'recipient_name' => $note->recipient_name,
+            'location' => $note->location,
+            'items' => $note->items,
+            'total_amount' => $note->total_amount,
+            'created_by' => optional($note->user)->name,
+            'created_at' => $note->created_at,
+            'date' => $note->created_at->toDateString(),
+            'time' => $note->created_at->format('h:i A'),
+        ]);
+    }
+
+    /**
+     * Regenerate PDF for an existing delivery note
+     * GET /api/storekeeper/delivery-notes/{id}/pdf
+     */
+    public function regenerateDeliveryNotePdf($id)
+    {
+        $note = DeliveryNote::with('user')->findOrFail($id);
+        
+        // Convert stored items back to collection
+        $items = collect($note->items);
+        
+        $pdf = app(DeliveryNoteService::class)->generateFromArray(
+            items: $items,
+            recipient: $note->recipient_name,
+            deliveredAt: $note->created_at,
+        );
+        
+        return response($pdf, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="delivery-note-' . $note->note_number . '.pdf"',
         ]);
     }
 }
