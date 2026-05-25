@@ -112,8 +112,8 @@ Route::middleware('auth:sanctum')->group(function () {
     | SHOP MANAGERS — Location-specific order posting
     |--------------------------------------------------------------------------
     */
-    Route::middleware('role:shop_manager_kabuga')->post('/orders/kabuga', [OrderController::class, 'store'])->defaults('location', 'kabuga');
-    Route::middleware('role:shop_manager_masaka')->post('/orders/masaka', [OrderController::class, 'store'])->defaults('location', 'masaka');
+    Route::middleware('role:shop_manager_kabuga')->post('/orders', [OrderController::class, 'store'])->defaults('location', 'kabuga');
+    Route::middleware('role:shop_manager_masaka')->post('/orders', [OrderController::class, 'store'])->defaults('location', 'masaka');
 
     /*
     |--------------------------------------------------------------------------
