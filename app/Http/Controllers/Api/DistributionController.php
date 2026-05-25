@@ -9,6 +9,7 @@ use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
+
 class DistributionController extends Controller
 {
     // GET ALL DISTRIBUTIONS
@@ -18,8 +19,6 @@ class DistributionController extends Controller
     }
 
     // CREATE DISTRIBUTION RECORD
-    // - Decrements stock at the location (Tiku, Events, Guests reduce shop stock)
-    // - Logs StockMovement (out)
     public function store(Request $request)
     {
         $request->validate([
@@ -42,7 +41,6 @@ class DistributionController extends Controller
                 'user_id'    => auth()->id(),
             ]);
 
-            // Reduce stock at the given location
             if ($request->location) {
                 $stock = Stock::where('product_id', $request->product_id)
                     ->where('location', $request->location)
@@ -68,8 +66,23 @@ class DistributionController extends Controller
     // GET DISTINCT CATEGORIES
     public function categories()
     {
-        return Distribution::distinct()
+        // First, get existing categories from distributions
+        $existingCategories = Distribution::distinct()
             ->orderBy('category')
-            ->pluck('category');
+            ->pluck('category')
+            ->toArray();
+        
+        // Define default categories
+        $defaultCategories = ['Tiku', 'Events', 'Guests', 'Clients', 'Ingaruka'];
+        
+        // If no categories exist in database, return defaults
+        if (empty($existingCategories)) {
+            return response()->json($defaultCategories);
+        }
+        
+        // Merge existing with defaults (to ensure all 5 are shown)
+        $allCategories = array_unique(array_merge($defaultCategories, $existingCategories));
+        
+        return response()->json(array_values($allCategories));
     }
 }
