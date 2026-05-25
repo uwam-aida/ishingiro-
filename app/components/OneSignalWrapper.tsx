@@ -8,15 +8,14 @@ export default function OneSignalWrapper({ children }: { children: React.ReactNo
     const initializeOneSignal = async () => {
       try {
         await OneSignal.init({
-          appId: "43c37346-e18b-4170-8da5-a759191eb933", 
+          appId: "43c37346-e18b-4170-8da5-a759191eb933",
           allowLocalhostAsSecureOrigin: true,
         });
 
         OneSignal.Slidedown.promptPush();
         
-        // Get and save player ID after initialization
-        // @ts-ignore - getUserId exists in the actual OneSignal SDK
-        const playerId = await OneSignal.getUserId();
+        // Call the OneSignal getUserId function — cast to any to satisfy TypeScript defs
+        const playerId = await (OneSignal as any).getUserId();
         
         if (playerId) {
           const token = localStorage.getItem('token');

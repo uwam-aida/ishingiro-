@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, Store, Plus, MapPin, Bell, X, ShieldAlert, CheckCircle2, Trash2, Edit2, Check, History, Cake } from 'lucide-react';
+import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, Store, Plus, MapPin, Bell, X, ShieldAlert, CheckCircle2, Trash2, Edit2, Check, History,ChevronDown, Cake } from 'lucide-react';
 
 // --- OFFICIAL PRODUCT LIST (KEPT EXACTLY AS PROVIDED) ---
 const MARKETING_PRODUCTS = [
@@ -116,6 +116,12 @@ export default function DynamicShopDashboard() {
   // NEW STATE: SUCCESS MESSAGE TOGGLE
   const [showRequestSuccess, setShowRequestSuccess] = useState(false);
 
+  // --- ADDED STATE FOR CAKE REQUESTS ---
+  const [cakeRequests, setCakeRequests] = useState<any[]>([]);
+  const [showCakeRequestForm, setShowCakeRequestForm] = useState(false);
+  const [newCakeRequest, setNewCakeRequest] = useState({ cake_type: '', customer_name: '' });
+  const [showBigCakeSuggestions, setShowBigCakeSuggestions] = useState(false);
+
   // --- 2. BACKEND WIRING: AUTH & INITIAL LOAD ---
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -201,6 +207,21 @@ export default function DynamicShopDashboard() {
                    setCakeOrders(cakeData.map((c:any) => ({ id: c.id, item: c.cake_type, code: `CK-${c.id}`, customer: c.customer_name, time: c.delivery_date || 'Pending' })));
                 }
             }
+
+            // --- ADDED: FETCH CAKE REQUESTS FOR THIS BRANCH ---
+            const cakeReqRes = await fetch(`${baseUrl}/shop/cake-requests/${branchIdString}`, { headers });
+            if (cakeReqRes.ok) {
+                const cakeReqData = await cakeReqRes.json();
+                const mappedReqs = cakeReqData.map((c: any) => ({
+                    id: c.id,
+                    branch: c.location || branchIdString,
+                    details: c.cake_type,
+                    customer: c.customer_name,
+                    pickupTime: c.delivery_date || 'Pending'
+                }));
+                setCakeRequests(mappedReqs);
+            }
+
         } catch(e) { console.error("Failed to fetch shop data", e); }
     };
 
@@ -241,7 +262,7 @@ export default function DynamicShopDashboard() {
   const bakedItemsAvailable = selectedItem ? (factoryStock.find(s => s.item === selectedItem)?.quantity || 0) : 0;
   const isOverLimit = (parseInt(requestQty) || 0) > bakedItemsAvailable;
 
-  // --- 4. BACKEND INTEGRATION FOR ADD REQUEST (CALLS BOTH APIS) ---
+  // --- 4. BACKEND INTEGRATION FOR ADD REQUEST ---
 const handleAddRequest = async () => {
   if (!requestQty || isOverLimit || !selectedItem) return;
   
@@ -251,59 +272,32 @@ const handleAddRequest = async () => {
   const realDbProduct = realProducts.find(p => p.name.toLowerCase() === selectedItem.toLowerCase());
   const dbProductId = realDbProduct ? realDbProduct.id : 1; 
 
-  const requestBody = {
-    items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
-  };
-
-  const storekeeperBody = {
-    location: branchIdString,
-    items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
-  };
-
   try {
-    // API 1: Post to shop's own orders endpoint (for shop's records)
-    const orderResponse = await fetch(`${baseUrl}/orders/${branchIdString}`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
-    });
-    
-    if (orderResponse.ok) {
-      console.log("Order saved to shop's orders endpoint");
-    }
+      // POST to Store Keeper's requests endpoint
+      const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
+    })
+});
+      if (response.ok) { 
+        console.log("Order sent to Store Keeper successfully!"); 
+        setShowRequestSuccess(true);
+        setTimeout(() => setShowRequestSuccess(false), 3000);
+        
+        // Refresh the store keeper's view (you may need to implement a refresh mechanism)
+      } else {
+        const error = await response.json();
+        console.error("API Error:", error);
+      }
+  } catch (e) { console.error(e); }
 
-    // API 2: Post to storekeeper's requests endpoint (for store keeper to see)
-    const storekeeperResponse = await fetch(`${baseUrl}/storekeeper/requests`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(storekeeperBody)
-    });
-    
-    if (storekeeperResponse.ok) { 
-      console.log("Order sent to Store Keeper successfully!"); 
-      setShowRequestSuccess(true);
-      setTimeout(() => setShowRequestSuccess(false), 3000);
-    } else {
-      const errorData = await storekeeperResponse.json();
-      console.error("Store Keeper API error:", errorData);
-    }
-  } catch (e) { 
-    console.error("Error sending order:", e); 
-  }
-
-  // Update local state (optimistic update)
+  // Update local state
   const qtyToDeduct = parseInt(requestQty);
   const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
-  setMyRequests([{ 
-    id: Date.now(), 
-    item: selectedItem, 
-    quantity: qtyToDeduct, 
-    status: 'Pending Dispatch', 
-    time: currentTime 
-  }, ...myRequests]);
-  
-  // Reset form
+  setMyRequests([{ id: Date.now(), item: selectedItem, quantity: qtyToDeduct, status: 'Pending Dispatch', time: currentTime }, ...myRequests]);
   setRequestQty(''); 
   setRestQty(''); 
   setProductSearch(''); 
@@ -345,8 +339,7 @@ const handleAddRequest = async () => {
   };
 
   const branchName = branchIdString === 'kabuga' ? 'KABUGA SHOP' : branchIdString === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
-
+const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'cake_requests' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
   const fullHistory = [
       ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
       ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
@@ -357,11 +350,35 @@ const handleAddRequest = async () => {
     { id: 'baked', label: 'Baked Items', icon: ShoppingBag, count: factoryStock.length },
     { id: 'orders', label: 'Orders', icon: Clock, count: myRequests.length },
     { id: 'cake_orders', label: 'Cake Orders', icon: Cake, count: cakeOrders.length },
+    { id: 'cake_requests', label: 'Cake Requests', icon: Cake, count: cakeRequests.length }, // ADDED
     { id: 'received', label: 'Received', icon: Archive, count: receivedStock.length },
     { id: 'stock', label: 'My Stock', icon: Store, count: myStock.length },
     { id: 'damaged', label: 'Damaged', icon: AlertCircle, count: damagedReports.length },
     { id: 'history', label: 'Full History', icon: History, count: fullHistory.length },
   ];
+
+  // --- ADDED: FUNCTION TO REFRESH CAKE REQUESTS ---
+  const fetchCakeRequests = async () => {
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    const headers = { 'Authorization': `Bearer ${token}` };
+    try {
+      const res = await fetch(`${baseUrl}/shop/cake-requests/${branchIdString}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((c: any) => ({
+          id: c.id,
+          branch: c.location || branchIdString,
+          details: c.cake_type,
+          customer: c.customer_name,
+          pickupTime: c.delivery_date || 'Pending'
+        }));
+        setCakeRequests(mapped);
+      }
+    } catch (err) {
+      console.error("Failed to fetch cake requests", err);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans w-full overflow-x-hidden">
@@ -383,7 +400,7 @@ const handleAddRequest = async () => {
             </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 w-full">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 w-full">
           {stats.map((stat) => (
             <div 
                 key={stat.id} 
@@ -518,6 +535,140 @@ const handleAddRequest = async () => {
             </div>
           )}
 
+          {/* --- ADDED: CAKE REQUESTS TAB --- */}
+                    {activeFilter === 'cake_requests' && (
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">BIG CAKES REQUESTS</h2>
+                <button
+                  onClick={() => setShowCakeRequestForm(!showCakeRequestForm)}
+                  className="bg-[#F57C00] text-white px-4 py-2 rounded-xl text-xs font-black uppercase"
+                >
+                  {showCakeRequestForm ? 'Cancel' : '+ New Request'}
+                </button>
+              </div>
+
+              {showCakeRequestForm && (
+                <div className="bg-orange-50 p-6 rounded-2xl mb-8 border border-orange-200">
+                  <h3 className="text-sm font-black text-[#F57C00] mb-4">Request a Big Cake</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="relative">
+  <div className="relative">
+    <input
+      type="text"
+      placeholder="Search big cake..."
+      value={newCakeRequest.cake_type}
+      onChange={(e) => {
+        setNewCakeRequest({ ...newCakeRequest, cake_type: e.target.value });
+        setShowBigCakeSuggestions(true);
+      }}
+      onFocus={() => setShowBigCakeSuggestions(true)}
+      onBlur={() => setTimeout(() => setShowBigCakeSuggestions(false), 200)}
+      className="border-2 border-gray-200 p-3 rounded-xl font-bold text-sm outline-none focus:border-[#F57C00] w-full pr-10"
+    />
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        // Toggle suggestions: if closed, open; if open, close.
+        setShowBigCakeSuggestions(!showBigCakeSuggestions);
+      }}
+      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+    >
+      <ChevronDown size={18} />
+    </button>
+  </div>
+  {showBigCakeSuggestions && (
+    <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto mt-1">
+      {MARKETING_PRODUCTS.filter(p => 
+        p.category === 'BIG CAKES' && 
+        (newCakeRequest.cake_type === '' || p.name.toLowerCase().includes(newCakeRequest.cake_type.toLowerCase()))
+      ).map((p, i) => (
+        <div
+          key={i}
+          onMouseDown={(e) => e.preventDefault()} // Prevent blur before click
+          onClick={() => {
+            setNewCakeRequest({ ...newCakeRequest, cake_type: p.name });
+            setShowBigCakeSuggestions(false);
+          }}
+          className="p-3 hover:bg-orange-50 cursor-pointer border-b border-gray-100 text-sm font-bold"
+        >
+          {p.name} - {p.price.toLocaleString()} RWF
+        </div>
+      ))}
+    </div>
+  )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Customer Name"
+                      value={newCakeRequest.customer_name}
+                      onChange={(e) => setNewCakeRequest({ ...newCakeRequest, customer_name: e.target.value })}
+                      className="border-2 border-gray-200 p-3 rounded-xl font-bold text-sm outline-none focus:border-[#F57C00]"
+                    />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!newCakeRequest.cake_type || !newCakeRequest.customer_name) {
+                        alert("Please select a big cake and enter customer name");
+                        return;
+                      }
+                      const isBigCake = MARKETING_PRODUCTS.some(p => p.name === newCakeRequest.cake_type && p.category === 'BIG CAKES');
+                      if (!isBigCake) {
+                        alert("Only big cakes can be requested here. Please select from the suggestions.");
+                        return;
+                      }
+                      const token = localStorage.getItem('token');
+                      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+                      const res = await fetch(`${baseUrl}/shop/cake-requests`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          cake_type: newCakeRequest.cake_type,
+                          customer_name: newCakeRequest.customer_name,
+                          location: branchIdString,
+                          delivery_date: new Date().toISOString().split('T')[0]
+                        })
+                      });
+                      if (res.ok) {
+                        setNewCakeRequest({ cake_type: '', customer_name: '' });
+                        setShowCakeRequestForm(false);
+                        await fetchCakeRequests();
+                        alert("Big cake request sent!");
+                      } else {
+                        alert("Failed to send request");
+                      }
+                    }}
+                    className="mt-4 bg-[#F57C00] text-white px-6 py-3 rounded-xl font-black uppercase text-xs"
+                  >
+                    Submit Request
+                  </button>
+                </div>
+              )}
+
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                  <tr>
+                    <th className="px-8 py-4">Cake Type (Big Cakes)</th>
+                    <th className="px-8 py-4 text-center">Customer</th>
+                    <th className="px-8 py-4 text-right">Request Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {cakeRequests.map((req) => (
+                    <tr key={req.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.details}</td>
+                      <td className="px-8 py-6 text-center text-sm text-gray-900">{req.customer}</td>
+                      <td className="px-8 py-6 text-right text-xs text-gray-400">{req.pickupTime}</td>
+                    </tr>
+                  ))}
+                  {cakeRequests.length === 0 && (
+                    <tr><td colSpan={3} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Big Cake Requests</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
           {activeFilter === 'orders' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
                 <div className="max-w-2xl">

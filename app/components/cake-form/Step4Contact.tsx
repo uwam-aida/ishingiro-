@@ -30,13 +30,13 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
     // Check individual fields
     if (!formData.customerFullName) errors.push("Full Name");
     if (formData.customerPhoneNumber?.length !== 10) errors.push("10-digit Phone");
-    if (!formData.orderPlace) errors.push("Order Place");
+    if (!formData.orderLocation) errors.push("Order Location");  // CHANGED: orderPlace -> orderLocation
     if (!formData.receptionLocation) errors.push("Reception Location");
-    if (!formData.orderDate) errors.push("Date");
+    if (!formData.pickupDate) errors.push("Pickup Date");  // CHANGED: orderDate -> pickupDate
     if (!formData.orderReceiverName) errors.push("Receiver Name");
 
     // Date Validation: Check if the selected date is in the past
-    const selectedDate = new Date(formData.orderDate);
+    const selectedDate = new Date(formData.pickupDate);  // CHANGED: orderDate -> pickupDate
     const today = new Date();
     today.setSeconds(0, 0);
     const isDateExpired = selectedDate < today;
@@ -112,20 +112,19 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
             />
           </div>
 
-          {/* Place of Order */}
+          {/* Place of Order - CHANGED: orderPlace -> orderLocation */}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
-              <Store size={12} /> Place of Order
+              <Store size={12} /> Order Location
             </label>
             <select 
-              value={formData.orderPlace || ''} 
-              onChange={(e) => setFormData({...formData, orderPlace: e.target.value})} 
-              className={`w-full border-2 ${localError && !formData.orderPlace ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`}
+              value={formData.orderLocation || ''} 
+              onChange={(e) => setFormData({...formData, orderLocation: e.target.value})} 
+              className={`w-full border-2 ${localError && !formData.orderLocation ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`}
             >
               <option value="">Select Order Location</option>
-              <option value="kabuga factory">Kabuga Factory</option>
-              <option value="kabuga shop">Kabuga shop</option>
-              <option value="masaka shop">Masaka shop</option>
+              <option value="kabuga">Kabuga</option>
+              <option value="masaka">Masaka</option>
             </select>
           </div>
         </div>
@@ -144,7 +143,7 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
             >
               <option value="">Select Reception Location</option>
               <option value="kabuga factory">Kabuga Factory</option>
-              <option value="kabugashop">Kabuga shop</option>
+              <option value="kabuga shop">Kabuga shop</option>
               <option value="masaka shop">Masaka shop</option>
               <option value="rwamagana shop">Rwamagana shop</option>
               <option value="kayonza shop">Kayonza shop</option>
@@ -164,16 +163,16 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
             )}
           </div>
 
-          {/* Pickup Date & Time */}
+          {/* Pickup Date & Time - CHANGED: orderDate -> pickupDate */}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-900 uppercase tracking-widest flex items-center gap-1">
               <Calendar size={12} /> Pickup Date & Time
             </label>
             <input 
               type="datetime-local" 
-              value={formData.orderDate || ''} 
-              onChange={(e) => setFormData({...formData, orderDate: e.target.value})} 
-              className={`w-full border-2 ${dateError || (localError && !formData.orderDate) ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`} 
+              value={formData.pickupDate || ''} 
+              onChange={(e) => setFormData({...formData, pickupDate: e.target.value})} 
+              className={`w-full border-2 ${dateError || (localError && !formData.pickupDate) ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`} 
             />
             {dateError && <p className="text-[10px] font-bold text-red-500">Error: Date cannot be in the past.</p>}
           </div>

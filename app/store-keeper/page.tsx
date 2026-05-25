@@ -79,7 +79,7 @@ export default function StoreKeeperDashboard() {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
   // --- STATE INITIALIZATION ---
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests'>('requests');  
+  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests' | 'full_history'>('requests');  
   const [deliveryNote, setDeliveryNote] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editQty, setEditQty] = useState('');
@@ -204,7 +204,7 @@ export default function StoreKeeperDashboard() {
         }
 
         // Fetch 2: Shop Requests - GET /api/storekeeper/requests
-        const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
+      const reqRes = await fetch(`${baseUrl}/orders`, { headers });
         if (reqRes.ok) {
           const data = await reqRes.json();
           const flattenedRequests: any[] = [];
@@ -243,8 +243,8 @@ export default function StoreKeeperDashboard() {
           setDeliveryHistory(mappedHistory);
         }
 
-        // Fetch 4: Cake Orders - GET /storekeeper/cake-orders
-        const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
+        // Fetch 4: Cake Orders - GET /shop/cake-orders
+        const cakeOrderRes = await fetch(`${baseUrl}/shop/cake-orders`, { headers });
         if (cakeOrderRes.ok) {
           const data = await cakeOrderRes.json();
           const mappedCakes = data.map((c: any) => ({
@@ -262,8 +262,8 @@ export default function StoreKeeperDashboard() {
           setCakeOrders(mappedCakes);
         }
 
-        // Fetch 5: Cake Requests - GET /storekeeper/cake-requests
-        const cakeReqRes = await fetch(`${baseUrl}/storekeeper/cake-requests`, { headers });
+        // Fetch 5: Cake Requests - GET /shop/cake-requests
+        const cakeReqRes = await fetch(`${baseUrl}/shop/cake-requests`, { headers });
         if (cakeReqRes.ok) {
           const data = await cakeReqRes.json();
           const mappedCakeReqs = data.map((c: any) => ({
@@ -317,10 +317,19 @@ export default function StoreKeeperDashboard() {
     fetchAllData();
   }, [router, baseUrl]);
 
-  const rawBranchId = params?.branchId;
+  const rawBranchId = params?.branchId || 'store';
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // --- FULL HISTORY COMBINED DATA ---
+  const fullHistory = [
+    ...shopRequests.map(r => ({ type: 'REQUEST', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
+    ...damagedProducts.map(d => ({ type: 'DAMAGE', item: d.item, qty: d.quantity, time: d.date, color: 'text-red-600' })),
+    ...cakeOrders.map(c => ({ type: 'CAKE ORDER', item: c.details, qty: 1, time: c.pickupTime, color: 'text-[#F57C00]' })),
+    ...deliveryHistory.map(h => ({ type: 'DELIVERED', item: h.item, qty: h.quantity, time: h.date, color: 'text-green-600' })),
+    ...bakedProducts.map(b => ({ type: 'PRODUCTION', item: b.item, qty: b.quantity, time: b.time, color: 'text-purple-600' })),
+  ].sort((a, b) => (b.time || '').localeCompare(a.time || ''));
 
   const handlePrint = () => { window.print(); };
 
@@ -449,14 +458,14 @@ export default function StoreKeeperDashboard() {
   };
 
   const stats = [
-    { id: 'requests', label: 'Requests', value: shopRequests.length.toString(), icon: Bell },
-    { id: 'baked_log', label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat },
-    { id: 'my_stock', label: 'Stock', value: myStock.length.toString(), icon: ShoppingBag },
-    { id: 'cake_orders', label: 'Cake Orders', value: cakeOrders.length.toString(), icon: ClipboardList }, 
-    { id: 'cake_requests', label: 'Cake Requests', value: cakeRequests.length.toString(), icon: Package }, 
-    { id: 'delivered', label: 'Full Added Products', value: deliveryHistory.length.toString(), icon: CheckCheck },
-    { id: 'damaged', label: 'Damaged', value: damagedProducts.length.toString(), icon: ShieldAlert },
-    { id: 'notes', label: 'Delivery Notes', value: deliveryNotesList.length.toString(), icon: FileText },
+    { id: 'requests', label: 'Requests', value: (shopRequests?.length || 0).toString(), icon: Bell },
+    { id: 'baked_log', label: 'Baked Products', value: (bakedProducts?.length || 0).toString(), icon: ChefHat },
+    { id: 'my_stock', label: 'Stock', value: (myStock?.length || 0).toString(), icon: ShoppingBag },
+    { id: 'cake_orders', label: 'Cake Orders', value: (cakeOrders?.length || 0).toString(), icon: ClipboardList }, 
+    { id: 'cake_requests', label: 'Cake Requests', value: (cakeRequests?.length || 0).toString(), icon: Package }, 
+    { id: 'full_history', label: 'Full History', value: (fullHistory?.length || 0).toString(), icon: CheckCheck },
+    { id: 'damaged', label: 'Damaged', value: (damagedProducts?.length || 0).toString(), icon: ShieldAlert },
+    { id: 'notes', label: 'Delivery Notes', value: (deliveryNotesList?.length || 0).toString(), icon: FileText },
   ];
 
   return (
@@ -565,7 +574,7 @@ export default function StoreKeeperDashboard() {
                               <td className="border-r border-black p-1 text-center">{item.quantity}</td>
                               <td className="border-r border-black p-1 text-center">{price.toLocaleString()}</td>
                               <td className="p-1 text-right">{total.toLocaleString()}</td>
-                          </tr>
+                           </tr>
                         );
                     })}
                     <tr className="font-black uppercase border-t border-black">
@@ -608,13 +617,7 @@ export default function StoreKeeperDashboard() {
       {/* --- HEADER --- */}
       <div className="flex items-center gap-4 pt-6 no-print text-black">
         <h1 className="text-2xl font-black text-black uppercase tracking-tight">STORE KEEPER</h1>
-        <button 
-          onClick={fetchAllDeliveryNotes}
-          className="ml-auto bg-gray-100 hover:bg-gray-200 p-3 rounded-2xl transition-all"
-          title="Refresh Delivery Notes"
-        >
-          🔄
-        </button>
+        
       </div>
 
       {/* --- STATS GRID --- */}
@@ -653,11 +656,7 @@ export default function StoreKeeperDashboard() {
              <button onClick={handleBulkDelivery} className="bg-black text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-all"><PackageCheck size={16} /> Generate Delivery Note ({selectedProductIds.length})</button>
            )}
            
-           {activeFilter === 'notes' && (
-             <button onClick={fetchAllDeliveryNotes} className="bg-[#F57C00] text-white px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#E65100] transition-all">
-               🔄 Refresh Notes
-             </button>
-           )}
+          
         </div>
 
         {activeFilter === 'requests' && (
@@ -713,21 +712,172 @@ export default function StoreKeeperDashboard() {
           </div>
         )}
 
-        {activeFilter === 'damaged' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Damaged Item</th><th className="px-8 py-4 text-center">Qty</th><th className="px-8 py-4 text-center">Reason</th><th className="px-8 py-4 text-right">Date Recorded</th></tr></thead>
-              <tbody className="divide-y divide-gray-100 font-bold">
-                {damagedProducts.map((d) => (
-                  <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-8 py-6 font-black text-rose-700 uppercase text-sm">{d.item}</td>
-                    <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{d.quantity}</td>
-                    <td className="px-8 py-6 text-center font-black text-gray-400 text-xs">{d.reason}</td>
-                    <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{d.date} {d.time}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                {activeFilter === 'damaged' && (
+          <div className="p-8 animate-in fade-in">
+            {/* --- DAMAGE REPORT FORM WITH PRODUCT SUGGESTIONS --- */}
+            <div className="bg-red-50/30 p-6 rounded-3xl border border-red-100 mb-8">
+              <h3 className="text-[10px] font-black uppercase mb-4 text-red-600 tracking-[0.2em]">Report New Damage</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Product input with suggestions - styles unchanged */}
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    placeholder="Product Name" 
+                    id="damageProductName"
+                    className="w-full bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500"
+                    autoComplete="off"
+                    onKeyUp={(e) => {
+                      const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
+                      const suggestionsDiv = document.getElementById('damageSuggestions');
+                      if (!suggestionsDiv) return;
+                      
+                      if (searchTerm.length > 0) {
+                        const products = FINANCE_PRODUCTS.filter(p => 
+                          p.name.toLowerCase().includes(searchTerm)
+                        ).slice(0, 8);
+                        
+                        if (products.length > 0) {
+                          suggestionsDiv.innerHTML = products.map(p => 
+                            `<div class="p-3 hover:bg-red-50 cursor-pointer border-b border-gray-100 text-sm font-bold text-gray-700" data-product="${p.name}">${p.name}</div>`
+                          ).join('');
+                          suggestionsDiv.classList.remove('hidden');
+                          
+                          suggestionsDiv.querySelectorAll('[data-product]').forEach(el => {
+                            el.addEventListener('click', () => {
+                              const productName = el.getAttribute('data-product');
+                              (document.getElementById('damageProductName') as HTMLInputElement).value = productName || '';
+                              suggestionsDiv.classList.add('hidden');
+                            });
+                          });
+                        } else {
+                          suggestionsDiv.innerHTML = '<div class="p-3 text-gray-400 text-sm">No products found</div>';
+                          suggestionsDiv.classList.remove('hidden');
+                        }
+                      } else {
+                        suggestionsDiv.classList.add('hidden');
+                      }
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => {
+                        document.getElementById('damageSuggestions')?.classList.add('hidden');
+                      }, 200);
+                    }}
+                    onFocus={(e) => {
+                      const searchTerm = (e.target as HTMLInputElement).value.toLowerCase();
+                      if (searchTerm.length > 0) {
+                        document.getElementById('damageSuggestions')?.classList.remove('hidden');
+                      }
+                    }}
+                  />
+                  <div id="damageSuggestions" className="absolute z-50 w-full bg-white border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto hidden mt-1">
+                  </div>
+                </div>
+                
+                <input 
+                  type="number" 
+                  placeholder="Qty" 
+                  id="damageQty"
+                  className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500"
+                />
+                <input 
+                  type="text" 
+                  placeholder="Reason (Optional)" 
+                  id="damageReason"
+                  className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500"
+                />
+                <button 
+                  onClick={async () => {
+                    const productName = (document.getElementById('damageProductName') as HTMLInputElement)?.value;
+                    const quantity = (document.getElementById('damageQty') as HTMLInputElement)?.value;
+                    const reason = (document.getElementById('damageReason') as HTMLInputElement)?.value;
+                    
+                    if (!productName || !quantity) {
+                      alert("Please enter product name and quantity");
+                      return;
+                    }
+                    
+                    const productExists = FINANCE_PRODUCTS.find(p => p.name.toLowerCase() === productName.toLowerCase());
+                    if (!productExists) {
+                      alert("Product not found. Please select from the suggestions.");
+                      return;
+                    }
+                    
+                    const token = localStorage.getItem('token');
+                    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+                    
+                    const dbProductId = 1;
+                    
+                    try {
+                      const response = await fetch(`${baseUrl}/storekeeper/damage`, {
+                        method: 'POST',
+                        headers: { 
+                          'Authorization': `Bearer ${token}`,
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                          product_id: dbProductId,
+                          quantity: parseInt(quantity),
+                          reason: reason || 'Reported by Store Keeper',
+                          location: 'store'
+                        })
+                      });
+                      
+                      if (response.ok) {
+                        const newDamage = {
+                          id: Date.now(),
+                          item: productName,
+                          quantity: parseInt(quantity),
+                          reason: reason || 'Reported by Store Keeper',
+                          date: new Date().toLocaleDateString(),
+                          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        };
+                        
+                        setDamagedProducts(prev => [newDamage, ...prev]);
+                        
+                        (document.getElementById('damageProductName') as HTMLInputElement).value = '';
+                        (document.getElementById('damageQty') as HTMLInputElement).value = '';
+                        (document.getElementById('damageReason') as HTMLInputElement).value = '';
+                        
+                        alert("Damage reported successfully!");
+                      } else {
+                        alert("Failed to report damage. Please try again.");
+                      }
+                    } catch (err) {
+                      console.error("Failed to report damage", err);
+                      alert("Error reporting damage");
+                    }
+                  }}
+                  className="bg-red-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-700 transition-all"
+                >
+                  Submit Damage
+                </button>
+              </div>
+            </div>
+            
+            {/* --- DAMAGED PRODUCTS LIST - STYLES UNCHANGED --- */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-bold">
+                <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
+                  <th className="px-8 py-4">Damaged Item</th>
+                  <th className="px-8 py-4 text-center">Qty</th>
+                  <th className="px-8 py-4 text-center">Reason</th>
+                  <th className="px-8 py-4 text-right">Date Recorded</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100 font-bold">
+                  {damagedProducts.map((d) => (
+                    <tr key={d.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-8 py-6 font-black text-rose-700 uppercase text-sm">{d.item}</td>
+                      <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{d.quantity}</td>
+                      <td className="px-8 py-6 text-center font-black text-gray-400 text-xs">{d.reason}</td>
+                      <td className="px-8 py-6 text-right text-xs font-black text-gray-400">{d.date} {d.time}</td>
+                    </tr>
+                  ))}
+                  {damagedProducts.length === 0 && (
+                    <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Damaged Items Reported</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -806,6 +956,38 @@ export default function StoreKeeperDashboard() {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* --- FULL HISTORY SECTION --- */}
+        {activeFilter === 'full_history' && (
+          <div className="overflow-x-auto p-8">
+            <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4">Complete Activity Log</h3>
+            <table className="w-full min-w-[800px] whitespace-nowrap text-left border-collapse">
+              <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                <tr>
+                  <th className="px-8 py-4">Type</th>
+                  <th className="px-8 py-4">Product/Item</th>
+                  <th className="px-8 py-4 text-center">Quantity</th>
+                  <th className="px-8 py-4 text-right">Date/Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {fullHistory.map((log, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors font-bold">
+                    <td className={`px-8 py-6 uppercase text-[10px] font-black ${log.color}`}>{log.type}</td>
+                    <td className="px-8 py-6 uppercase text-sm text-gray-900">{log.item}</td>
+                    <td className="px-8 py-6 text-center text-lg text-gray-800">{log.qty}</td>
+                    <td className="px-8 py-6 text-right text-xs text-gray-400">{log.time || 'N/A'}</td>
+                  </tr>
+                ))}
+                {fullHistory.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No History Found</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

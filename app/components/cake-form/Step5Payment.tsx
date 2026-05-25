@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, CreditCard, Wallet, UserCheck, CheckCircle2, Info, MapPin, User, LogOut } from 'lucide-react';
 
-export default function Step5Payment({ formData, setFormData, handlePrev }: any) {
+export default function Step5Payment({ formData, setFormData, handlePrev, handleSubmit, onSubmit }: any) {
   const [localError, setLocalError] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [cakeCode, setCakeCode] = useState('');
@@ -35,16 +35,17 @@ export default function Step5Payment({ formData, setFormData, handlePrev }: any)
     }
   }, [isSubmitted, cakeCode]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmitLocal = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.paymentMethod || paid <= 0 || !formData.payerName) {
+    const paidAmount = Number(formData.paidAmount);
+    if (!formData.paymentMethod || paidAmount <= 0 || !formData.payerName) {
       setLocalError(true);
       setTimeout(() => setLocalError(false), 3000);
       return;
     }
-    setIsSubmitted(true);
+    // Call the parent's handleSubmit (passed as prop)
+    if (handleSubmit) handleSubmit();
   };
-
   const handleFinish = () => {
     // This will take the user back to Step 1 for a new order
     window.location.reload(); 

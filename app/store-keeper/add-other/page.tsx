@@ -91,6 +91,15 @@ const STORE_PRODUCTS = [
     { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
+// Default categories - always available as fallback
+const DEFAULT_CATEGORIES = [
+  { id: 'Tiku', icon: Star },
+  { id: 'Clients', icon: UserCircle },
+  { id: 'Guests', icon: Users },
+  { id: 'Events', icon: Calendar },
+  { id: 'Ingaruka', icon: UtensilsCrossed }
+];
+
 export default function AddOtherProduct() {
   const router = useRouter(); 
   
@@ -107,14 +116,8 @@ export default function AddOtherProduct() {
   const [liveProducts, setLiveProducts] = useState<Product[]>(STORE_PRODUCTS);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
-  // Fallback categories if API fails
-  const [dynamicCategories, setDynamicCategories] = useState([
-    { id: 'Tiku', icon: Star },
-    { id: 'Clients', icon: UserCircle },
-    { id: 'Guests', icon: Users },
-    { id: 'Events', icon: Calendar },
-    { id: 'Ingaruka', icon: UtensilsCrossed }
-  ]);
+  // Categories state - starts with defaults, updates from API if available
+  const [dynamicCategories, setDynamicCategories] = useState(DEFAULT_CATEGORIES);
 
   // --- 1. FETCH LIVE PRODUCTS & CATEGORIES ON MOUNT ---
   useEffect(() => {
@@ -141,24 +144,27 @@ export default function AddOtherProduct() {
         if (catRes.ok) {
            const data: string[] = await catRes.json();
            
-           // Map the plain text strings from the backend to your UI icons
-           const mappedCategories = data.map((catName) => {
-              let IconToUse = PlusCircle; // Default icon
-              if (catName.toLowerCase() === 'tiku') IconToUse = Star;
-              else if (catName.toLowerCase() === 'events') IconToUse = Calendar;
-              else if (catName.toLowerCase() === 'guests') IconToUse = Users;
-              else if (catName.toLowerCase() === 'clients') IconToUse = UserCircle;
-              else if (catName.toLowerCase() === 'ingaruka') IconToUse = UtensilsCrossed;
-              
-              return { id: catName, icon: IconToUse };
-           });
-           
-           if(mappedCategories.length > 0) {
-             setDynamicCategories(mappedCategories);
+           if (data && data.length > 0) {
+             // Map the plain text strings from the backend to your UI icons
+             const mappedCategories = data.map((catName) => {
+                let IconToUse = PlusCircle; // Default icon
+                if (catName.toLowerCase() === 'tiku') IconToUse = Star;
+                else if (catName.toLowerCase() === 'events') IconToUse = Calendar;
+                else if (catName.toLowerCase() === 'guests') IconToUse = Users;
+                else if (catName.toLowerCase() === 'clients') IconToUse = UserCircle;
+                else if (catName.toLowerCase() === 'ingaruka') IconToUse = UtensilsCrossed;
+                
+                return { id: catName, icon: IconToUse };
+             });
+             
+             if(mappedCategories.length > 0) {
+               setDynamicCategories(mappedCategories);
+             }
            }
         }
       } catch (error) {
         console.error("Failed to load initial data", error);
+        // Keep using default categories if API fails
       }
     };
 
@@ -208,8 +214,8 @@ export default function AddOtherProduct() {
           product_id: productId,
           quantity: Number(quantity),
           category: category,
-          location: 'kabuga', // Defaulting to kabuga based on UI note for Tiku
-          notes: `Unit: ${unit}` 
+          location: 'kabuga',
+          notes: `Unit: ${unit}`
         })
       });
 

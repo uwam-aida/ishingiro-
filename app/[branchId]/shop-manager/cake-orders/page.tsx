@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation'; 
+import { useRouter, useParams } from 'next/navigation'; 
 import { Cake, Check, X, ArrowLeft } from 'lucide-react'; 
 
 // Import the step components from your components folder
@@ -13,6 +13,9 @@ import Step5Payment from '../../../components/cake-form/Step5Payment';
 
 export default function CakeOrderForm() {
   const router = useRouter();
+  const params = useParams();
+  const branchIdString = params?.branchId?.toString().toLowerCase() || 'kabuga';
+  
   const [isMounted, setIsMounted] = useState(false);
   
   const [step, setStep] = useState(0); 
@@ -25,7 +28,7 @@ export default function CakeOrderForm() {
     frostingCream: '', frostingColor: '', decorationColor: '',
     cakeMessage: '', specialInstructions: '',
     customerFullName: '', customerPhoneNumber: '',
-    orderReceiverName: '', orderDate: '', orderLocation: '',
+    orderReceiverName: '', orderDate: '', orderLocation: branchIdString,
     cakeCode: '', pickupDate: '', receptionLocation: '',
     paymentMethod: '', totalAmount: '7000', paidAmount: '', payerName: ''
   });
@@ -56,7 +59,7 @@ export default function CakeOrderForm() {
     setStep(step + 1);
   };
 
-  // --- UPDATED: BACKEND INTEGRATION FOR CAKE ORDERS (SECOND DOC) ---
+  // --- UPDATED: BACKEND INTEGRATION FOR CAKE ORDERS ---
   const handleSubmit = async () => {
     if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
         setShowError(true); return;
@@ -64,6 +67,11 @@ export default function CakeOrderForm() {
 
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+    // Use the branch ID from the URL for the location
+    const orderLocation = branchIdString;
+
+    console.log("Submitting cake order for location:", orderLocation);
 
     try {
         const response = await fetch(`${baseUrl}/shop/cake-orders`, {
@@ -79,29 +87,29 @@ export default function CakeOrderForm() {
                 cake_type: `${formData.purpose} - ${formData.flavor}`,
                 quantity: 1,
                 price: Number(formData.totalAmount) || 7000,
-                location: formData.orderLocation.toLowerCase() || 'kabuga',
+                location: orderLocation,
                 delivery_date: formData.pickupDate || new Date().toISOString().split('T')[0],
                 status: 'pending',
                 
-                // NEW: Detailed Form Fields from Second Documentation
+                // Detailed Form Fields
                 cake_message: formData.cakeMessage || "None",
                 cake_size: formData.size || "Standard",
                 frosting_cream: formData.frostingCream || "Standard",
                 frosting_color: formData.frostingColor || "Standard",
                 special_instructions: formData.specialInstructions || "None",
-                reception_location: formData.receptionLocation || formData.orderLocation,
+                reception_location: formData.receptionLocation || orderLocation,
                 needs_sample: formData.needsSample === 'yes' ? true : false
             })
         });
 
         if (response.ok) {
             const data = await response.json();
-            // Use the real ID from the database to create the order code
+            console.log("Cake order saved successfully:", data);
             setGeneratedCode(`CK-${data.id}`);
             setStep(6); 
         } else {
-            console.error("Backend error saving cake order");
-            // Fallback just in case the server fails so the user isn't stuck
+            const errorData = await response.text();
+            console.error("Backend error saving cake order:", response.status, errorData);
             const randomNum = Math.floor(Math.random() * 1000);
             setGeneratedCode(`KS-ERR-${randomNum}`);
             setStep(6);
@@ -136,10 +144,9 @@ export default function CakeOrderForm() {
         </div>
       )}
 
-      {/* --- HEADER WITH NEW BACK BUTTON --- */}
+      {/* --- HEADER WITH BACK BUTTON --- */}
       <div className="flex flex-col items-center pt-8 relative max-w-3xl mx-auto px-6">
         
-        {/* <-- ADDED THIS BACK BUTTON --> */}
         <button 
           onClick={() => router.back()}
           className="absolute left-6 top-8 flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
@@ -155,7 +162,7 @@ export default function CakeOrderForm() {
         </h1>
       </div>
 
-      {/* --- UPDATED STEPPER SECTION --- */}
+      {/* --- STEPPER SECTION --- */}
       {step >= 1 && step <= 5 && (
         <div className="max-w-3xl mx-auto px-6 mt-10">
           <p className="text-center text-[#5D4037] font-bold mb-4 text-sm tracking-widest">Step {step} of 5</p>
@@ -214,7 +221,6 @@ export default function CakeOrderForm() {
           </div>
         )}
 
-        {/* Passing setShowError to all steps so you can use it locally if needed */}
         {step === 1 && <Step1Purpose formData={formData} setFormData={setFormData} handleNext={handleNext} handlePrev={handlePrev} setShowError={setShowError} />}
         {step === 2 && <Step2Design formData={formData} setFormData={setFormData} handleNext={handleNext} handlePrev={handlePrev} setShowError={setShowError} />}
         {step === 3 && <Step3Details formData={formData} setFormData={setFormData} handleNext={handleNext} handlePrev={handlePrev} setShowError={setShowError} />}

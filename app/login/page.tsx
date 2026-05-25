@@ -22,32 +22,32 @@ export default function LoginPage() {
 
   // Save OneSignal player ID after login
   const savePlayerIdAfterLogin = async (token: string) => {
-    try {
-      let playerId = localStorage.getItem('pending_player_id');
-      
-      if (!playerId && window.OneSignal) {
-        // @ts-ignore - getUserId exists in the actual OneSignal SDK
-        playerId = await new Promise((resolve) => {
-          // @ts-ignore
-          window.OneSignal.getUserId(resolve);
-        });
+  try {
+    let playerId = localStorage.getItem('pending_player_id');
+    
+    if (!playerId && (window as any).OneSignal) {
+      // Use OneSignal.getUserId() if available on the global OneSignal object
+      const getUserId = (window as any).OneSignal.getUserId || (window as any).OneSignal.User?.getUserId;
+      if (typeof getUserId === 'function') {
+        playerId = await getUserId();
       }
-      
-      if (playerId) {
-        await fetch(`${baseUrl}/save-player-id`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ player_id: playerId }),
-        });
-        localStorage.removeItem('pending_player_id');
-      }
-    } catch (error) {
-      console.error('Error saving player ID:', error);
     }
-  };
+    
+    if (playerId) {
+      await fetch(`${baseUrl}/save-player-id`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ player_id: playerId }),
+      });
+      localStorage.removeItem('pending_player_id');
+    }
+  } catch (error) {
+    console.error('Error saving player ID:', error);
+  }
+};
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
