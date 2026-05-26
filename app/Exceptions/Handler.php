@@ -2,9 +2,10 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
-use Throwable;
 use Sentry\Laravel\Integration;
+use Throwable;
 
 class Handler extends ExceptionHandler
 {
@@ -29,5 +30,17 @@ class Handler extends ExceptionHandler
             Integration::captureUnhandledException($e);
         }
     });
+    }
+    protected function unauthenticated($request, AuthenticationException $exception)
+    {
+        if ($request->expectsJson() || $request->is('api/*')) {
+            return response()->json([
+                'message' => 'Unauthenticated',
+                'error' => true,
+                'status' => 401
+            ], 401);
+        }
+
+        return redirect()->guest($exception->redirectTo() ?? route('login'));
     }
 }

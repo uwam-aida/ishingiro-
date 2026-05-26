@@ -15,11 +15,16 @@ return [
     |
     */
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['api/*', 'sanctum/csrf-cookie', 'login', 'logout', 'reset-password'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => ['*',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://ishingiro-m4th.onrender.com',
+        'https://ishingiro-shop.vercel.app', // Add your frontend domains
+    ],
 
     'allowed_origins_patterns' => [],
 

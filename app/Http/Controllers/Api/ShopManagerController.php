@@ -20,6 +20,17 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ShopManagerController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('auth:sanctum');
+        $this->middleware('role:shop_manager_kabuga,shop_manager_masaka')->only([
+            'storeCakeOrder', 
+            'updateCakeOrder', 
+            'receiveOrder',
+            'recordDamage',
+            'storeFeedback'
+        ]);
+    }
     // Helper: get location from authenticated manager's role
     private function myLocation(): string
     {
