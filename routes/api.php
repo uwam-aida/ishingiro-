@@ -101,9 +101,18 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/stock/movements', [StoreKeeperController::class, 'getStockMovements']);
 
         // NEW: Delivery Notes endpoints
-    Route::get('/delivery-notes', [StoreKeeperController::class, 'getDeliveryNotes']);
-    Route::get('/delivery-notes/{id}', [StoreKeeperController::class, 'getDeliveryNote']);
-    Route::get('/delivery-notes/{id}/pdf', [StoreKeeperController::class, 'regenerateDeliveryNotePdf']);
+        Route::get('/delivery-notes', [StoreKeeperController::class, 'getDeliveryNotes']);
+        Route::get('/delivery-notes/{id}', [StoreKeeperController::class, 'getDeliveryNote']);
+        Route::get('/delivery-notes/{id}/pdf', [StoreKeeperController::class, 'regenerateDeliveryNotePdf']);
+
+        // NEW: Get orders by branch for store keeper
+        Route::get('/orders/{location}', [StoreKeeperController::class, 'getOrdersByLocation']);
+        
+        // NEW: Get all orders (across all branches)
+        Route::get('/all-orders', [StoreKeeperController::class, 'getAllOrders']);
+
+        // NEW: Get stock by location
+        Route::get('/stock/{location}', [StoreKeeperController::class, 'getStockByLocation']);
     });
 
 
@@ -151,6 +160,13 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // NEW: Dashboard summary
         Route::get('/shop/dashboard', [ShopManagerController::class, 'getDashboardSummary']);
+
+        // NEW: Cake requests endpoints (pending cake orders only)
+        Route::get('/shop/cake-requests/{location}', [ShopManagerController::class, 'cakeRequestsByLocation']);
+        Route::post('/shop/cake-requests', [ShopManagerController::class, 'storeCakeRequest']);
+        
+        // NEW: Generic orders endpoint (gets orders for current manager's branch)
+        Route::get('/my-orders', [ShopManagerController::class, 'myOrders']);
     });
 
 

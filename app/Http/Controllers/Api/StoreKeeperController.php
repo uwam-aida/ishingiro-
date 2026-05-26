@@ -711,4 +711,101 @@ class StoreKeeperController extends Controller
             'Content-Disposition' => 'attachment; filename="delivery-note-' . $note->note_number . '.pdf"',
         ]);
     }
+
+    /**
+     * Get orders by location for store keeper
+     * GET /api/storekeeper/orders/{location}
+     */
+    public function getOrdersByLocation($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        $orders = Order::with('items.product')
+            ->where('location', $location)
+            ->latest()
+            ->get()
+            ->each(function ($order) {
+                $order->time = $order->created_at->format('h:i A');
+                $order->date = $order->created_at->toDateString();
+            });
+        
+        return response()->json($orders);
+    }
+
+    /**
+     * Get all orders across all branches for store keeper
+     * GET /api/storekeeper/all-orders
+     */
+    public function getAllOrders(Request $request)
+    {
+        $query = Order::with('items.product')->latest();
+        
+        // Optional filter by status
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+        
+        // Optional filter by location
+        if ($request->filled('location')) {
+            $query->where('location', $request->location);
+        }
+        
+        $limit = (int) $request->query('limit', 100);
+        $orders = $query->take($limit)->get();
+        
+        return response()->json([
+            'total' => $orders->count(),
+            'data' => $orders->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'status' => $order->status,
+                    'location' => $order->location,
+                    'created_at' => $order->created_at,
+                    'items' => $order->items->map(function ($item) {
+                        return [
+                            'id' => $item->id,
+                            'product_name' => optional($item->product)->name,
+                            'quantity' => $item->quantity,
+                            'price' => $item->price,
+                            'total' => $item->quantity * $item->price,
+                        ];
+                    }),
+                    'total_amount' => $order->items->sum(function ($item) {
+                        return $item->quantity * $item->price;
+                    }),
+                ];
+            }),
+        ]);
+    }
+
+    /**
+     * Get stock by location for store keeper
+     * GET /api/storekeeper/stock/{location}
+     */
+    public function getStockByLocation($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka', 'factory'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        $stock = Stock::with('product')
+            ->where('location', $location)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => optional($item->product)->name,
+                    'product_price' => optional($item->product)->price,
+                    'quantity' => $item->quantity,
+                    'unit' => $item->unit ?? 'pcs',
+                    'location' => $item->location,
+                    'last_updated' => $item->updated_at->toDateTimeString(),
+                ];
+            });
+        
+        return response()->json($stock);
+    }
 }

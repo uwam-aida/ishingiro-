@@ -619,4 +619,66 @@ class ShopManagerController extends Controller
             'total_revenue' => $totalRevenue,
         ]);
     }
+
+    /**
+     * Get pending cake requests by location (cakes with status = pending)
+     * GET /api/shop/cake-requests/{location}
+     */
+    public function cakeRequestsByLocation($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        $cakeRequests = CakeOrder::where('location', $location)
+            ->where('status', 'pending')
+            ->latest()
+            ->get()
+            ->map(function ($cake) {
+                if ($cake->inspo_image_path) {
+                    $cake->inspo_image_url = asset('storage/' . $cake->inspo_image_path);
+                }
+                return $cake;
+            });
+        
+        return response()->json($cakeRequests);
+    }
+
+    /**
+     * Store a cake request (same as storeCakeOrder - alias for clarity)
+     * POST /api/shop/cake-requests
+     */
+    public function storeCakeRequest(Request $request)
+    {
+        // Reuse the existing storeCakeOrder method
+        return $this->storeCakeOrder($request);
+    }
+
+    /**
+     * Get orders for the current manager's branch
+     * GET /api/my-orders
+     */
+    public function myOrders(Request $request)
+    {
+        $myLocation = $this->myLocation();
+        
+        $orders = Order::with('items.product')
+            ->where('location', $myLocation)
+            ->latest()
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'status' => $order->status,
+                    'location' => $order->location,
+                    'created_at' => $order->created_at,
+                    'items_count' => $order->items->count(),
+                    'total_amount' => $order->items->sum(function ($item) {
+                        return $item->quantity * $item->price;
+                    }),
+                ];
+            });
+        
+        return response()->json($orders);
+    }
 }
