@@ -55,5 +55,16 @@ php artisan optimize
 echo "Setting up storage link..."
 php artisan storage:link
 
+# ============================================
+# START QUEUE WORKER (Run in background)
+# ============================================
+echo "Starting queue worker..."
+php artisan queue:work --daemon --quiet --sleep=3 --tries=3 &
+
+# ============================================
+# Also run the queue:listen as fallback
+# ============================================
+php artisan queue:listen --quiet &
+
 echo "Starting Apache..."
 exec apache2-foreground
