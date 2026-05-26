@@ -104,25 +104,25 @@ export default function StoreKeeperDashboard() {
 
   // GET /storekeeper/delivery-notes - Fetch all delivery notes
   const fetchAllDeliveryNotes = async () => {
-    const token = localStorage.getItem('token');
-    const headers = { 
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json' 
-    };
-
-    try {
-      const response = await fetch(`${baseUrl}/storekeeper/delivery-notes`, { headers });
-      if (response.ok) {
-        const data = await response.json();
-        setDeliveryNotesList(data);
-        return data;
-      }
-    } catch (err) {
-      console.error("Failed to fetch delivery notes", err);
-    }
-    return [];
+  const token = localStorage.getItem('token');
+  const headers = { 
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/json' 
   };
 
+  try {
+    const response = await fetch(`${baseUrl}/storekeeper/delivery-notes`, { headers });
+    if (response.ok) {
+      const data = await response.json();
+      // API returns { total: ..., data: [...] }
+      setDeliveryNotesList(data.data || []);
+      return data;
+    }
+  } catch (err) {
+    console.error("Failed to fetch delivery notes", err);
+  }
+  return [];
+};
   // GET /storekeeper/delivery-notes/{id} - Fetch single delivery note by ID
   const fetchDeliveryNoteById = async (noteId: number) => {
     const token = localStorage.getItem('token');
@@ -146,32 +146,47 @@ export default function StoreKeeperDashboard() {
   };
 
   // GET /storekeeper/delivery-notes/{id}/pdf - Download PDF
-  const downloadDeliveryNotePDF = async (noteId: number) => {
-    const token = localStorage.getItem('token');
-    const headers = { 
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/pdf' 
-    };
+  const downloadDeliveryNotePDF = async (noteId) => {
+  const token = localStorage.getItem('token');
+  const url = `${baseUrl}/storekeeper/delivery-notes/${noteId}/pdf`;
 
-    try {
-      const response = await fetch(`${baseUrl}/storekeeper/delivery-notes/${noteId}/pdf`, { headers });
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `delivery-note-${noteId}.pdf`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        console.error("Failed to download PDF");
+  try {
+    const response = await fetch(url, {
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/pdf'
       }
-    } catch (err) {
-      console.error("Failed to download PDF", err);
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('PDF download failed:', response.status, errorText);
+      alert(`Failed to download PDF (${response.status}). Please check console.`);
+      return;
     }
-  };
+
+    const blob = await response.blob();
+    if (blob.type !== 'application/pdf') {
+      console.warn('Response is not a PDF, might be an error page');
+      const text = await blob.text();
+      console.error('Response content:', text);
+      alert('Server did not return a valid PDF. Please check console.');
+      return;
+    }
+
+    const urlBlob = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = urlBlob;
+    a.download = `delivery-note-${noteId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(urlBlob);
+  } catch (err) {
+    console.error('PDF download error:', err);
+    alert('Network error while downloading PDF');
+  }
+};
 
   // --- 1. INITIAL FETCH LOGIC ---
   useEffect(() => {
@@ -204,7 +219,7 @@ export default function StoreKeeperDashboard() {
         }
 
         // Fetch 2: Shop Requests - GET /api/storekeeper/requests
-      const reqRes = await fetch(`${baseUrl}/orders`, { headers });
+const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
         if (reqRes.ok) {
           const data = await reqRes.json();
           const flattenedRequests: any[] = [];
@@ -316,6 +331,46 @@ export default function StoreKeeperDashboard() {
 
     fetchAllData();
   }, [router, baseUrl]);
+  // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS ---
+useEffect(() => {
+  if (activeFilter !== 'requests') return;
+
+  const interval = setInterval(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+    try {
+      const res = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        const flattenedRequests = [];
+        data.forEach((order) => {
+          if (order.items && Array.isArray(order.items)) {
+            order.items.forEach((item) => {
+              flattenedRequests.push({
+                id: order.id,
+                request_item_id: item.id,
+                product_id: item.product_id,
+                item: item.product?.name || item.product_name || 'Unknown Product',
+                quantity: item.quantity,
+                unit: 'pcs',
+                time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+                branch: order.location,
+                isEdited: false,
+                type: 'request'
+              });
+            });
+          }
+        });
+        setShopRequests(flattenedRequests);
+      }
+    } catch (err) {
+      console.error("Auto-refresh failed", err);
+    }
+  }, 5000);
+
+  return () => clearInterval(interval);
+}, [activeFilter, baseUrl]);
 
   const rawBranchId = params?.branchId || 'store';
   const getCurrentTime = () => {
@@ -485,9 +540,37 @@ export default function StoreKeeperDashboard() {
               </button>
             </div>
             <div className="p-6">
-              <pre className="whitespace-pre-wrap font-mono text-sm bg-gray-50 p-4 rounded-xl overflow-auto max-h-[500px]">
-                {JSON.stringify(selectedDeliveryNote, null, 2)}
-              </pre>
+              <div id="printable-detail" className="bg-white p-6 rounded-xl border border-gray-200">
+  <div className="text-center mb-6">
+    <h2 className="font-bold text-lg uppercase">BINYA LTD</h2>
+    <p className="text-[10px]">Delivery Note</p>
+    <p>Date: {selectedDeliveryNote.date} | Time: {selectedDeliveryNote.time}</p>
+    <p>Recipient: {selectedDeliveryNote.recipient_name}</p>
+  </div>
+  <table className="w-full border-collapse border border-black text-xs">
+    <thead>
+      <tr className="border-b border-black font-bold">
+        <th className="border-r border-black p-1 text-left">ITEM</th>
+        <th className="border-r border-black p-1 text-center">QTY</th>
+        <th className="border-r border-black p-1 text-center">PRICE</th>
+        <th className="p-1 text-right">TOTAL</th>
+      </tr>
+    </thead>
+    <tbody>
+      {selectedDeliveryNote.items?.map((item, idx) => (
+        <tr key={idx} className="border-b border-black">
+          <td className="border-r border-black p-1">{item.product_name}</td>
+          <td className="border-r border-black p-1 text-center">{item.quantity}</td>
+          <td className="border-r border-black p-1 text-center">{item.unit_price}</td>
+          <td className="p-1 text-right">{item.total}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+  <div className="mt-4 text-right font-bold">
+    Total: {selectedDeliveryNote.total_amount} RWF
+  </div>
+</div>
               <div className="flex justify-end gap-3 mt-6">
                 <button 
                   onClick={() => downloadDeliveryNotePDF(selectedDeliveryNote.id)}
@@ -882,46 +965,51 @@ export default function StoreKeeperDashboard() {
         )}
 
         {/* --- DELIVERY NOTES SECTION - GET /storekeeper/delivery-notes --- */}
-        {activeFilter === 'notes' && (
-          <div className="overflow-x-auto p-8">
-            <div className="mb-6">
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4">All Delivery Notes</h3>
-              <div className="grid gap-4">
-                {deliveryNotesList.map((note: any) => (
-                  <div key={note.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
-                    <div className="flex justify-between items-start flex-wrap gap-4">
-                      <div>
-                        <p className="font-black text-[#F57C00] text-lg">DN-{note.id}</p>
-                        <p className="text-xs text-gray-500 mt-1">{note.date || note.created_at}</p>
-                        <p className="text-xs font-bold mt-2">Recipient: {note.recipient || note.to_location}</p>
-                        {note.items && (
-                          <p className="text-xs text-gray-500 mt-1">Items: {note.items.length} product(s)</p>
-                        )}
-                      </div>
-                      <div className="flex gap-3">
-                        <button 
-                          onClick={() => fetchDeliveryNoteById(note.id)}
-                          className="px-4 py-2 bg-[#F57C00] text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-[#E65100] transition-all"
-                        >
-                          <Eye size={14} /> View Details
-                        </button>
-                        <button 
-                          onClick={() => downloadDeliveryNotePDF(note.id)}
-                          className="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-gray-900 transition-all"
-                        >
-                          <Download size={14} /> Download PDF
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {deliveryNotesList.length === 0 && (
-                  <div className="p-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Delivery Notes Found</div>
-                )}
-              </div>
+        {deliveryNotesList.map((note) => (
+  <div key={note.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+    <div className="flex justify-between items-start flex-wrap gap-4">
+      <div className="flex-1">
+        <p className="font-black text-[#F57C00] text-lg">DN-{note.id}</p>
+        <p className="text-xs text-gray-500 mt-1">{note.date || note.created_at}</p>
+        <p className="text-xs font-bold mt-2">
+          Recipient: <span className="text-[#F57C00]">{note.recipient_name || note.to_location || note.recipient || 'Not specified'}</span>
+        </p>
+        {note.items && note.items.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[10px] font-black text-gray-400 uppercase">Products delivered:</p>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {note.items.slice(0, 3).map((item, idx) => (
+                <span key={idx} className="text-xs font-bold bg-gray-100 px-2 py-0.5 rounded-full">
+                  {item.product_name} x{item.quantity}
+                </span>
+              ))}
+              {note.items.length > 3 && (
+                <span className="text-xs text-gray-500">+{note.items.length - 3} more</span>
+              )}
             </div>
           </div>
         )}
+        <p className="text-[10px] font-bold text-gray-500 mt-2">
+          Total amount: {note.total_amount} RWF
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <button 
+          onClick={() => fetchDeliveryNoteById(note.id)}
+          className="px-4 py-2 bg-[#F57C00] text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-[#E65100] transition-all"
+        >
+          <Eye size={14} /> View Details
+        </button>
+        <button 
+          onClick={() => downloadDeliveryNotePDF(note.id)}
+          className="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-gray-900 transition-all"
+        >
+          <Download size={14} /> Download PDF
+        </button>
+      </div>
+    </div>
+  </div>
+))}
 
         {/* --- CAKE ORDERS WITH PAYMENT API LOGIC --- */}
         {activeFilter === 'cake_orders' && (

@@ -262,45 +262,48 @@ export default function DynamicShopDashboard() {
   const bakedItemsAvailable = selectedItem ? (factoryStock.find(s => s.item === selectedItem)?.quantity || 0) : 0;
   const isOverLimit = (parseInt(requestQty) || 0) > bakedItemsAvailable;
 
-  // --- 4. BACKEND INTEGRATION FOR ADD REQUEST ---
+const [isSubmitting, setIsSubmitting] = useState(false);
+
 const handleAddRequest = async () => {
   if (!requestQty || isOverLimit || !selectedItem) return;
+  setIsSubmitting(true);
   
   const token = localStorage.getItem('token');
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
   
   const realDbProduct = realProducts.find(p => p.name.toLowerCase() === selectedItem.toLowerCase());
-  const dbProductId = realDbProduct ? realDbProduct.id : 1; 
+  const dbProductId = realDbProduct ? realDbProduct.id : 1;
 
   try {
-      // POST to Store Keeper's requests endpoint
-      const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
+    const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
-    })
-});
-      if (response.ok) { 
-        console.log("Order sent to Store Keeper successfully!"); 
-        setShowRequestSuccess(true);
-        setTimeout(() => setShowRequestSuccess(false), 3000);
-        
-        // Refresh the store keeper's view (you may need to implement a refresh mechanism)
-      } else {
-        const error = await response.json();
-        console.error("API Error:", error);
-      }
-  } catch (e) { console.error(e); }
+      })
+    });
+    if (response.ok) {
+      console.log("Order sent to Store Keeper successfully!");
+      setShowRequestSuccess(true);
+      setTimeout(() => setShowRequestSuccess(false), 3000);
+    } else {
+      const error = await response.json();
+      console.error("API Error:", error);
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    setIsSubmitting(false);
+  }
 
-  // Update local state
+  // ... rest of your local state update (optimistic update)
   const qtyToDeduct = parseInt(requestQty);
   const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
   setMyRequests([{ id: Date.now(), item: selectedItem, quantity: qtyToDeduct, status: 'Pending Dispatch', time: currentTime }, ...myRequests]);
-  setRequestQty(''); 
-  setRestQty(''); 
-  setProductSearch(''); 
+  setRequestQty('');
+  setRestQty('');
+  setProductSearch('');
   setSelectedItem(null);
 };
   // --- 5. BACKEND INTEGRATION FOR REPORT DAMAGE ---
@@ -693,8 +696,10 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
                       <input type="number" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" />
                     </div>
                   </div>
-                  <button disabled={!requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">Add Request</button>
-                </div>
+                    <button disabled={isSubmitting || !requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">
+                           {isSubmitting ? 'Submitting...' : 'Add Request'}
+                    </button>
+                     </div>
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-8">
                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
                 <tbody className="divide-y divide-gray-100">
