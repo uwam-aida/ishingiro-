@@ -16,7 +16,6 @@ use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Database\Eloquent\Collection;
 
 class ShopManagerController extends Controller
 {
@@ -25,12 +24,14 @@ class ShopManagerController extends Controller
         $this->middleware('auth:sanctum');
         $this->middleware('role:shop_manager_kabuga,shop_manager_masaka')->only([
             'storeCakeOrder', 
+            'storeCakeRequest',
             'updateCakeOrder', 
             'receiveOrder',
             'recordDamage',
             'storeFeedback'
         ]);
     }
+
     // Helper: get location from authenticated manager's role
     private function myLocation(): string
     {
@@ -110,7 +111,7 @@ class ShopManagerController extends Controller
         return $order->fresh()->load('items.product');
     }
 
-    // CREATE CAKE ORDER
+    // CREATE CAKE ORDER (type = 'order')
     public function storeCakeOrder(Request $request)
     {
         $request->validate([
@@ -154,6 +155,7 @@ class ShopManagerController extends Controller
                 'location'             => $request->location,
                 'delivery_date'        => $request->delivery_date,
                 'status'               => 'pending',
+                'type'                 => 'order',
                 'cake_message'         => $request->cake_message,
                 'cake_size'            => $request->cake_size,
                 'frosting_cream'       => $request->frosting_cream,
@@ -184,6 +186,86 @@ class ShopManagerController extends Controller
         SendNotificationJob::dispatch(
             'sales_coordinator',
             'New cake order #' . $cakeOrder->id . ' submitted'
+        );
+
+        return response()->json($cakeOrder, 201);
+    }
+
+    // CREATE CAKE REQUEST (type = 'request')
+    public function storeCakeRequest(Request $request)
+    {
+        $request->validate([
+            'customer_name'        => 'required|string|max:255',
+            'phone'                => 'required|string|max:20',
+            'cake_type'            => 'required|string|max:255',
+            'quantity'             => 'required|integer|min:1',
+            'price'                => 'required|numeric|min:0',
+            'advance_payment'      => 'nullable|numeric|min:0|max:' . ($request->price ?? 0),
+            'location'             => 'required|in:kabuga,masaka',
+            'delivery_date'        => 'required|date|after_or_equal:today',
+            'cake_message'         => 'nullable|string',
+            'cake_size'            => 'nullable|string|max:100',
+            'frosting_cream'       => 'nullable|string|max:100',
+            'frosting_color'       => 'nullable|string|max:50',
+            'special_instructions' => 'nullable|string',
+            'reception_location'   => 'nullable|string|max:255',
+            'needs_sample'         => 'nullable|boolean',
+            'payment_method'       => 'nullable|string|in:cash,card,mobile_money,bank_transfer',
+            'payer_name'           => 'nullable|string|max:255',
+            'inspo_image'          => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
+        ]);
+
+        $cakeOrder = DB::transaction(function () use ($request) {
+            $inspoImagePath = $request->hasFile('inspo_image')
+                ? $request->file('inspo_image')->store('cake-inspo', 'public')
+                : null;
+
+            $advance          = (float) ($request->advance_payment ?? 0);
+            $remaining        = (float) $request->price - $advance;
+
+            $cakeOrder = CakeOrder::create([
+                'customer_name'        => $request->customer_name,
+                'phone'                => $request->phone,
+                'cake_type'            => $request->cake_type,
+                'quantity'             => $request->quantity,
+                'price'                => $request->price,
+                'advance_payment'      => $advance,
+                'remaining_payment'    => $remaining,
+                'total_paid'           => $advance,
+                'location'             => $request->location,
+                'delivery_date'        => $request->delivery_date,
+                'status'               => 'pending',
+                'type'                 => 'request',
+                'cake_message'         => $request->cake_message,
+                'cake_size'            => $request->cake_size,
+                'frosting_cream'       => $request->frosting_cream,
+                'frosting_color'       => $request->frosting_color,
+                'special_instructions' => $request->special_instructions,
+                'reception_location'   => $request->reception_location,
+                'needs_sample'         => $request->needs_sample ?? false,
+                'inspo_image_path'     => $inspoImagePath,
+                'payment_method'       => $request->payment_method,
+                'payer_name'           => $request->payer_name,
+            ]);
+
+            if ($advance > 0) {
+                Revenue::create([
+                    'amount'   => $advance,
+                    'source'   => 'cake_request_advance',
+                    'location' => $request->location,
+                ]);
+            }
+
+            return $cakeOrder;
+        });
+
+        SendNotificationJob::dispatch(
+            'store_keeper',
+            'New cake request #' . $cakeOrder->id . ' from ' . $request->location
+        );
+        SendNotificationJob::dispatch(
+            'sales_coordinator',
+            'New cake request #' . $cakeOrder->id . ' submitted'
         );
 
         return response()->json($cakeOrder, 201);
@@ -248,7 +330,7 @@ class ShopManagerController extends Controller
         return response()->json($cakeOrder);
     }
 
-    // GET MANAGER'S CAKE ORDERS (branch-scoped)
+    // GET MANAGER'S CAKE ORDERS (branch-scoped, all types)
     public function cakeOrdersLocation()
     {
         $orders = CakeOrder::where('location', $this->myLocation())
@@ -266,7 +348,7 @@ class ShopManagerController extends Controller
         return response()->json($result);
     }
 
-    // GET CAKE ORDERS BY LOCATION (for route parameter)
+    // GET CAKE ORDERS BY LOCATION (only type = 'order')
     public function cakeOrdersByLocation($location)
     {
         if (!in_array($location, ['kabuga', 'masaka'])) {
@@ -274,6 +356,7 @@ class ShopManagerController extends Controller
         }
         
         $cakeOrders = CakeOrder::where('location', $location)
+            ->where('type', 'order')
             ->latest()
             ->get();
         
@@ -287,6 +370,27 @@ class ShopManagerController extends Controller
         }
         
         return response()->json($result);
+    }
+
+    // GET CAKE REQUESTS BY LOCATION (only type = 'request')
+    public function cakeRequestsByLocation($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        $cakeRequests = CakeOrder::where('location', $location)
+            ->where('type', 'request')
+            ->latest()
+            ->get()
+            ->map(function ($cake) {
+                if ($cake->inspo_image_path) {
+                    $cake->inspo_image_url = asset('storage/' . $cake->inspo_image_path);
+                }
+                return $cake;
+            });
+        
+        return response()->json($cakeRequests);
     }
 
     // GET DAMAGES BY LOCATION
@@ -387,10 +491,11 @@ class ShopManagerController extends Controller
                 'total' => $item->quantity * $item->price,
             ];
         }
+        
         $totalAmount = 0;
-
         foreach ($order->items as $item) {
             $totalAmount += $item->quantity * $item->price;
+        }
         
         return response()->json([
             'id' => $order->id,
@@ -402,10 +507,6 @@ class ShopManagerController extends Controller
             'items' => $items,
             'total_amount' => $totalAmount,
         ]);
-                    
-}
-
-
     }
 
     /**
@@ -519,14 +620,16 @@ class ShopManagerController extends Controller
     }
 
     /**
-     * Get all cake orders with filtering options
+     * Get all cake orders with filtering options (type = 'order')
      * GET /api/shop/cake-orders (with query params)
      */
     public function getAllCakeOrders(Request $request)
     {
         $myLocation = $this->myLocation();
         
-        $query = CakeOrder::where('location', $myLocation)->latest();
+        $query = CakeOrder::where('location', $myLocation)
+            ->where('type', 'order')
+            ->latest();
         
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -603,6 +706,7 @@ class ShopManagerController extends Controller
         $totalStock = Stock::where('location', $myLocation)->sum('quantity');
         
         $pendingCakeOrders = CakeOrder::where('location', $myLocation)
+            ->where('type', 'order')
             ->where('status', 'pending')
             ->count();
         
@@ -618,40 +722,6 @@ class ShopManagerController extends Controller
             'total_damages' => $totalDamages,
             'total_revenue' => $totalRevenue,
         ]);
-    }
-
-    /**
-     * Get pending cake requests by location (cakes with status = pending)
-     * GET /api/shop/cake-requests/{location}
-     */
-    public function cakeRequestsByLocation($location)
-    {
-        if (!in_array($location, ['kabuga', 'masaka'])) {
-            return response()->json(['error' => 'Invalid location'], 400);
-        }
-        
-        $cakeRequests = CakeOrder::where('location', $location)
-            ->where('status', 'pending')
-            ->latest()
-            ->get()
-            ->map(function ($cake) {
-                if ($cake->inspo_image_path) {
-                    $cake->inspo_image_url = asset('storage/' . $cake->inspo_image_path);
-                }
-                return $cake;
-            });
-        
-        return response()->json($cakeRequests);
-    }
-
-    /**
-     * Store a cake request (same as storeCakeOrder - alias for clarity)
-     * POST /api/shop/cake-requests
-     */
-    public function storeCakeRequest(Request $request)
-    {
-        // Reuse the existing storeCakeOrder method
-        return $this->storeCakeOrder($request);
     }
 
     /**

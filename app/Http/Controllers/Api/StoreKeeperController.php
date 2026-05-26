@@ -28,9 +28,6 @@ class StoreKeeperController extends Controller
     }
 
     // ADD / INCREMENT STOCK
-    // - Baked type  → also creates Production record
-    // - Any type    → logs StockMovement (type = in)
-    // - Alerts on low stock (< 10)
     public function store(Request $request)
     {
         $request->validate([
@@ -67,7 +64,6 @@ class StoreKeeperController extends Controller
                 'user_id'    => auth()->id(),
             ]);
 
-            // If baked, also record in production
             if ($type === 'baked') {
                 Production::create([
                     'product_id' => $request->product_id,
@@ -114,7 +110,6 @@ class StoreKeeperController extends Controller
     }
 
     // UPDATE REQUEST STATUS + OPTIONAL ITEM QUANTITY ADJUSTMENTS
-    // - Notifies shop manager on every status change
     public function updateRequest(Request $request, $id)
     {
         $request->validate([
@@ -147,14 +142,6 @@ class StoreKeeperController extends Controller
     }
 
     // DELIVER ORDERS + GENERATE PDF DELIVERY NOTE
-    // - Marks orders as delivered
-    // - Creates Delivery records per item
-    // - Reduces factory stock per item (logs StockMovement out)
-    // - Increases shop stock per item (logs StockMovement in)
-    // - Records Revenue per order (unless payment_received = false)
-    // - Notifies shop managers
-    // - Saves delivery note to database
-    // - Returns PDF
     public function deliver(Request $request)
     {
         $request->validate([
@@ -177,7 +164,6 @@ class StoreKeeperController extends Controller
         $deliveryNote = null;
 
         DB::transaction(function () use ($request, &$orders, &$cakeOrders, &$deliveryNote) {
-            // ── Regular orders ────────────────────────────────────────────
             if (!empty($request->order_ids)) {
                 $orders = Order::with('items.product')
                     ->whereIn('id', $request->order_ids)
@@ -194,7 +180,6 @@ class StoreKeeperController extends Controller
                         $itemTotal   = $item->quantity * $item->price;
                         $orderTotal += $itemTotal;
 
-                        // Record delivery
                         Delivery::create([
                             'product_id'    => $item->product_id,
                             'quantity'      => $item->quantity,
@@ -202,7 +187,6 @@ class StoreKeeperController extends Controller
                             'to_location'   => $order->location,
                         ]);
 
-                        // Reduce factory stock
                         $factoryStock = Stock::where('product_id', $item->product_id)
                             ->where('location', 'factory')
                             ->first();
@@ -220,7 +204,6 @@ class StoreKeeperController extends Controller
                             ]);
                         }
 
-                        // Increase shop stock
                         $shopStock = Stock::firstOrCreate([
                             'product_id' => $item->product_id,
                             'location'   => $order->location,
@@ -253,7 +236,6 @@ class StoreKeeperController extends Controller
                 }
             }
 
-            // ── Cake orders ───────────────────────────────────────────────
             if (!empty($request->cake_order_ids)) {
                 $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
 
@@ -264,7 +246,6 @@ class StoreKeeperController extends Controller
 
                     $cake->update(['status' => 'delivered']);
 
-                    // Only record outstanding revenue (price minus what's already been paid)
                     $outstanding = $cake->price - ($cake->total_paid ?? 0);
                     if ($request->input('payment_received', true) && $outstanding > 0) {
                         Revenue::create([
@@ -273,7 +254,6 @@ class StoreKeeperController extends Controller
                             'location' => $cake->location,
                         ]);
 
-                        // Mark fully paid
                         $cake->update([
                             'total_paid'        => $cake->price,
                             'remaining_payment' => 0,
@@ -287,7 +267,6 @@ class StoreKeeperController extends Controller
                 }
             }
 
-            // ── Save delivery note to database ────────────────────────────
             $allItems = collect();
 
             foreach ($orders as $order) {
@@ -334,10 +313,7 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    // RECORD A DELIVERY MANUALLY (without full deliver flow)
-    // - Creates Delivery record
-    // - Reduces from_location stock + logs movement
-    // - Increases to_location stock + logs movement
+    // RECORD A DELIVERY MANUALLY
     public function storeDelivery(Request $request)
     {
         $request->validate([
@@ -409,9 +385,6 @@ class StoreKeeperController extends Controller
     }
 
     // RECORD DAMAGE
-    // - Creates Damage record
-    // - Decrements stock at location + logs StockMovement (out)
-    // - Alerts if qty > 20
     public function storeDamage(Request $request)
     {
         $request->validate([
@@ -479,10 +452,11 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // ALL CAKE ORDERS
+    // ALL CAKE ORDERS (all types across all branches)
     public function cakeOrders()
     {
-        return CakeOrder::latest()
+        return CakeOrder::where('type', 'order')
+            ->latest()
             ->get()
             ->each(function ($c) {
                 $c->time = $c->created_at->format('h:i A');
@@ -490,10 +464,11 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // PENDING CAKE REQUESTS ONLY
+    // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending')
     public function cakeRequests()
     {
-        return CakeOrder::where('status', 'pending')
+        return CakeOrder::where('type', 'request')
+            ->where('status', 'pending')
             ->latest()
             ->get()
             ->each(function ($c) {
@@ -503,7 +478,6 @@ class StoreKeeperController extends Controller
     }
 
     // FULL STOCK MOVEMENT HISTORY
-    // Supports: ?type=in|out  ?location=  ?limit=
     public function history(Request $request)
     {
         $query = StockMovement::with('product', 'user')->latest();
@@ -534,7 +508,6 @@ class StoreKeeperController extends Controller
 
     /**
      * Get single stock item by ID with full details
-     * GET /api/storekeeper/stock/{id}
      */
     public function getStockItem($id)
     {
@@ -558,13 +531,11 @@ class StoreKeeperController extends Controller
 
     /**
      * Delete a stock item
-     * DELETE /api/storekeeper/stock/{id}
      */
     public function deleteStockItem($id)
     {
         $stock = Stock::findOrFail($id);
         
-        // Log the deletion in stock movements
         StockMovement::create([
             'product_id' => $stock->product_id,
             'type' => 'out',
@@ -581,13 +552,6 @@ class StoreKeeperController extends Controller
 
     /**
      * Get detailed stock movement history for store keeper
-     * GET /api/storekeeper/stock/movements
-     * 
-     * Query Parameters:
-     * - type: 'in' or 'out'
-     * - location: kabuga, masaka, factory
-     * - product_id: filter by product
-     * - limit: number of records (default 100)
      */
     public function getStockMovements(Request $request)
     {
@@ -633,10 +597,6 @@ class StoreKeeperController extends Controller
     // DELIVERY NOTES METHODS
     // ============================================
 
-    /**
-     * Get all delivery notes history
-     * GET /api/storekeeper/delivery-notes
-     */
     public function getDeliveryNotes(Request $request)
     {
         $query = DeliveryNote::with('user')->latest();
@@ -667,10 +627,6 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Get single delivery note by ID with full details
-     * GET /api/storekeeper/delivery-notes/{id}
-     */
     public function getDeliveryNote($id)
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
@@ -689,15 +645,10 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Regenerate PDF for an existing delivery note
-     * GET /api/storekeeper/delivery-notes/{id}/pdf
-     */
     public function regenerateDeliveryNotePdf($id)
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
         
-        // Convert stored items back to collection
         $items = collect($note->items);
         
         $pdf = app(DeliveryNoteService::class)->generateFromArray(
@@ -712,10 +663,6 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Get orders by location for store keeper
-     * GET /api/storekeeper/orders/{location}
-     */
     public function getOrdersByLocation($location)
     {
         if (!in_array($location, ['kabuga', 'masaka'])) {
@@ -734,20 +681,14 @@ class StoreKeeperController extends Controller
         return response()->json($orders);
     }
 
-    /**
-     * Get all orders across all branches for store keeper
-     * GET /api/storekeeper/all-orders
-     */
     public function getAllOrders(Request $request)
     {
         $query = Order::with('items.product')->latest();
         
-        // Optional filter by status
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
         
-        // Optional filter by location
         if ($request->filled('location')) {
             $query->where('location', $request->location);
         }
@@ -780,10 +721,6 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Get stock by location for store keeper
-     * GET /api/storekeeper/stock/{location}
-     */
     public function getStockByLocation($location)
     {
         if (!in_array($location, ['kabuga', 'masaka', 'factory'])) {
