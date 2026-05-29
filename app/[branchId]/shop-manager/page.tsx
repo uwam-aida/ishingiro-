@@ -167,25 +167,24 @@ export default function DynamicShopDashboard() {
                    const pendingOrders: any[] = [];
                    const dispatchedOrders: any[] = [];
                    
-                   ordData.forEach((o: any) => {
-                     o.items?.forEach((i: any) => {
-                       const mappedItem = {
-                         id: o.id, 
-                         item: i.product?.name || `Order #${o.id}`,
-                         quantity: i.quantity,
-                         status: o.status,
-                         time: 'Latest',
-                         unit: 'Pieces',
-                         arrivalTime: 'Latest'
-                       };
-
-                       if (o.status === 'pending') {
-                         pendingOrders.push(mappedItem);
-                       } else {
-                         dispatchedOrders.push(mappedItem);
-                       }
-                     });
-                   });
+  ordData.forEach((o: any) => {
+  o.items?.forEach((i: any) => {
+    const mappedItem = {
+      id: o.id, 
+      item: i.product?.name || `Order #${o.id}`,
+      quantity: i.quantity,
+      status: o.status,
+      time: 'Latest',
+      unit: 'Pieces',
+      arrivalTime: 'Latest'
+    };
+    if (o.status === 'pending') {
+      pendingOrders.push(mappedItem);
+    } else {
+      dispatchedOrders.push(mappedItem);
+    }
+  });
+});
 
                    setMyRequests(pendingOrders);
                    setReceivedStock(dispatchedOrders);
@@ -275,10 +274,11 @@ const handleAddRequest = async () => {
   const dbProductId = realDbProduct ? realDbProduct.id : 1;
 
   try {
-    const response = await fetch(`${baseUrl}/orders/${branchIdString}`, {
+    const response = await fetch(`${baseUrl}/orders`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        location: branchIdString, 
         items: [{ product_id: dbProductId, quantity: parseInt(requestQty), rest_quantity: parseInt(restQty) || 0 }]
       })
     });

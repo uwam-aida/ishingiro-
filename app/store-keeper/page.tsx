@@ -219,29 +219,29 @@ export default function StoreKeeperDashboard() {
         }
 
         // Fetch 2: Shop Requests - GET /api/storekeeper/requests
-const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
-        if (reqRes.ok) {
-          const data = await reqRes.json();
-          const flattenedRequests: any[] = [];
-          data.forEach((order: any) => {
-             order.items?.forEach((item: any) => {
-                flattenedRequests.push({
-                   id: order.id, 
-                   request_item_id: item.id, 
-                   product_id: item.product_id,
-                   item: item.product?.name || 'Unknown Product',
-                   quantity: item.quantity,
-                   unit: 'pcs',
-                   time: order.time || (order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending'), 
-                   branch: order.location,
-                   isEdited: false,
-                   type: 'request'
-                });
-             });
-          });
-          flattenedRequests.sort((a: any, b: any) => Number(b.id) - Number(a.id));
-          setShopRequests(flattenedRequests);
-        }
+const reqRes = await fetch(`${baseUrl}/storekeeper/all-orders`, { headers });
+if (reqRes.ok) {
+  const result = await reqRes.json();
+  const orders = result.data || [];   // API returns { total: 17, data: [...] }
+  const flattenedRequests = [];
+  orders.forEach((order) => {
+    order.items?.forEach((item) => {
+      flattenedRequests.push({
+        id: order.id,
+        request_item_id: item.id,
+        product_id: item.product_id,
+        item: item.product?.name || item.product_name || 'Unknown',
+        quantity: item.quantity,
+        unit: 'pcs',
+        time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+        branch: order.location,
+        isEdited: false,
+        type: 'request'
+      });
+    });
+  });
+  setShopRequests(flattenedRequests);
+}
 
         // Fetch 3: Delivery History
         const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
@@ -259,8 +259,7 @@ const reqRes = await fetch(`${baseUrl}/storekeeper/requests`, { headers });
         }
 
         // Fetch 4: Cake Orders - GET /shop/cake-orders
-        const cakeOrderRes = await fetch(`${baseUrl}/shop/cake-orders`, { headers });
-        if (cakeOrderRes.ok) {
+const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });        if (cakeOrderRes.ok) {
           const data = await cakeOrderRes.json();
           const mappedCakes = data.map((c: any) => ({
              id: c.id,
@@ -965,51 +964,60 @@ useEffect(() => {
         )}
 
         {/* --- DELIVERY NOTES SECTION - GET /storekeeper/delivery-notes --- */}
-        {deliveryNotesList.map((note) => (
-  <div key={note.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
-    <div className="flex justify-between items-start flex-wrap gap-4">
-      <div className="flex-1">
-        <p className="font-black text-[#F57C00] text-lg">DN-{note.id}</p>
-        <p className="text-xs text-gray-500 mt-1">{note.date || note.created_at}</p>
-        <p className="text-xs font-bold mt-2">
-          Recipient: <span className="text-[#F57C00]">{note.recipient_name || note.to_location || note.recipient || 'Not specified'}</span>
-        </p>
-        {note.items && note.items.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[10px] font-black text-gray-400 uppercase">Products delivered:</p>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {note.items.slice(0, 3).map((item, idx) => (
-                <span key={idx} className="text-xs font-bold bg-gray-100 px-2 py-0.5 rounded-full">
-                  {item.product_name} x{item.quantity}
-                </span>
-              ))}
-              {note.items.length > 3 && (
-                <span className="text-xs text-gray-500">+{note.items.length - 3} more</span>
-              )}
+        {activeFilter === 'notes' && (
+          <div className="overflow-x-auto p-8">
+            <div className="mb-6">
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4">All Delivery Notes</h3>
+              <div className="grid gap-4">
+                {deliveryNotesList.map((note) => (
+                  <div key={note.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+                    <div className="flex justify-between items-start flex-wrap gap-4">
+                      <div className="flex-1">
+                        <p className="font-black text-[#F57C00] text-lg">DN-{note.id}</p>
+                        <p className="text-xs text-gray-500 mt-1">{note.date || note.created_at}</p>
+                        <p className="text-xs font-bold mt-2">
+                          Recipient: <span className="text-[#F57C00]">{note.recipient_name || note.to_location || note.recipient || 'Not specified'}</span>
+                        </p>
+                        {note.items && note.items.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-[10px] font-black text-gray-400 uppercase">Products delivered:</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {note.items.slice(0, 3).map((item, idx) => (
+                                <span key={idx} className="text-xs font-bold bg-gray-100 px-2 py-0.5 rounded-full">
+                                  {item.product_name} x{item.quantity}
+                                </span>
+                              ))}
+                              {note.items.length > 3 && (
+                                <span className="text-xs text-gray-500">+{note.items.length - 3} more</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        <p className="text-[10px] font-bold text-gray-500 mt-2">
+                          Total amount: {note.total_amount} RWF
+                        </p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => fetchDeliveryNoteById(note.id)}
+                          className="px-4 py-2 bg-[#F57C00] text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-[#E65100] transition-all"
+                        >
+                          <Eye size={14} /> View Details
+                        </button>
+                        <button 
+                          onClick={() => downloadDeliveryNotePDF(note.id)}
+                          className="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-gray-900 transition-all"
+                        >
+                          <Download size={14} /> Download PDF
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
-        <p className="text-[10px] font-bold text-gray-500 mt-2">
-          Total amount: {note.total_amount} RWF
-        </p>
-      </div>
-      <div className="flex gap-3">
-        <button 
-          onClick={() => fetchDeliveryNoteById(note.id)}
-          className="px-4 py-2 bg-[#F57C00] text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-[#E65100] transition-all"
-        >
-          <Eye size={14} /> View Details
-        </button>
-        <button 
-          onClick={() => downloadDeliveryNotePDF(note.id)}
-          className="px-4 py-2 bg-gray-800 text-white rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-gray-900 transition-all"
-        >
-          <Download size={14} /> Download PDF
-        </button>
-      </div>
-    </div>
-  </div>
-))}
 
         {/* --- CAKE ORDERS WITH PAYMENT API LOGIC --- */}
         {activeFilter === 'cake_orders' && (
