@@ -12,10 +12,10 @@ use Illuminate\Http\Request;
 class OrderController extends Controller
 {
     // CREATE ORDER
-    // - Validates location
+    // - Gets location from authenticated user's role
     // - Creates Order + OrderItems with price snapshot
     // - Notifies store_keeper, sales_coordinator, marketing_manager
-    public function store(Request $request, $location)
+    public function store(Request $request)
     {
         $request->validate([
             'items'                  => 'required|array|min:1',
@@ -23,8 +23,18 @@ class OrderController extends Controller
             'items.*.quantity'       => 'required|integer|min:1',
         ]);
 
-        if (!in_array($location, ['kabuga', 'masaka'])) {
-            return response()->json(['error' => 'Invalid location'], 400);
+        // Get location from authenticated user's role
+        $userRole = auth()->user()->role->name;
+        
+        // Determine location based on role
+        if ($userRole === 'shop_manager_kabuga') {
+            $location = 'kabuga';
+        } elseif ($userRole === 'shop_manager_masaka') {
+            $location = 'masaka';
+        } else {
+            return response()->json([
+                'error' => 'Unauthorized - Invalid shop manager role'
+            ], 403);
         }
 
         $order = Order::create([
