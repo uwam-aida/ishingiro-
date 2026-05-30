@@ -56,4 +56,28 @@ class DeliveryNoteService
 
         return $pdf->output();
     }
+
+    /**
+     * Generate PDF from stored items array (for regenerating existing notes)
+     *
+     * @param  Collection  $items       — Array of items with name, qty, unit_price, total
+     * @param  string      $recipient   — Printed as "CUSTOM NAME" on the note
+     * @param  Carbon      $deliveredAt — Date/time printed on the note
+     * @return string  Raw PDF content
+     */
+    public function generateFromArray(
+        Collection $items,
+        string $recipient,
+        Carbon $deliveredAt,
+    ): string {
+        $pdf = Pdf::loadView('pdf.delivery-note', [
+            'recipient'   => strtoupper($recipient),
+            'date'        => $deliveredAt->format('n/j/Y'),
+            'time'        => $deliveredAt->format('g:i A'),
+            'items'       => $items,
+            'grand_total' => $items->sum('total'),
+        ])->setPaper('a5', 'portrait');
+
+        return $pdf->output();
+    }
 }
