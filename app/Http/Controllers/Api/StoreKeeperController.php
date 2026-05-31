@@ -97,6 +97,62 @@ class StoreKeeperController extends Controller
     }
 
     // INCOMING PRODUCT REQUESTS (pending orders from shop managers)
+    public function requests()
+    {
+        $orders = Order::with('items.product')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+        
+        // Transform the data to avoid modifying the model directly
+        return $orders->map(function ($order) {
+            return [
+                'id' => $order->id,
+                'user_id' => $order->user_id,
+                'location' => $order->location,
+                'status' => $order->status,
+                'created_at' => $order->created_at,
+                'updated_at' => $order->updated_at,
+                'items' => $order->items,
+                'time' => $order->created_at->format('h:i A'),
+                'date' => $order->created_at->toDateString(),
+            ];
+        });
+    }
+
+    // UPDATE REQUEST STATUS + OPTIONAL ITEM QUANTITY ADJUSTMENTS
+    public function updateRequest(Request $request, $id)
+    {
+        $request->validate([
+            'status'           => 'nullable|in:pending,dispatched,delivered',
+            'items'            => 'nullable|array',
+            'items.*.id'       => 'required_with:items|integer|exists:order_items,id',
+            'items.*.quantity' => 'required_with:items|integer|min:1',
+        ]);
+
+        $order = Order::with('items.product')->findOrFail($id);
+
+        if ($request->filled('status')) {
+            $order->update(['status' => $request->status]);
+
+            SendNotificationJob::dispatch(
+                'shop_manager_' . $order->location,
+                'Order #' . $order->id . ' is now ' . $request->status
+            );
+        }
+
+        if (!empty($request->items)) {
+            foreach ($request->items as $itemData) {
+                OrderItem::where('id', $itemData['id'])
+                    ->where('order_id', $order->id)
+                    ->update(['quantity' => $itemData['quantity']]);
+            }
+        }
+
+        return $order->fresh()->load('items.product');
+    }
+
+    // DELIVER ORDERS + GENERATE PDF DELIVERY NOTE
     public function deliver(Request $request)
     {
         $request->validate([
@@ -126,7 +182,6 @@ class StoreKeeperController extends Controller
                     ->get();
 
                 foreach ($orders as $order) {
-                    // Skip if already delivered
                     if ($order->status === 'delivered') {
                         continue;
                     }
@@ -137,7 +192,6 @@ class StoreKeeperController extends Controller
                         $itemTotal   = $item->quantity * $item->price;
                         $orderTotal += $itemTotal;
 
-                        // Record delivery
                         Delivery::create([
                             'product_id'    => $item->product_id,
                             'quantity'      => $item->quantity,
@@ -145,7 +199,6 @@ class StoreKeeperController extends Controller
                             'to_location'   => $order->location,
                         ]);
 
-                        // Reduce factory stock
                         $factoryStock = Stock::where('product_id', $item->product_id)
                             ->where('location', 'factory')
                             ->first();
@@ -163,7 +216,6 @@ class StoreKeeperController extends Controller
                             ]);
                         }
 
-                        // Increase shop stock
                         $shopStock = Stock::firstOrCreate([
                             'product_id' => $item->product_id,
                             'location'   => $order->location,
@@ -179,7 +231,6 @@ class StoreKeeperController extends Controller
                         ]);
                     }
 
-                    // Update order status to delivered (this removes it from requests list)
                     $order->update(['status' => 'delivered']);
 
                     if ($request->input('payment_received', true)) {
@@ -263,9 +314,6 @@ class StoreKeeperController extends Controller
             }
         });
 
-        // After the transaction, we can also clear the selected items from any temporary storage
-        // This ensures the frontend's selectedProductIds are cleared
-        
         $pdf = app(DeliveryNoteService::class)->generate(
             orders:      $orders,
             cakeOrders:  $cakeOrders,
@@ -443,6 +491,50 @@ class StoreKeeperController extends Controller
             });
     }
 
+    // RECORD CAKE PAYMENT (for store keeper)
+    public function recordCakePayment(Request $request, $id)
+    {
+        $request->validate([
+            'payment_amount' => 'required|numeric|min:1',
+            'payment_method' => 'required|string|in:cash,card,mobile_money,bank_transfer',
+            'payer_name' => 'nullable|string',
+        ]);
+
+        $cakeOrder = CakeOrder::findOrFail($id);
+
+        if ($cakeOrder->remaining_payment <= 0) {
+            return response()->json(['error' => 'Order is already fully paid'], 400);
+        }
+
+        $newTotal = $cakeOrder->total_paid + $request->payment_amount;
+
+        if ($newTotal > $cakeOrder->price) {
+            return response()->json(['error' => 'Payment amount exceeds remaining balance'], 400);
+        }
+
+        DB::transaction(function () use ($request, $cakeOrder, $newTotal) {
+            $cakeOrder->update([
+                'total_paid' => $newTotal,
+                'remaining_payment' => $cakeOrder->price - $newTotal,
+                'payment_method' => $request->payment_method,
+                'payer_name' => $request->payer_name ?? $cakeOrder->payer_name,
+            ]);
+
+            Revenue::create([
+                'amount' => $request->payment_amount,
+                'source' => 'cake_order_payment',
+                'location' => $cakeOrder->location,
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Payment recorded successfully',
+            'cake_order' => $cakeOrder->fresh(),
+            'total_paid' => $cakeOrder->total_paid,
+            'remaining_balance' => $cakeOrder->remaining_payment,
+        ]);
+    }
+
     // FULL STOCK MOVEMENT HISTORY
     public function history(Request $request)
     {
@@ -597,12 +689,22 @@ class StoreKeeperController extends Controller
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
         
+        // Transform items to have consistent keys for the frontend
+        $transformedItems = collect($note->items)->map(function ($item) {
+            return [
+                'name' => $item['product_name'] ?? $item['name'] ?? 'Unknown',
+                'qty' => $item['quantity'] ?? $item['qty'] ?? 0,
+                'unit_price' => $item['unit_price'] ?? 0,
+                'total' => $item['total'] ?? 0,
+            ];
+        });
+        
         return response()->json([
             'id' => $note->id,
             'note_number' => $note->note_number,
             'recipient_name' => $note->recipient_name,
             'location' => $note->location,
-            'items' => $note->items,
+            'items' => $transformedItems,
             'total_amount' => $note->total_amount,
             'created_by' => optional($note->user)->name,
             'created_at' => $note->created_at,
@@ -615,7 +717,14 @@ class StoreKeeperController extends Controller
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
         
-        $items = collect($note->items);
+        $items = collect($note->items)->map(function ($item) {
+            return [
+                'name' => $item['product_name'] ?? $item['name'] ?? 'Unknown',
+                'qty' => $item['quantity'] ?? $item['qty'] ?? 0,
+                'unit_price' => $item['unit_price'] ?? 0,
+                'total' => $item['total'] ?? 0,
+            ];
+        });
         
         $pdf = app(DeliveryNoteService::class)->generateFromArray(
             items: $items,
@@ -639,9 +748,18 @@ class StoreKeeperController extends Controller
             ->where('location', $location)
             ->latest()
             ->get()
-            ->each(function ($order) {
-                $order->time = $order->created_at->format('h:i A');
-                $order->date = $order->created_at->toDateString();
+            ->map(function ($order) {
+                return [
+                    'id' => $order->id,
+                    'user_id' => $order->user_id,
+                    'location' => $order->location,
+                    'status' => $order->status,
+                    'created_at' => $order->created_at,
+                    'updated_at' => $order->updated_at,
+                    'items' => $order->items,
+                    'time' => $order->created_at->format('h:i A'),
+                    'date' => $order->created_at->toDateString(),
+                ];
             });
         
         return response()->json($orders);

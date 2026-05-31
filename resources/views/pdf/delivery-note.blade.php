@@ -180,17 +180,19 @@
     <tbody>
       @foreach ($items as $item)
       <tr>
-        <td class="c-name">{{ strtoupper($item['name']) }}</td>
-        <td class="c-qty">{{ $item['qty'] }}</td>
-        <td class="c-price">{{ number_format($item['unit_price']) }}</td>
-        <td class="c-total">{{ number_format($item['total']) }}</td>
+        {{-- Support both 'name' and 'product_name' keys --}}
+        <td class="c-name">{{ strtoupper($item['name'] ?? $item['product_name'] ?? 'Unknown') }}</td>
+        {{-- Support both 'qty' and 'quantity' keys --}}
+        <td class="c-qty">{{ $item['qty'] ?? $item['quantity'] ?? 0 }}</td>
+        <td class="c-price">{{ number_format($item['unit_price'] ?? 0) }}</td>
+        <td class="c-total">{{ number_format($item['total'] ?? 0) }}</td>
       </tr>
       @endforeach
 
       {{-- TOTAL ROW --}}
       <tr>
         <td colspan="3" class="total-label">TOTAL AMOUNT</td>
-        <td class="total-value">{{ number_format($grand_total) }}</td>
+        <td class="total-value">{{ number_format($grand_total ?? 0) }}</td>
       </tr>
     </tbody>
   </table>

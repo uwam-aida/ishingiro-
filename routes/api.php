@@ -113,6 +113,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // NEW: Get stock by location
         Route::get('/stock/{location}', [StoreKeeperController::class, 'getStockByLocation']);
+
+        //payment
+        Route::post('/cake-order/{id}/payment', [StoreKeeperController::class, 'recordCakePayment']);
     });
 
 

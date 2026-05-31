@@ -66,16 +66,26 @@ class DeliveryNoteService
      * @return string  Raw PDF content
      */
     public function generateFromArray(
-        Collection $items,
-        string $recipient,
-        Carbon $deliveredAt,
+    Collection $items,
+    string $recipient,
+    Carbon $deliveredAt,
     ): string {
+        // Transform items to have consistent keys
+        $transformedItems = $items->map(function ($item) {
+            return [
+                'name'       => $item['product_name'] ?? $item['name'] ?? 'Unknown',
+                'qty'        => $item['quantity'] ?? $item['qty'] ?? 0,
+                'unit_price' => $item['unit_price'] ?? 0,
+                'total'      => $item['total'] ?? 0,
+            ];
+        });
+        
         $pdf = Pdf::loadView('pdf.delivery-note', [
             'recipient'   => strtoupper($recipient),
             'date'        => $deliveredAt->format('n/j/Y'),
             'time'        => $deliveredAt->format('g:i A'),
-            'items'       => $items,
-            'grand_total' => $items->sum('total'),
+            'items'       => $transformedItems,
+            'grand_total' => $transformedItems->sum('total'),
         ])->setPaper('a5', 'portrait');
 
         return $pdf->output();
