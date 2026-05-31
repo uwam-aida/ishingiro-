@@ -496,7 +496,7 @@ class StoreKeeperController extends Controller
     {
         $request->validate([
             'payment_amount' => 'required|numeric|min:1',
-            'payment_method' => 'required|string|in:cash,card,mobile_money,bank_transfer',
+            'payment_method' => 'required|string|in:cash,card,momo,bank',
             'payer_name' => 'nullable|string',
         ]);
 
