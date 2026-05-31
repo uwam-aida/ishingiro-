@@ -33,7 +33,6 @@ export const getShopManagerMenu = (branchId: string): MenuItem[] => [
 
 export const getBakerMenu = (): MenuItem[] => [
   { name: 'Dashboard', icon: LayoutDashboard, href: `/baker-assistant` },
-  { name: 'Add Product', icon: PlusCircle, href: '/baker-assistant/add-product' },
   { name: 'Notifications', icon: Bell, href: `/baker-assistant/notifications` },
 ];
 

@@ -1,8 +1,6 @@
 'use client';
 
-// 1. Added useEffect for the auth check
 import React, { useState, useEffect } from 'react';
-// 2. Added useRouter for navigation
 import { useRouter } from 'next/navigation';
 import { 
   ChefHat, 
@@ -12,27 +10,38 @@ import {
   Search,
   Package,
   PlusCircle,
-  X
+  X,
+  Scale,
+  Box,
+  AlertCircle
 } from 'lucide-react';
 
 export default function BakerDashboard() {
-  const router = useRouter(); // Initialize router
+  const router = useRouter();
   const [currentView, setCurrentView] = useState('Dashboard');
 
   // --- STATE TO HOLD FETCHED API DATA ---
   const [bakedProducts, setBakedProducts] = useState<any[]>([]);
   const [damagedItems, setDamagedItems] = useState<any[]>([]);
+  const [ingredients, setIngredients] = useState<any[]>([]); // measured products
   const [realProducts, setRealProducts] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  // --- MODAL STATES ---
-  const [showModal, setShowModal] = useState<'production' | 'damage' | 'ingredient' | null>(null);
-  
-  // --- FORM STATES ---
+  // --- MODAL STATES (for adding measured product) ---
+  const [showMeasuredModal, setShowMeasuredModal] = useState(false);
   const [formProduct, setFormProduct] = useState('');
   const [formQty, setFormQty] = useState('');
-  const [formReason, setFormReason] = useState('');
   const [formUnit, setFormUnit] = useState('kg');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  // --- MODAL STATES for production/damage (existing) ---
+  const [showModal, setShowModal] = useState<'production' | 'damage' | null>(null);
+  const [prodFormProduct, setProdFormProduct] = useState('');
+  const [prodFormQty, setProdFormQty] = useState('');
+  const [prodFormReason, setProdFormReason] = useState('');
 
   // --- AUTHENTICATION CHECK & API FETCH ---
   const fetchBakerData = async () => {
@@ -46,6 +55,10 @@ export default function BakerDashboard() {
 
       const damRes = await fetch(`${baseUrl}/baker/damage`, { headers });
       if (damRes.ok) setDamagedItems(await damRes.json());
+
+      const ingRes = await fetch(`${baseUrl}/baker/ingredients`, { headers });
+      if (ingRes.ok) setIngredients(await ingRes.json());
+
       const productsRes = await fetch(`${baseUrl}/products`, { headers });
       if (productsRes.ok) setRealProducts(await productsRes.json());
 
@@ -63,7 +76,7 @@ export default function BakerDashboard() {
     fetchBakerData();
   }, [router]);
 
-  // --- LOGOUT FUNCTION ---
+  // --- LOGOUT ---
   const handleLogout = async () => {
     try {
       const token = localStorage.getItem('token');
@@ -82,50 +95,73 @@ export default function BakerDashboard() {
     }
   };
 
-  // --- POST APIS ---
-  const handlePostSubmit = async (e: React.FormEvent) => {
+  // --- POST API for measured product (new modal) ---
+  const handleAddMeasuredProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage('');
+    if (!formProduct || !formQty) {
+      setErrorMessage("Please fill all fields");
+      return;
+    }
     setIsSubmitting(true);
-
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
     try {
-      if (showModal === 'ingredient') {
-        await fetch(`${baseUrl}/baker/ingredients`, {
+      const response = await fetch(`${baseUrl}/baker/ingredients`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: formProduct, quantity: parseInt(formQty), unit: formUnit })
+      });
+      if (response.ok) {
+        setShowMeasuredModal(false);
+        setFormProduct('');
+        setFormQty('');
+        setFormUnit('kg');
+        fetchBakerData(); // refresh all data
+      } else {
+        const error = await response.json();
+        setErrorMessage(error.message || "Failed to add measured product");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMessage("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // --- POST API for production and damage (existing, kept unchanged) ---
+  const handlePostSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    try {
+      const realDbProduct = realProducts.find(p => p.name.toLowerCase() === prodFormProduct.toLowerCase());
+      const dbProductId = realDbProduct ? realDbProduct.id : 1;
+
+      if (showModal === 'production') {
+        await fetch(`${baseUrl}/baker/production`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ name: formProduct, quantity: parseInt(formQty), unit: formUnit })
+          body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(prodFormQty), location: 'kabuga' })
         });
-      } else {
-        // Find real DB ID
-        const realDbProduct = realProducts.find(p => p.name.toLowerCase() === formProduct.toLowerCase());
-        const dbProductId = realDbProduct ? realDbProduct.id : 1; 
-
-        if (showModal === 'production') {
-          await fetch(`${baseUrl}/baker/production`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(formQty), location: 'kabuga' })
-          });
-        } else if (showModal === 'damage') {
-          await fetch(`${baseUrl}/baker/damage`, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(formQty), reason: formReason, location: 'kabuga' })
-          });
-        }
+      } else if (showModal === 'damage') {
+        await fetch(`${baseUrl}/baker/damage`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(prodFormQty), reason: prodFormReason, location: 'kabuga' })
+        });
       }
-
-      // Reset and refresh
       setShowModal(null);
-      setFormProduct('');
-      setFormQty('');
-      setFormReason('');
-      setFormUnit('kg');
+      setProdFormProduct('');
+      setProdFormQty('');
+      setProdFormReason('');
       fetchBakerData();
-
     } catch (error) {
       console.error("Submission failed", error);
     } finally {
@@ -133,103 +169,228 @@ export default function BakerDashboard() {
     }
   };
 
-  // --- 1. THE THREE MAIN CATEGORIES ---
+  // --- STATS CARDS (new card for Measured Products) ---
   const stats = [
-    { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
+    { label: 'Measured Products', value: ingredients.length.toString(), icon: Scale, color: 'bg-orange-50 text-[#F57C00]' },    { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
     { label: 'Damaged Items', value: damagedItems.length.toString(), icon: Trash2, color: 'bg-red-50 text-red-600' },
-    { label: 'Full Added Products', value: (bakedProducts.length + damagedItems.length).toString(), icon: History, color: 'bg-gray-100 text-black' },
-  ];
-
-  // --- 2. LIST DATA ---
+    { label: 'Full Added Products', value: (damagedItems.length + ingredients.length).toString(), icon: History, color: 'bg-gray-100 text-black' },  ];
+  const filteredProducts = realProducts.filter(p =>
+     p.name.toLowerCase().includes(productSearch.toLowerCase())
+      );
+  // --- LIST DATA with real timestamps and sorting ---
   const getGridData = (view: string) => {
+    const filteredProducts = realProducts.filter(p =>
+  p.name.toLowerCase().includes(productSearch.toLowerCase())
+);
+    let items: any[] = [];
+
     switch (view) {
+      case 'Measured Products':
+        items = ingredients.map(i => ({
+          id: `ING-${i.id}`,
+          item: i.name || 'Ingredient',
+          qty: `${i.quantity} ${i.unit || ''}`,
+          dateTime: i.created_at ? new Date(i.created_at).toLocaleString() : 'Logged',
+          status: 'Measured',
+          rawDate: i.created_at
+        }));
+        items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+        break;
       case 'Baked Products':
-        return bakedProducts.map(p => ({
-          id: `BK-${p.id}`, 
-          item: p.product?.name || `Product #${p.product_id}`, 
-          qty: `${p.quantity} pcs`, 
-          time: 'Logged', 
-          status: 'In Stock'
+        items = bakedProducts.map(p => ({
+          id: `BK-${p.id}`,
+          item: p.product?.name || `Product #${p.product_id}`,
+          qty: `${p.quantity} pcs`,
+          dateTime: p.created_at ? new Date(p.created_at).toLocaleString() : 'Logged',
+          status: 'In Stock',
+          rawDate: p.created_at
         }));
+        items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+        break;
       case 'Damaged Items':
-        return damagedItems.map(d => ({
-          id: `DM-${d.id}`, 
-          item: d.product?.name || `Product #${d.product_id}`, 
-          qty: `${d.quantity} pcs`, 
-          reason: d.reason, 
-          status: 'Waste'
+        items = damagedItems.map(d => ({
+          id: `DM-${d.id}`,
+          item: d.product?.name || `Product #${d.product_id}`,
+          qty: `${d.quantity} pcs`,
+          dateTime: d.created_at ? new Date(d.created_at).toLocaleString() : 'Logged',
+          status: 'Waste',
+          rawDate: d.created_at
         }));
+        items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+        break;
       case 'Full Added Products':
-        const combined = [...bakedProducts, ...damagedItems].sort((a, b) => b.id - a.id);
-        return combined.map(log => ({
-          id: `LOG-${log.id}`, 
-          item: log.product?.name || `Product #${log.product_id}`, 
-          qty: `${log.quantity} pcs`, 
-          date: 'Logged', 
-          status: log.reason ? 'Waste' : 'Verified'
-        }));
+  const damageEntries = damagedItems.map(d => ({
+    id: `DM-${d.id}`,
+    item: d.product?.name || `Product #${d.product_id}`,
+    qty: `${d.quantity} pcs`,
+    dateTime: d.created_at ? new Date(d.created_at).toLocaleString() : 'Logged',
+    status: 'Damage',
+    rawDate: d.created_at
+  }));
+  const ingredientEntries = ingredients.map(i => ({
+    id: `ING-${i.id}`,
+    item: i.name || 'Ingredient',
+    qty: `${i.quantity} ${i.unit || ''}`,
+    dateTime: i.created_at ? new Date(i.created_at).toLocaleString() : 'Logged',
+    status: 'Measured',
+    rawDate: i.created_at
+  }));
+  items = [...damageEntries, ...ingredientEntries];
+  items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+  break;
       default: return [];
     }
+    return items;
   };
 
-  const currentData = getGridData(currentView);
+  let currentData = getGridData(currentView);
+  if (searchTerm) {
+    currentData = currentData.filter(row => row.item.toLowerCase().includes(searchTerm.toLowerCase()));
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10 px-4 pt-4 relative">
       
-      {/* --- FORMS MODAL --- */}
-      {showModal && (
+      {/* --- MODAL FOR ADDING MEASURED PRODUCT (NEW) --- */}
+      {showMeasuredModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-           <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
-              <button onClick={() => setShowModal(null)} className="absolute top-6 right-6 text-gray-400 hover:text-black">
-                 <X size={24} />
+          <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+            <button onClick={() => setShowMeasuredModal(false)} className="absolute top-6 right-6 text-gray-400 hover:text-black">
+              <X size={24} />
+            </button>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-orange-50 text-[#F57C00] rounded-2xl flex items-center justify-center">
+                <Scale size={24} />
+              </div>
+              <h2 className="text-2xl font-black uppercase text-black">Add Measured Item</h2>
+            </div>
+            <form onSubmit={handleAddMeasuredProduct} className="space-y-5">
+              <div className="relative">
+  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1 mb-1">
+    <Box size={12} /> Product Name
+  </label>
+  <div className="relative">
+    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+      <Search size={16} className="text-gray-400" />
+    </div>
+    <input
+      type="text"
+      value={productSearch}
+      onChange={(e) => {
+        setProductSearch(e.target.value);
+        setShowProductDropdown(true);
+      }}
+      onFocus={() => setShowProductDropdown(true)}
+      onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
+      placeholder="Search product..."
+      className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-4 pl-12 pr-4 font-bold outline-none focus:border-[#F57C00]"
+    />
+  </div>
+  {showProductDropdown && productSearch && (
+    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+      {filteredProducts.length > 0 ? (
+        filteredProducts.map((prod) => (
+          <div
+            key={prod.id}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => {
+              setFormProduct(prod.name);
+              setProductSearch(prod.name);
+              setShowProductDropdown(false);
+            }}
+            className="px-5 py-3 hover:bg-orange-50 cursor-pointer flex justify-between items-center text-sm font-bold text-gray-700 uppercase transition-colors"
+          >
+            <span>{prod.name}</span>
+            <span className="text-[10px] text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">{prod.category}</span>
+          </div>
+        ))
+      ) : (
+        <div className="px-5 py-4 text-sm font-bold text-gray-400 text-center uppercase">No products found</div>
+      )}
+    </div>
+  )}
+</div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantity</label>
+                <input
+                  required
+                  type="number"
+                  value={formQty}
+                  onChange={(e) => setFormQty(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl font-bold outline-none focus:border-blue-500 mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Unit</label>
+                <select
+                  value={formUnit}
+                  onChange={(e) => setFormUnit(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl font-bold outline-none focus:border-blue-500 mt-1"
+                >
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="liters">liters</option>
+                  <option value="pieces">pieces</option>
+                </select>
+              </div>
+              {errorMessage && (
+                <div className="bg-red-50 text-red-600 p-3 rounded-xl flex items-center gap-2 text-xs font-bold">
+                  <AlertCircle size={14} /> {errorMessage}
+                </div>
+              )}
+              <button
+                   type="submit"
+                   disabled={isSubmitting}
+                   className="w-full bg-[#F57C00] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition disabled:opacity-50"
+              >
+                    {isSubmitting ? 'Saving...' : 'Confirm and Add'}
               </button>
-              <h2 className="text-2xl font-black uppercase mb-6 text-[#F57C00]">
-                 {showModal === 'production' ? 'Log Production' : showModal === 'damage' ? 'Report Damage' : 'Add Ingredient'}
-              </h2>
-              
-              <form onSubmit={handlePostSubmit} className="space-y-4">
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                      {showModal === 'ingredient' ? 'Ingredient Name' : 'Product Name'}
-                    </label>
-                    <input required type="text" value={formProduct} onChange={(e) => setFormProduct(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
-                 </div>
-
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantity</label>
-                    <input required type="number" value={formQty} onChange={(e) => setFormQty(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
-                 </div>
-
-                 {showModal === 'ingredient' && (
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Unit</label>
-                      <input required type="text" placeholder="e.g. kg, liters" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
-                   </div>
-                 )}
-
-                 {showModal === 'damage' && (
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Reason</label>
-                      <input required type="text" placeholder="e.g. Burned, Dropped" value={formReason} onChange={(e) => setFormReason(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00]" />
-                   </div>
-                 )}
-
-                 <button disabled={isSubmitting} type="submit" className="w-full bg-black text-white font-black uppercase tracking-widest py-4 rounded-2xl mt-4 hover:bg-[#F57C00] transition-colors disabled:opacity-50">
-                    {isSubmitting ? 'Saving...' : 'Submit'}
-                 </button>
-              </form>
-           </div>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* --- DASHBOARD VIEW --- */}
+      {/* --- MODAL FOR PRODUCTION / DAMAGE (unchanged) --- */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+            <button onClick={() => setShowModal(null)} className="absolute top-6 right-6 text-gray-400 hover:text-black">
+              <X size={24} />
+            </button>
+            <h2 className="text-2xl font-black uppercase mb-6 text-[#F57C00]">
+              {showModal === 'production' ? 'Log Production' : 'Report Damage'}
+            </h2>
+            <form onSubmit={handlePostSubmit} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Product Name</label>
+                <input required type="text" value={prodFormProduct} onChange={(e) => setProdFormProduct(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00] mt-1" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantity</label>
+                <input required type="number" value={prodFormQty} onChange={(e) => setProdFormQty(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00] mt-1" />
+              </div>
+              {showModal === 'damage' && (
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Reason</label>
+                  <input required type="text" placeholder="e.g. Burned, Dropped" value={prodFormReason} onChange={(e) => setProdFormReason(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00] mt-1" />
+                </div>
+              )}
+              <button disabled={isSubmitting} type="submit" className="w-full bg-black text-white font-black uppercase tracking-widest py-4 rounded-2xl mt-4 hover:bg-[#F57C00] transition-colors disabled:opacity-50">
+                {isSubmitting ? 'Saving...' : 'Submit'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- DASHBOARD VIEW (stat cards) --- */}
       {currentView === 'Dashboard' ? (
         <>
           <div className="mb-8 flex justify-between items-start">
             <div>
               <h1 className="text-4xl font-black text-black tracking-tighter uppercase">Baker Assistant</h1>
-              <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Production Management</p>
+              <p className="text-[#F57C00] font-black uppercase text-[10px] tracking-[0.3em] mt-1">Ishingiro Measurement System</p>
             </div>
           </div>
 
@@ -245,60 +406,70 @@ export default function BakerDashboard() {
                 </div>
                 <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.25em]">{stat.label}</p>
                 <div className="flex items-end justify-between mt-2">
-                    <h3 className="text-5xl font-black text-black tracking-tighter">{stat.value}</h3>
-                    <div className="mb-2 p-2 bg-gray-50 rounded-full text-gray-300 group-hover:text-[#F57C00] transition-colors">
-                        <PlusCircleIcon size={20} />
-                    </div>
+                  <h3 className="text-5xl font-black text-black tracking-tighter">{stat.value}</h3>
+                  <div className="mb-2 p-2 bg-gray-50 rounded-full text-gray-300 group-hover:text-[#F57C00] transition-colors">
+                    <PlusCircleIcon size={20} />
+                  </div>
                 </div>
               </button>
             ))}
           </div>
         </>
       ) : (
-        /* --- PRODUCT LIST VIEW (When a Grid is Clicked) --- */
+        /* --- LIST VIEWS (Measured Products, Baked Products, Damaged Items, Full Added Products) --- */
         <div className="animate-in slide-in-from-right-4 duration-400">
           <button 
             onClick={() => setCurrentView('Dashboard')}
             className="flex items-center gap-3 text-black font-black uppercase text-[10px] tracking-[0.2em] hover:text-[#F57C00] mb-10 transition-colors group"
           >
             <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-orange-100 transition-colors">
-                <ArrowLeft size={16} /> 
+              <ArrowLeft size={16} /> 
             </div>
             Back to Overview
           </button>
 
           <div className="bg-white rounded-[56px] border border-gray-100 shadow-2xl overflow-hidden mb-10">
-            {/* Header of the List */}
             <div className="p-10 border-b border-gray-50 flex flex-col md:flex-row justify-between items-center gap-6">
               <div className="text-center md:text-left">
                 <h2 className="text-4xl font-black text-black uppercase tracking-tighter">{currentView}</h2>
-                <p className="text-[#F57C00] text-[10px] font-black uppercase tracking-[0.2em] mt-1">Current Shift Records</p>
+                <p className="text-[#F57C00] text-[10px] font-black uppercase tracking-[0.2em] mt-1">
+                  {currentView === 'Measured Products' ? 'Ingredients ready for baking' : 
+                   currentView === 'Full Added Products' ? 'Complete production log' : 'Current shift records'}
+                </p>
               </div>
               
               <div className="flex items-center gap-4 w-full md:w-auto">
-                {currentView === 'Baked Products' && <button onClick={() => setShowModal('production')} className="bg-black text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-colors flex-shrink-0"><PlusCircle size={16}/> Log Batch</button>}
-                {currentView === 'Damaged Items' && <button onClick={() => setShowModal('damage')} className="bg-red-600 text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-red-700 transition-colors flex-shrink-0"><Trash2 size={16}/> Report Waste</button>}
-                {currentView === 'Ingredient Store' && <button onClick={() => setShowModal('ingredient')} className="bg-black text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-[#F57C00] transition-colors flex-shrink-0"><PlusCircle size={16}/> Add Supply</button>}
-
+                {currentView === 'Measured Products' && (
+                  <button onClick={() => setShowMeasuredModal(true)} className="bg-[#F57C00] text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-black transition-colors flex-shrink-0">
+                    <PlusCircle size={16}/> Add Measured Item
+                  </button>
+                )}
+                
+                {currentView === 'Damaged Items' && (
+                  <button onClick={() => setShowModal('damage')} className="bg-red-600 text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-red-700 transition-colors flex-shrink-0">
+                    <Trash2 size={16}/> Report Waste
+                  </button>
+                )}
                 <div className="relative w-full md:w-64">
                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                   <input 
-                      type="text" 
-                      placeholder="SEARCH..." 
-                      className="w-full pl-14 pr-8 py-4 bg-gray-50 border-none rounded-3xl outline-none focus:ring-2 focus:ring-[#F57C00]/20 font-bold text-[10px] uppercase tracking-widest text-black" 
+                    type="text" 
+                    placeholder="SEARCH..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-14 pr-8 py-4 bg-gray-50 border-none rounded-3xl outline-none focus:ring-2 focus:ring-[#F57C00]/20 font-bold text-[10px] uppercase tracking-widest text-black" 
                   />
                 </div>
               </div>
             </div>
 
-            {/* The Product Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50">
                     <th className="px-12 py-6 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Product Info</th>
                     <th className="px-12 py-6 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] text-center">Qty / Batch</th>
-                    <th className="px-12 py-6 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] text-right">Status</th>
+                    <th className="px-12 py-6 text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] text-right">Status / Time</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -306,24 +477,29 @@ export default function BakerDashboard() {
                     <tr key={row.id} className="hover:bg-orange-50/20 transition-colors">
                       <td className="px-12 py-8">
                         <div className="flex items-center gap-5">
-                            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center text-black">
-                                <Package size={22} />
-                            </div>
-                            <div>
-                                <p className="font-black text-black uppercase text-sm tracking-tight">{row.item}</p>
-                                <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Ref: {row.id} {row.reason ? `| ${row.reason}` : ''}</p>
-                            </div>
+                          <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center text-black">
+                            <Package size={22} />
+                          </div>
+                          <div>
+                            <p className="font-black text-black uppercase text-sm tracking-tight">{row.item}</p>
+                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">{row.id}</p>
+                          </div>
                         </div>
                       </td>
                       <td className="px-12 py-8 text-center">
                         <span className="font-black text-black text-lg tracking-tighter">{row.qty}</span>
                       </td>
                       <td className="px-12 py-8 text-right">
-                        <span className={`px-5 py-2.5 rounded-2xl text-[9px] font-black uppercase tracking-[0.15em] shadow-sm ${
-                            row.status === 'Waste' ? 'bg-red-600 text-white' : 'bg-black text-white'
-                        }`}>
-                          {row.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`px-5 py-2 rounded-2xl text-[9px] font-black uppercase tracking-[0.15em] shadow-sm ${
+                            row.status === 'Measured' ? 'bg-blue-600 text-white' :
+                            row.status === 'Waste' || row.status === 'Damage' ? 'bg-red-600 text-white' : 
+                            'bg-black text-white'
+                          }`}>
+                            {row.status}
+                          </span>
+                          <span className="text-[9px] text-gray-400 font-black">{row.dateTime}</span>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -332,7 +508,7 @@ export default function BakerDashboard() {
             </div>
             
             {currentData.length === 0 && (
-                <div className="p-32 text-center uppercase font-black text-gray-200 text-xl tracking-[0.5em]">No Data</div>
+              <div className="p-32 text-center uppercase font-black text-gray-200 text-xl tracking-[0.5em]">No Data</div>
             )}
           </div>
         </div>
@@ -341,11 +517,11 @@ export default function BakerDashboard() {
   );
 }
 
-// Simple internal icon for the cards
+// PlusCircleIcon helper (unchanged)
 function PlusCircleIcon({size}: {size: number}) {
-    return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/>
-        </svg>
-    );
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/>
+    </svg>
+  );
 }

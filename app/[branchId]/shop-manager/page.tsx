@@ -122,6 +122,16 @@ export default function DynamicShopDashboard() {
   const [newCakeRequest, setNewCakeRequest] = useState({ cake_type: '', customer_name: '' });
   const [showBigCakeSuggestions, setShowBigCakeSuggestions] = useState(false);
 
+  // --- ADDED: SEARCH STATES (for filtering grids) ---
+  const [orderSearch, setOrderSearch] = useState('');
+  const [receivedSearch, setReceivedSearch] = useState('');
+  const [cakeOrderSearch, setCakeOrderSearch] = useState('');
+  const [cakeRequestSearch, setCakeRequestSearch] = useState('');
+  const [damageSearch, setDamageSearch] = useState('');
+  const [bakedSearch, setBakedSearch] = useState('');
+  const [stockSearch, setStockSearch] = useState('');
+  const [historySearch, setHistorySearch] = useState('');
+
   // --- 2. BACKEND WIRING: AUTH & INITIAL LOAD ---
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -167,25 +177,27 @@ export default function DynamicShopDashboard() {
                    const pendingOrders: any[] = [];
                    const dispatchedOrders: any[] = [];
                    
-  ordData.forEach((o: any) => {
-  o.items?.forEach((i: any) => {
-    const mappedItem = {
-      id: o.id, 
-      item: i.product?.name || `Order #${o.id}`,
-      quantity: i.quantity,
-      status: o.status,
-      time: 'Latest',
-      unit: 'Pieces',
-      arrivalTime: 'Latest'
-    };
-    if (o.status === 'pending') {
-      pendingOrders.push(mappedItem);
-    } else {
-      dispatchedOrders.push(mappedItem);
-    }
-  });
-});
+                  ordData.forEach((o: any) => {
+                    o.items?.forEach((i: any) => {
+                      const mappedItem = {
+                        id: o.id, 
+                        item: i.product?.name || `Order #${o.id}`,
+                        quantity: i.quantity,
+                        status: o.status,
+                        time: o.created_at ? new Date(o.created_at).toLocaleString() : 'Unknown',
+                        unit: 'Pieces',
+                        arrivalTime: o.updated_at ? new Date(o.updated_at).toLocaleString() : 'Unknown'
+                      };
+                      if (o.status === 'pending') {
+                        pendingOrders.push(mappedItem);
+                      } else {
+                        dispatchedOrders.push(mappedItem);
+                      }
+                    });
+                  });
 
+                   // Sort pending orders by time descending (newest first)
+                   pendingOrders.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
                    setMyRequests(pendingOrders);
                    setReceivedStock(dispatchedOrders);
                 }
@@ -195,7 +207,14 @@ export default function DynamicShopDashboard() {
             if (damRes.ok) {
                 const damData = await damRes.json();
                 if(damData.length > 0) {
-                   setDamagedReports(damData.map((d:any) => ({ id: d.id, item: d.product?.name || 'Unknown', qty: d.quantity, state: 'Reported', unit: 'Pieces', time: 'Latest' })));
+                   setDamagedReports(damData.map((d:any) => ({ 
+                     id: d.id, 
+                     item: d.product?.name || 'Unknown', 
+                     qty: d.quantity, 
+                     state: 'Reported', 
+                     unit: 'Pieces',   
+                     time: d.created_at ? new Date(d.created_at).toLocaleString() : 'Latest'
+                   })));
                 }
             }
 
@@ -203,7 +222,15 @@ export default function DynamicShopDashboard() {
             if (cakeRes.ok) {
                 const cakeData = await cakeRes.json();
                 if(cakeData.length > 0) {
-                   setCakeOrders(cakeData.map((c:any) => ({ id: c.id, item: c.cake_type, code: `CK-${c.id}`, customer: c.customer_name, time: c.delivery_date || 'Pending' })));
+                   const mappedCakes = cakeData.map((c:any) => ({ 
+                     id: c.id, 
+                     item: c.cake_type, 
+                     code: `CK-${c.id}`, 
+                     customer: c.customer_name,   
+                     time: c.created_at ? new Date(c.created_at).toLocaleString() : (c.delivery_date || 'Pending')
+                   }));
+                   mappedCakes.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                   setCakeOrders(mappedCakes);
                 }
             }
 
@@ -216,8 +243,10 @@ export default function DynamicShopDashboard() {
                     branch: c.location || branchIdString,
                     details: c.cake_type,
                     customer: c.customer_name,
-                    pickupTime: c.delivery_date || 'Pending'
+                    pickupTime: c.delivery_date || 'Pending',
+                    time: c.created_at ? new Date(c.created_at).toLocaleString() : 'Pending'
                 }));
+                mappedReqs.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
                 setCakeRequests(mappedReqs);
             }
 
@@ -227,7 +256,7 @@ export default function DynamicShopDashboard() {
     fetchAllData();
   }, [router, branchIdString]);
 
-  // --- 3. LOGIC CALCULATIONS ---
+  // --- 3. LOGIC CALCULATIONS (unchanged) ---
   const filteredProducts = factoryStock.filter(p => p.item.toLowerCase().includes(productSearch.toLowerCase()));
   const damagedFiltered = MARKETING_PRODUCTS.filter(p => p.name.toLowerCase().includes(damagedItem.toLowerCase()));
   
@@ -296,9 +325,9 @@ const handleAddRequest = async () => {
     setIsSubmitting(false);
   }
 
-  // ... rest of your local state update (optimistic update)
+  // Optimistic update
   const qtyToDeduct = parseInt(requestQty);
-  const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const currentTime = new Date().toLocaleString(); // full date+time
   setFactoryStock(prev => prev.map(s => s.item === selectedItem ? { ...s, quantity: s.quantity - qtyToDeduct } : s));
   setMyRequests([{ id: Date.now(), item: selectedItem, quantity: qtyToDeduct, status: 'Pending Dispatch', time: currentTime }, ...myRequests]);
   setRequestQty('');
@@ -306,7 +335,8 @@ const handleAddRequest = async () => {
   setProductSearch('');
   setSelectedItem(null);
 };
-  // --- 5. BACKEND INTEGRATION FOR REPORT DAMAGE ---
+
+  // --- 5. BACKEND INTEGRATION FOR REPORT DAMAGE (unchanged) ---
   const handleReportDamage = async () => {
     if (!damagedItem || !damagedQty || typeError || notFound) return;
 
@@ -331,7 +361,7 @@ const handleAddRequest = async () => {
         if (response.ok) { console.log("Damage reported to backend successfully."); }
     } catch (e) { console.error(e); }
 
-    const currentTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const currentTime = new Date().toLocaleString();
     setDamagedReports([{ id: Date.now(), item: damagedItem, qty: damagedQty, state: damagedState, unit: damagedUnit, time: currentTime }, ...damagedReports]);
     setDamagedItem(''); setDamagedQty(''); setTypeError(false);
   };
@@ -342,25 +372,26 @@ const handleAddRequest = async () => {
   };
 
   const branchName = branchIdString === 'kabuga' ? 'KABUGA SHOP' : branchIdString === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
-const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'cake_requests' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'cake_requests' | 'received' | 'stock' | 'damaged' | 'history'>('orders');
+
   const fullHistory = [
-      ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
-      ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
-      ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
-  ].sort((a, b) => b.time.localeCompare(a.time));
+  ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
+  ...damagedReports.map(d => ({ category: 'Damage', item: d.item, qty: d.qty, time: d.time, color: 'text-red-600' })),
+  ...cakeOrders.map(c => ({ category: 'Cake', item: `${c.item} (${c.code})`, qty: 1, time: c.time, color: 'text-[#F57C00]' }))
+].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
   const stats = [
     { id: 'baked', label: 'Baked Items', icon: ShoppingBag, count: factoryStock.length },
     { id: 'orders', label: 'Orders', icon: Clock, count: myRequests.length },
     { id: 'cake_orders', label: 'Cake Orders', icon: Cake, count: cakeOrders.length },
-    { id: 'cake_requests', label: 'Cake Requests', icon: Cake, count: cakeRequests.length }, // ADDED
+    { id: 'cake_requests', label: 'Cake Requests', icon: Cake, count: cakeRequests.length },
     { id: 'received', label: 'Received', icon: Archive, count: receivedStock.length },
     { id: 'stock', label: 'My Stock', icon: Store, count: myStock.length },
     { id: 'damaged', label: 'Damaged', icon: AlertCircle, count: damagedReports.length },
     { id: 'history', label: 'Full History', icon: History, count: fullHistory.length },
   ];
 
-  // --- ADDED: FUNCTION TO REFRESH CAKE REQUESTS ---
+  // --- ADDED: FUNCTION TO REFRESH CAKE REQUESTS (unchanged) ---
   const fetchCakeRequests = async () => {
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
@@ -374,8 +405,10 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
           branch: c.location || branchIdString,
           details: c.cake_type,
           customer: c.customer_name,
-          pickupTime: c.delivery_date || 'Pending'
+          pickupTime: c.delivery_date || 'Pending',
+          time: c.created_at ? new Date(c.created_at).toLocaleString() : 'Pending'
         }));
+        mapped.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
         setCakeRequests(mapped);
       }
     } catch (err) {
@@ -433,45 +466,91 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
 
         <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden min-h-[500px] w-full max-w-full">
           {activeFilter === 'stock' && (
-            <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
-              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Ingredient/Product</th><th className="px-8 py-4 text-center">In Store</th><th className="px-8 py-4 text-right">Unit</th></thead>
-                <tbody className="divide-y divide-gray-100">
-                  {myStock.map((s, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
-                      <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
-                      <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase">{s.unit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+  <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">MY STOCK</h2>
+      <input
+        type="text"
+        placeholder="Search stock..."
+        value={stockSearch}
+        onChange={(e) => setStockSearch(e.target.value)}
+        className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+      />
+    </div>
+    <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
+      <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+        <th className="px-8 py-4">Ingredient/Product</th>
+        <th className="px-8 py-4 text-center">In Store</th>
+        <th className="px-8 py-4 text-right">Unit</th>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {myStock
+          .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
+          .map((s, idx) => (
+            <tr key={idx} className="hover:bg-gray-50 transition-colors">
+              <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
+              <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
+              <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase">{s.unit}</td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
+  </div>
+)}
 
           {activeFilter === 'history' && (
-            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
-               <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest mb-6">Fully Added Products Log</h2>
-               <table className="w-full min-w-[800px] whitespace-nowrap text-left border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Type</th><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Quantity</th><th className="px-8 py-4 text-right">Time Added</th></thead>
-                <tbody className="divide-y divide-gray-100">
-                  {fullHistory.map((log, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition-colors font-bold">
-                      <td className={`px-8 py-6 uppercase text-[10px] font-black ${log.color}`}>{log.category}</td>
-                      <td className="px-8 py-6 uppercase text-sm text-gray-900">{log.item}</td>
-                      <td className="px-8 py-6 text-center text-lg text-gray-800">{log.qty}</td>
-                      <td className="px-8 py-6 text-right text-xs text-gray-400">{log.time}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+  <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xs font-black text-gray-800 uppercase tracking-widest">Fully Added Products Log</h2>
+      <input
+        type="text"
+        placeholder="Search history..."
+        value={historySearch}
+        onChange={(e) => setHistorySearch(e.target.value)}
+        className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-gray-500 w-64"
+      />
+    </div>
+    <table className="w-full min-w-[800px] whitespace-nowrap text-left border-collapse">
+      <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+        <th className="px-8 py-4">Type</th>
+        <th className="px-8 py-4">Product Name</th>
+        <th className="px-8 py-4 text-center">Quantity</th>
+        <th className="px-8 py-4 text-right">Time Added</th>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {fullHistory
+          .filter(log => log.item.toLowerCase().includes(historySearch.toLowerCase()))
+          .map((log, idx) => (
+            <tr key={idx} className="hover:bg-gray-50 transition-colors font-bold">
+              <td className={`px-8 py-6 uppercase text-[10px] font-black ${log.color}`}>{log.category}</td>
+              <td className="px-8 py-6 uppercase text-sm text-gray-900">{log.item}</td>
+              <td className="px-8 py-6 text-center text-lg text-gray-800">{log.qty}</td>
+              <td className="px-8 py-6 text-right text-xs text-gray-400">{log.time}</td>
+            </tr>
+          ))}
+        {fullHistory.filter(log => log.item.toLowerCase().includes(historySearch.toLowerCase())).length === 0 && (
+          <tr>
+            <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching records found</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+)}
 
           {activeFilter === 'damaged' && (
             <div className="p-8 animate-in fade-in">
               <div className="bg-red-50/30 p-6 rounded-3xl border border-red-100">
-                <h2 className="text-[10px] font-black uppercase mb-4 text-red-600 tracking-[0.2em]">Report Damaged Items</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-[10px] font-black uppercase mb-0 text-red-600 tracking-[0.2em]">Report Damaged Items</h2>
+                  <input
+                    type="text"
+                    placeholder="Search damaged items..."
+                    value={damageSearch}
+                    onChange={(e) => setDamageSearch(e.target.value)}
+                    className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-red-500 w-64"
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
                   <div className="relative">
                     <input type="text" placeholder="Item Name" value={damagedItem} onFocus={() => setShowDamagedSuggestions(true)} onChange={(e) => {setDamagedItem(e.target.value); setShowDamagedSuggestions(true);}} className={`w-full p-4 rounded-2xl font-bold text-sm outline-none border-2 transition-all ${typeError || isDamagedSearchNotFound ? 'border-red-500 bg-red-50 placeholder-red-600' : 'border-gray-200 bg-white focus:border-red-500'}`} />
@@ -501,9 +580,15 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
                 <table className="w-full min-w-[800px] whitespace-nowrap mt-8 text-left font-bold">
                   <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-100"><th className="px-8 py-4">Item</th><th className="px-8 py-4 text-center">State</th><th className="px-8 py-4 text-right">Time Reported</th></thead>
                   <tbody className="divide-y divide-gray-100">
-                    {damagedReports.map((d) => (
-                      <tr key={d.id} className="text-red-600 font-bold"><td className="px-8 py-6 uppercase text-sm">{d.item}</td><td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td><td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td></tr>
-                    ))}
+                    {damagedReports
+                      .filter(d => d.item.toLowerCase().includes(damageSearch.toLowerCase()))
+                      .map((d) => (
+                        <tr key={d.id} className="text-red-600 font-bold">
+                          <td className="px-8 py-6 uppercase text-sm">{d.item}</td>
+                          <td className="px-8 py-6 text-center"><span className="bg-red-50 px-3 py-1 rounded-full text-[9px] uppercase">{d.state} ({d.qty} {d.unit})</span></td>
+                          <td className="px-8 py-6 text-right text-gray-400 text-xs">{d.time}</td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -512,43 +597,63 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
 
           {activeFilter === 'cake_orders' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
-               <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">CUSTOM CAKE ORDERS</h2>
-               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-2">
-                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
-                   <tr>
-                     <th className="px-8 py-4 text-gray-900">Cake Name</th>
-                     <th className="px-8 py-4 text-center text-gray-900">Order Code</th>
-                     <th className="px-8 py-4 text-center text-gray-900">Customer</th>
-                     <th className="px-8 py-4 text-right text-gray-900">Status</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-100">
-                   {cakeOrders.map((cake) => (
-                     <tr key={cake.id} className="hover:bg-gray-50 transition-colors font-bold">
-                       <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{cake.item}</td>
-                       <td className="px-8 py-6 text-center text-lg text-gray-900">{cake.code}</td>
-                       <td className="px-8 py-6 text-center text-sm text-gray-900">{cake.customer}</td>
-                       <td className="px-8 py-6 text-right">
-                         <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{cake.time} • PENDING</span>
-                       </td>
-                     </tr>
-                   ))}
-                 </tbody>
-               </table>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">CUSTOM CAKE ORDERS</h2>
+                <input
+                  type="text"
+                  placeholder="Search cake orders..."
+                  value={cakeOrderSearch}
+                  onChange={(e) => setCakeOrderSearch(e.target.value)}
+                  className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+                />
+              </div>
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                  <tr>
+                    <th className="px-8 py-4 text-gray-900">Cake Name</th>
+                    <th className="px-8 py-4 text-center text-gray-900">Order Code</th>
+                    <th className="px-8 py-4 text-center text-gray-900">Customer</th>
+                    <th className="px-8 py-4 text-right text-gray-900">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {cakeOrders
+                    .filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
+                    .map((cake) => (
+                      <tr key={cake.id} className="hover:bg-gray-50 transition-colors font-bold">
+                        <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{cake.item}</td>
+                        <td className="px-8 py-6 text-center text-lg text-gray-900">{cake.code}</td>
+                        <td className="px-8 py-6 text-center text-sm text-gray-900">{cake.customer}</td>
+                        <td className="px-8 py-6 text-right">
+                          <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{cake.time} • PENDING</span>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
             </div>
           )}
 
-          {/* --- ADDED: CAKE REQUESTS TAB --- */}
-                    {activeFilter === 'cake_requests' && (
+          {/* --- CAKE REQUESTS TAB --- */}
+          {activeFilter === 'cake_requests' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">BIG CAKES REQUESTS</h2>
-                <button
-                  onClick={() => setShowCakeRequestForm(!showCakeRequestForm)}
-                  className="bg-[#F57C00] text-white px-4 py-2 rounded-xl text-xs font-black uppercase"
-                >
-                  {showCakeRequestForm ? 'Cancel' : '+ New Request'}
-                </button>
+                <div className="flex gap-4">
+                  <input
+                    type="text"
+                    placeholder="Search cake requests..."
+                    value={cakeRequestSearch}
+                    onChange={(e) => setCakeRequestSearch(e.target.value)}
+                    className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+                  />
+                  <button
+                    onClick={() => setShowCakeRequestForm(!showCakeRequestForm)}
+                    className="bg-[#F57C00] text-white px-4 py-2 rounded-xl text-xs font-black uppercase"
+                  >
+                    {showCakeRequestForm ? 'Cancel' : '+ New Request'}
+                  </button>
+                </div>
               </div>
 
               {showCakeRequestForm && (
@@ -556,51 +661,50 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
                   <h3 className="text-sm font-black text-[#F57C00] mb-4">Request a Big Cake</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
-  <div className="relative">
-    <input
-      type="text"
-      placeholder="Search big cake..."
-      value={newCakeRequest.cake_type}
-      onChange={(e) => {
-        setNewCakeRequest({ ...newCakeRequest, cake_type: e.target.value });
-        setShowBigCakeSuggestions(true);
-      }}
-      onFocus={() => setShowBigCakeSuggestions(true)}
-      onBlur={() => setTimeout(() => setShowBigCakeSuggestions(false), 200)}
-      className="border-2 border-gray-200 p-3 rounded-xl font-bold text-sm outline-none focus:border-[#F57C00] w-full pr-10"
-    />
-    <button
-      type="button"
-      onClick={(e) => {
-        e.preventDefault();
-        // Toggle suggestions: if closed, open; if open, close.
-        setShowBigCakeSuggestions(!showBigCakeSuggestions);
-      }}
-      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-    >
-      <ChevronDown size={18} />
-    </button>
-  </div>
-  {showBigCakeSuggestions && (
-    <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto mt-1">
-      {MARKETING_PRODUCTS.filter(p => 
-        p.category === 'BIG CAKES' && 
-        (newCakeRequest.cake_type === '' || p.name.toLowerCase().includes(newCakeRequest.cake_type.toLowerCase()))
-      ).map((p, i) => (
-        <div
-          key={i}
-          onMouseDown={(e) => e.preventDefault()} // Prevent blur before click
-          onClick={() => {
-            setNewCakeRequest({ ...newCakeRequest, cake_type: p.name });
-            setShowBigCakeSuggestions(false);
-          }}
-          className="p-3 hover:bg-orange-50 cursor-pointer border-b border-gray-100 text-sm font-bold"
-        >
-          {p.name} - {p.price.toLocaleString()} RWF
-        </div>
-      ))}
-    </div>
-  )}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search big cake..."
+                          value={newCakeRequest.cake_type}
+                          onChange={(e) => {
+                            setNewCakeRequest({ ...newCakeRequest, cake_type: e.target.value });
+                            setShowBigCakeSuggestions(true);
+                          }}
+                          onFocus={() => setShowBigCakeSuggestions(true)}
+                          onBlur={() => setTimeout(() => setShowBigCakeSuggestions(false), 200)}
+                          className="border-2 border-gray-200 p-3 rounded-xl font-bold text-sm outline-none focus:border-[#F57C00] w-full pr-10"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setShowBigCakeSuggestions(!showBigCakeSuggestions);
+                          }}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                        >
+                          <ChevronDown size={18} />
+                        </button>
+                      </div>
+                      {showBigCakeSuggestions && (
+                        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto mt-1">
+                          {MARKETING_PRODUCTS.filter(p => 
+                            p.category === 'BIG CAKES' && 
+                            (newCakeRequest.cake_type === '' || p.name.toLowerCase().includes(newCakeRequest.cake_type.toLowerCase()))
+                          ).map((p, i) => (
+                            <div
+                              key={i}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setNewCakeRequest({ ...newCakeRequest, cake_type: p.name });
+                                setShowBigCakeSuggestions(false);
+                              }}
+                              className="p-3 hover:bg-orange-50 cursor-pointer border-b border-gray-100 text-sm font-bold"
+                            >
+                              {p.name} - {p.price.toLocaleString()} RWF
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <input
                       type="text"
@@ -658,13 +762,15 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {cakeRequests.map((req) => (
-                    <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.details}</td>
-                      <td className="px-8 py-6 text-center text-sm text-gray-900">{req.customer}</td>
-                      <td className="px-8 py-6 text-right text-xs text-gray-400">{req.pickupTime}</td>
-                    </tr>
-                  ))}
+                  {cakeRequests
+                    .filter(req => req.details.toLowerCase().includes(cakeRequestSearch.toLowerCase()) || req.customer.toLowerCase().includes(cakeRequestSearch.toLowerCase()))
+                    .map((req) => (
+                      <tr key={req.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.details}</td>
+                        <td className="px-8 py-6 text-center text-sm text-gray-900">{req.customer}</td>
+                        <td className="px-8 py-6 text-right text-xs text-gray-400">{req.pickupTime}</td>
+                      </tr>
+                    ))}
                   {cakeRequests.length === 0 && (
                     <tr><td colSpan={3} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Big Cake Requests</td></tr>
                   )}
@@ -672,93 +778,171 @@ const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orde
               </table>
             </div>
           )}
+
           {activeFilter === 'orders' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
-                <div className="max-w-2xl">
-                  <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest mb-6">REQUEST FOR PRODUCTS</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> 
-                    <div className="space-y-1 relative" ref={suggestionRef}><label className="text-[10px] font-black text-gray-400 uppercase ml-1">Product</label>
-                      <input type="text" value={productSearch} onFocus={() => setShowSuggestions(true)} onChange={(e) => { setProductSearch(e.target.value); setShowSuggestions(true); setSelectedItem(null); }} className={`w-full border-2 p-4 rounded-2xl font-bold text-[#F57C00] outline-none focus:border-[#F57C00] transition-all ${isRequestNotFound ? 'border-red-500 bg-red-50' : 'border-gray-200'}`} placeholder="Search..." />
-                      {isRequestNotFound && <p className="text-[10px] text-red-600 font-black uppercase mt-1 ml-2">product not found</p>}
-                      {showSuggestions && productSearch && (
-                        <div className="absolute z-50 w-full bg-white border border-gray-100 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-                          {filteredProducts.map((p, i) => (
-                            <div key={i} onClick={() => { setSelectedItem(p.item); setProductSearch(p.item); setShowSuggestions(false); }} className="p-4 hover:bg-orange-50 cursor-pointer font-bold text-sm border-b border-gray-50 last:border-0" >{p.item}</div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black text-gray-400 uppercase">Rest Product</label>
-                      <input type="number" value={restQty} onChange={(e) => setRestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" placeholder="0" />
-                    </div>
-                    <div className="space-y-1"><label className="text-[10px] font-black text-gray-400 uppercase">Qty</label><span className={`text-[10px] block font-black uppercase ${isOverLimit ? 'text-red-500' : 'text-emerald-600'}`}>Factory: {selectedItem ? bakedItemsAvailable : '--'}</span>
-                      <input type="number" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" />
-                    </div>
+              {/* ADDED: Search input above the product request form */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">REQUEST FOR PRODUCTS</h2>
+                <input
+                  type="text"
+                  placeholder="Search orders..."
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+                />
+              </div>
+
+              {/* Original product request form (unchanged) */}
+              <div className="max-w-2xl">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6"> 
+                  <div className="space-y-1 relative" ref={suggestionRef}>
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1">Product</label>
+                    <input 
+                      type="text" 
+                      value={productSearch} 
+                      onFocus={() => setShowSuggestions(true)} 
+                      onChange={(e) => { setProductSearch(e.target.value); setShowSuggestions(true); setSelectedItem(null); }} 
+                      className={`w-full border-2 p-4 rounded-2xl font-bold text-[#F57C00] outline-none focus:border-[#F57C00] transition-all ${isRequestNotFound ? 'border-red-500 bg-red-50' : 'border-gray-200'}`} 
+                      placeholder="Search..." 
+                    />
+                    {isRequestNotFound && <p className="text-[10px] text-red-600 font-black uppercase mt-1 ml-2">product not found</p>}
+                    {showSuggestions && productSearch && (
+                      <div className="absolute z-50 w-full bg-white border border-gray-100 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                        {filteredProducts.map((p, i) => (
+                          <div key={i} onClick={() => { setSelectedItem(p.item); setProductSearch(p.item); setShowSuggestions(false); }} className="p-4 hover:bg-orange-50 cursor-pointer font-bold text-sm border-b border-gray-50 last:border-0" >{p.item}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                    <button disabled={isSubmitting || !requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">
-                           {isSubmitting ? 'Submitting...' : 'Add Request'}
-                    </button>
-                     </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase">Rest Product</label>
+                    <input type="number" value={restQty} onChange={(e) => setRestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" placeholder="0" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase">Qty</label>
+                    <span className={`text-[10px] block font-black uppercase ${isOverLimit ? 'text-red-500' : 'text-emerald-600'}`}>
+                      Factory: {selectedItem ? bakedItemsAvailable : '--'}
+                    </span>
+                    <input type="number" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" />
+                  </div>
+                </div>
+                <button disabled={isSubmitting || !requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">
+                  {isSubmitting ? 'Submitting...' : 'Add Request'}
+                </button>
+              </div>
+
+              {/* Orders table with search filter and sorting */}
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse mt-8">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200"><th className="px-8 py-4 text-gray-900">Requested Item</th><th className="px-8 py-4 text-center text-gray-900">Qty</th><th className="px-8 py-4 text-right text-gray-900">Status</th></thead>
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                  <tr>
+                    <th className="px-8 py-4 text-gray-900">Requested Item</th>
+                    <th className="px-8 py-4 text-center text-gray-900">Qty</th>
+                    <th className="px-8 py-4 text-right text-gray-900">Status</th>
+                   </tr>
+                </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {myRequests.map((req) => (
-                    <tr key={req.id} className="hover:bg-gray-50 transition-colors font-bold"><td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.item}</td><td className="px-8 py-6 text-center text-lg">{req.quantity}</td><td className="px-8 py-6 text-right"><span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{req.time} • {req.status}</span></td></tr>
-                  ))}
+                  {myRequests
+                    .filter(req => req.item.toLowerCase().includes(orderSearch.toLowerCase()))
+                    .map((req) => (
+                      <tr key={req.id} className="hover:bg-gray-50 transition-colors font-bold">
+                        <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{req.item}</td>
+                        <td className="px-8 py-6 text-center text-lg">{req.quantity}</td>
+                        <td className="px-8 py-6 text-right">
+                          <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{req.time} • {req.status}</span>
+                        </td>
+                       </tr>
+                    ))}
+                  {myRequests.filter(req => req.item.toLowerCase().includes(orderSearch.toLowerCase())).length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching orders</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           )}
 
           {activeFilter === 'baked' && (
-            <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
-              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
-                <thead className="bg-gray-50/50">
-                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Product Name</th><th className="px-8 py-4 text-center">Global Stock</th><th className="px-8 py-4 text-right">Entry Time</th></tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {factoryStock.map((s, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
-                      <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity} <span className="text-[10px] text-gray-400 ml-1 uppercase">{s.unit}</span></td>
-                      <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase">{s.entryTime}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+  <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">BAKED PRODUCTS</h2>
+      <input
+        type="text"
+        placeholder="Search baked products..."
+        value={bakedSearch}
+        onChange={(e) => setBakedSearch(e.target.value)}
+        className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+      />
+    </div>
+    <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
+      <thead className="bg-gray-50/50">
+        <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200">
+          <th className="px-8 py-4">Product Name</th>
+          <th className="px-8 py-4 text-center">Global Stock</th>
+          <th className="px-8 py-4 text-right">Entry Time</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {factoryStock
+          .filter(s => s.item.toLowerCase().includes(bakedSearch.toLowerCase()))
+          .map((s, idx) => (
+            <tr key={idx} className="hover:bg-gray-50 transition-colors">
+              <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
+              <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity} <span className="text-[10px] text-gray-400 ml-1 uppercase">{s.unit}</span></td>
+              <td className="px-8 py-6 text-right font-black text-[#F57C00] text-xs uppercase">{s.entryTime}</td>
+            </tr>
+          ))}
+      </tbody>
+    </table>
+  </div>
+)}
 
           {activeFilter === 'received' && (
-            <div className="w-full max-w-full overflow-x-auto animate-in fade-in scrollbar-hide">
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xs font-black text-[#F57C00] uppercase tracking-widest">RECEIVED ITEMS</h2>
+                <input
+                  type="text"
+                  placeholder="Search received..."
+                  value={receivedSearch}
+                  onChange={(e) => setReceivedSearch(e.target.value)}
+                  className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+                />
+              </div>
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50">
-                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200"><th className="px-8 py-4">Item Received</th><th className="px-8 py-4 text-center">Qty</th><th className="px-8 py-4 text-right">Action</th></tr>
+                  <tr className="text-[10px] font-black uppercase text-gray-400 border-b border-gray-200">
+                    <th className="px-8 py-4">Item Received</th>
+                    <th className="px-8 py-4 text-center">Qty</th>
+                    <th className="px-8 py-4 text-right">Action</th>
+                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {receivedStock.map((s) => (
-                    <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{s.item}</td>
-                      <td className="px-8 py-6 text-center text-lg">
-                        {editingReceivedId === s.id ? (
-                          <input type="number" value={editReceivedQty} onChange={(e) => setEditReceivedQty(e.target.value)} className="w-20 border-2 border-[#F57C00] rounded-lg px-2 py-1 outline-none font-black text-lg" autoFocus />
-                        ) : (
-                          <span>{s.quantity} <small className="text-[10px] text-gray-400">{s.unit}</small></span>
-                        )}
-                      </td>
-                      <td className="px-8 py-6 text-right font-black">
-                        {editingReceivedId === s.id ? (
-                          <button onClick={() => saveReceivedEdit(s.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"><Check size={18}/></button>
-                        ) : (
-                          <div className="flex justify-end items-center gap-4">
-                            <span className="text-green-600 text-[10px] uppercase">{s.arrivalTime} • RECEIVED</span>
-                            <button onClick={() => { setEditingReceivedId(s.id); setEditReceivedQty(s.quantity.toString()); }} className="text-gray-400 hover:text-[#F57C00] transition-colors"><Edit2 size={16}/></button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {receivedStock
+                    .filter(item => item.item.toLowerCase().includes(receivedSearch.toLowerCase()))
+                    .map((s) => (
+                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{s.item}</td>
+                        <td className="px-8 py-6 text-center text-lg">
+                          {editingReceivedId === s.id ? (
+                            <input type="number" value={editReceivedQty} onChange={(e) => setEditReceivedQty(e.target.value)} className="w-20 border-2 border-[#F57C00] rounded-lg px-2 py-1 outline-none font-black text-lg" autoFocus />
+                          ) : (
+                            <span>{s.quantity} <small className="text-[10px] text-gray-400">{s.unit}</small></span>
+                          )}
+                        </td>
+                        <td className="px-8 py-6 text-right font-black">
+                          {editingReceivedId === s.id ? (
+                            <button onClick={() => saveReceivedEdit(s.id)} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"><Check size={18}/></button>
+                          ) : (
+                            <div className="flex justify-end items-center gap-4">
+                              <span className="text-green-600 text-[10px] uppercase">{s.arrivalTime} • RECEIVED</span>
+                              <button onClick={() => { setEditingReceivedId(s.id); setEditReceivedQty(s.quantity.toString()); }} className="text-gray-400 hover:text-[#F57C00] transition-colors"><Edit2 size={16}/></button>
+                            </div>
+                          )}
+                        </td>
+                       </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -32,7 +33,7 @@ export default function ProductionManagerLayout({ children }: { children: React.
     <div className="min-h-screen bg-[#FDFDFD] flex overflow-hidden">
       
       {/* 1. DESKTOP SIDEBAR */}
-      <aside className="hidden md:flex w-64 flex-col fixed inset-y-0 z-50 border-r border-gray-100 bg-gray-50">
+      <aside className="hidden md:flex w-64 flex-col fixed inset-y- border-r border-gray-100 bg-gray-50">
         <Sidebar 
           menuItems={CONFIG.menu} 
           footerTitle={CONFIG.title} 

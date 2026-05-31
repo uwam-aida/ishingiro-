@@ -26,25 +26,20 @@ export default function ProductionManagerDashboard() {
   
   // --- STATE TO MANAGE ALL DATA (Now strongly typed!) ---
   const [allData, setAllData] = useState<Record<string, DashboardItem[]>>({
-    Measured: [
-      { id: 1, item: 'White Bread Dough', qty: '50 kg', time: '08:00 AM', status: 'Ready to Bake' },
-    ],
-    Delivered: [
-      { id: 1, item: 'Brown Bread', qty: '100 pcs', time: '09:00 AM', status: 'In Transit' },
-    ],
-    Baked: [
-      { id: 1, item: 'White Bread', qty: '500 pcs', time: '09:45 AM', status: 'Cooling' },
-    ],
-    Orders: [
-      { id: 1, item: 'Kabuga Order #101', qty: '300 Bread', time: '10 min ago', status: 'Pending' },
-    ],
-    Distribution: [
-      { id: 1, item: 'big milk', qty: '10 pcs', target: 'Clients', time: '07:00 AM', status: 'Sent' },
-    ],
-    Damaged: [
-      { id: 1, item: 'Burnt Bread', qty: '12 pcs', time: 'Yesterday', status: 'Reported' },
-    ]
+    Measured: [],
+    Delivered: [],
+    Baked: [],
+    Orders: [],
+    Distribution: [],
+    Damaged: []
   });
+
+  // Helper to format ISO date to readable date+time
+  const formatDateTime = (isoString: string | undefined) => {
+    if (!isoString) return 'Unknown';
+    const date = new Date(isoString);
+    return date.toLocaleString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
 
   // --- FETCH DATA FROM API ON LOAD ---
   useEffect(() => {
@@ -64,14 +59,51 @@ export default function ProductionManagerDashboard() {
         if (response.ok) {
           const data = await response.json();
           
-          // Map the backend data into your exact UI structure
+          // Map backend data into the UI structure with real timestamps and product names
           setAllData({
-            Measured: data.measured?.map((m: any) => ({ id: m.id, item: m.name, qty: `${m.quantity} ${m.unit}`, time: 'Today', status: 'Ready' })) || [],
-            Baked: data.baked?.map((b: any) => ({ id: b.id, item: b.product?.name || `Product #${b.product_id}`, qty: `${b.quantity} pcs`, time: 'Today', status: 'Baked' })) || [],
-            Distribution: data.distribution?.map((d: any) => ({ id: d.id, item: d.product?.name || `Product #${d.product_id}`, qty: `${d.quantity} pcs`, target: d.category, time: 'Today', status: 'Sent' })) || [],
-            Delivered: data.delivered?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, time: 'Today', status: 'Delivered' })) || [],
-            Orders: data.orders?.map((o: any) => ({ id: o.id, item: `${o.location} Order`, qty: '-', time: 'Today', status: o.status })) || [],
-            Damaged: data.damaged?.map((d: any) => ({ id: d.id, item: `Product #${d.product_id}`, qty: `${d.quantity} pcs`, time: 'Today', status: 'Reported' })) || []
+            Measured: (data.measured || []).map((m: any) => ({
+              id: m.id,
+              item: m.name || 'Ingredient',
+              qty: `${m.quantity} ${m.unit || ''}`,
+              time: formatDateTime(m.created_at),
+              status: 'Ready'
+            })),
+            Baked: (data.baked || []).map((b: any) => ({
+              id: b.id,
+              item: b.product?.name || 'Unknown Product',
+              qty: `${b.quantity} pcs`,
+              time: formatDateTime(b.created_at),
+              status: 'Baked'
+            })),
+            Distribution: (data.distribution || []).map((d: any) => ({
+              id: d.id,
+              item: d.product?.name || 'Unknown Product',
+              qty: `${d.quantity} pcs`,
+              target: d.category || 'General',
+              time: formatDateTime(d.created_at),
+              status: 'Sent'
+            })),
+            Delivered: (data.delivered || []).map((d: any) => ({
+              id: d.id,
+              item: d.product?.name || 'Unknown Product',
+              qty: `${d.quantity} pcs`,
+              time: formatDateTime(d.created_at),
+              status: 'Delivered'
+            })),
+            Orders: (data.orders || []).map((o: any) => ({
+              id: o.id,
+              item: `${o.location || 'Branch'} Order`,
+              qty: '-',
+              time: formatDateTime(o.created_at),
+              status: o.status || 'Pending'
+            })),
+            Damaged: (data.damaged || []).map((d: any) => ({
+              id: d.id,
+              item: d.product?.name || 'Unknown Product',
+              qty: `${d.quantity} pcs`,
+              time: formatDateTime(d.created_at),
+              status: 'Reported'
+            }))
           });
         }
       } catch (err) {
@@ -95,13 +127,11 @@ export default function ProductionManagerDashboard() {
       let payload = {};
 
       if (category === 'Orders') {
-         // Orders edit status, not quantity
          const newStatus = prompt(`Edit status for ${itemToEdit.item}:`, itemToEdit.status);
          if (!newStatus) return;
          endpoint = `${baseUrl}/production/orders/${id}`;
          payload = { status: newStatus };
       } else if (category === 'Distribution') {
-         // Distribution edits quantity and category
          const currentQtyMatch = itemToEdit.qty.toString().match(/\d+/);
          const currentQtyNum = currentQtyMatch ? currentQtyMatch[0] : itemToEdit.qty;
          const newQtyStr = prompt(`Edit quantity for ${itemToEdit.item}:`, currentQtyNum);
@@ -114,7 +144,6 @@ export default function ProductionManagerDashboard() {
          endpoint = `${baseUrl}/production/distribution/${id}`;
          payload = { quantity: newQty, category: newTarget };
       } else {
-         // Everything else (Measured, Baked, Delivered) edits quantity
          const currentQtyMatch = itemToEdit.qty.toString().match(/\d+/);
          const currentQtyNum = currentQtyMatch ? currentQtyMatch[0] : itemToEdit.qty;
          const newQtyStr = prompt(`Edit quantity for ${itemToEdit.item}:`, currentQtyNum);
@@ -171,7 +200,6 @@ export default function ProductionManagerDashboard() {
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
-    // Use the exact DELETE endpoints provided in the documentation
     let endpoint = '';
     if (category === 'Measured') endpoint = `${baseUrl}/production/stock/${id}`;
     else if (category === 'Baked') endpoint = `${baseUrl}/production/production/${id}`;
@@ -192,7 +220,6 @@ export default function ProductionManagerDashboard() {
             }
         }
         
-        // Remove from local UI state
         const updatedItems = allData[category].filter(i => i.id !== id);
         setAllData({ ...allData, [category]: updatedItems });
     } catch (e) { console.error(e); }
@@ -227,7 +254,6 @@ export default function ProductionManagerDashboard() {
   const pageInfo = getDataForView(currentView);
 
   return (
-    // ONLY THIS LINE CHANGED: Added max-w-7xl mx-auto and adjusted padding so it doesn't hug the sidebar line
     <div className="max-w-7xl mx-auto min-h-screen bg-[#FDFDFD] p-4 md:p-8 lg:p-10 space-y-8 pb-10">
       
       {currentView === 'Dashboard' && (
@@ -317,7 +343,6 @@ export default function ProductionManagerDashboard() {
                       <td className="px-8 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => handleEdit(currentView, row.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Edit2 size={16} /></button>
-                          {/* UPDATED: Added onClick to the Trash button */}
                           <button onClick={() => handleDelete(currentView, row.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16} /></button>
                         </div>
                       </td>
