@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   AlertTriangle, 
@@ -14,7 +14,9 @@ import {
   CheckCircle,
   MapPin,
   Users,
-  Cake
+  Cake,
+  DollarSign,
+  X
 } from 'lucide-react';
 
 export default function CICMDashboard() {
@@ -23,9 +25,12 @@ export default function CICMDashboard() {
   // State to toggle between Dashboard view and Details view
   const [currentView, setCurrentView] = useState('Dashboard');
   
-  // --- NEW: STATE FOR BRANCH FILTERING ---
+  // Branch filter (works for all views)
   const [selectedBranch, setSelectedBranch] = useState<'all' | 'kabuga' | 'masaka'>('all');
-
+  
+  // Date filter for Revenue view
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  
   // --- STATE FOR BACKEND API DATA ---
   const [apiData, setApiData] = useState({
     baked: '0',
@@ -35,9 +40,40 @@ export default function CICMDashboard() {
     damaged: '0',
     orders: '0 Active'
   });
-
+  
+  // Revenue summary (total amount)
+  const [revenueTotal, setRevenueTotal] = useState('0');
+  
   // State for detailed table lists
   const [detailsList, setDetailsList] = useState<any[]>([]);
+  
+  // Helper to aggregate by product name (sum quantities)
+  const aggregateByProduct = (items: any[]) => {
+    const map = new Map();
+    items.forEach((item: any) => {
+      const name = item.product?.name || `Product #${item.product_id}`;
+      const qty = item.quantity || 0;
+      if (map.has(name)) {
+        map.set(name, map.get(name) + qty);
+      } else {
+        map.set(name, qty);
+      }
+    });
+    return Array.from(map.entries()).map(([name, totalQty]) => ({
+      id: name,
+      item: name,
+      qty: `${totalQty} pcs`,
+      loc: items[0]?.location || items[0]?.to_location || 'Unknown',
+      status: currentView === 'Baked Items' ? 'Baked' : 
+              currentView === 'Delivered Products' ? 'Delivered' : 
+              currentView === 'Damaged Items' ? 'Loss' : 'In Stock'
+    }));
+  };
+
+  // Helper: format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-RW', { style: 'currency', currency: 'RWF', minimumFractionDigits: 0 }).format(amount);
+  };
 
   // --- 1. FETCH SUMMARY ON LOAD & WHEN BRANCH CHANGES ---
   useEffect(() => {
@@ -71,64 +107,178 @@ export default function CICMDashboard() {
             orders: data.orders ? `${data.orders} Active` : '0 Active'
           });
         }
+        
+        // Also fetch revenue summary for the current branch and date
+        await fetchRevenueSummary();
+        
       } catch (error) {
         console.error(`Failed to fetch CICM dashboard summary for ${selectedBranch}:`, error);
       }
     };
 
     fetchDashboardData();
-  }, [router, selectedBranch]);
+  }, [router, selectedBranch, selectedDate]);
+
+  // Fetch revenue summary (total amount)
+  const fetchRevenueSummary = async () => {
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    try {
+      const branchParam = selectedBranch !== 'all' ? `&branch=${selectedBranch}` : '';
+      const url = `${baseUrl}/reports/revenue?date=${selectedDate}${branchParam}`;
+      const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (response.ok) {
+        const data = await response.json();
+        setRevenueTotal(data.grand_total ? formatCurrency(data.grand_total) : '0 RWF');
+      } else {
+        setRevenueTotal('0 RWF');
+      }
+    } catch (err) {
+      console.error("Failed to fetch revenue:", err);
+      setRevenueTotal('0 RWF');
+    }
+  };
 
   // --- 2. FETCH DETAILED DATA WHEN A CARD OR BRANCH IS CLICKED ---
   useEffect(() => {
-    if (currentView === 'Dashboard') return;
+  if (currentView === 'Dashboard') return;
 
-    const fetchDetails = async () => {
-      const token = localStorage.getItem('token');
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-      
-      try {
-        // Append branch query if a specific branch is selected
-        const queryParam = selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
-        const response = await fetch(`${baseUrl}/reports/detailed${queryParam}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
+  const fetchDetails = async () => {
+    const token = localStorage.getItem('token');
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    
+    try {
+      // Revenue view – unchanged
+      if (currentView === 'Revenue') {
+        const branchParam = selectedBranch !== 'all' ? `&branch=${selectedBranch}` : '';
+        const url = `${baseUrl}/reports/revenue?date=${selectedDate}${branchParam}`;
+        const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
         if (response.ok) {
           const data = await response.json();
-          
-          // Map backend detailed categories to the UI list
-          if (currentView === 'Baked Items') {
-            setDetailsList(data.productions?.map((p:any) => ({ id: p.id, item: p.product?.name || `Product #${p.product_id}`, qty: `${p.quantity} pcs`, loc: p.location, status: 'Baked' })) || []);
-          } else if (currentView === 'Delivered Products') {
-            setDetailsList(data.deliveries?.map((d:any) => ({ id: d.id, item: d.product?.name || `Product #${d.product_id}`, qty: `${d.quantity} pcs`, loc: d.to_location || 'Branch', status: 'Delivered' })) || []);
-          } else if (currentView === 'Damaged Items') {
-            setDetailsList(data.damages?.map((d:any) => ({ id: d.id, item: d.product?.name || `Product #${d.product_id}`, qty: `${d.quantity} pcs`, loc: d.location || 'Unknown', status: 'Loss' })) || []);
-          } else if (currentView === 'Shop Stock') {
-            setDetailsList(data.shop_stock?.map((s:any) => ({ id: s.id, item: s.product?.name || `Product #${s.product_id}`, qty: `${s.quantity} pcs`, loc: 'Shop', status: 'In Stock' })) || []);
-          } else if (currentView === 'Live Cake Orders') {
-             // Fetching from a different endpoint for cakes if available
-             const cakeRes = await fetch(`${baseUrl}/sales/cake-orders`, { headers: { 'Authorization': `Bearer ${token}` }});
-             if (cakeRes.ok) {
-               const cakes = await cakeRes.json();
-               // Filter cakes locally if branch is selected (assuming backend doesn't filter this endpoint by branch natively)
-               let filteredCakes = cakes;
-               if (selectedBranch !== 'all') {
-                  filteredCakes = cakes.filter((c: any) => c.location === selectedBranch);
-               }
-               setDetailsList(filteredCakes.map((c:any) => ({ id: c.id, item: c.cake_type, qty: `Code: KS-${c.id}`, loc: c.location || 'Unknown', status: c.status })));
-             }
+          const rows: any[] = [];
+          if (data.categories) {
+            Object.entries(data.categories).forEach(([key, items]: [string, any]) => {
+              if (Array.isArray(items)) {
+                items.forEach((item: any) => {
+                  rows.push({
+                    id: `${key}-${item.item}`,
+                    item: item.item,
+                    qty: '',
+                    amount: item.total,
+                    category: key,
+                    status: 'Completed'
+                  });
+                });
+              }
+            });
+          }
+          setDetailsList(rows);
+        }
+        return;
+      }
+      
+      const queryParam = selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
+      const response = await fetch(`${baseUrl}/reports/detailed${queryParam}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Helper to aggregate by product name (sum quantities)
+        const aggregateByProduct = (items: any[]) => {
+          const map = new Map();
+          items.forEach((item: any) => {
+            const name = item.product?.name || `Product #${item.product_id}`;
+            const qty = item.quantity || 0;
+            if (map.has(name)) {
+              map.set(name, map.get(name) + qty);
+            } else {
+              map.set(name, qty);
+            }
+          });
+          return Array.from(map.entries()).map(([name, totalQty]) => ({
+            id: name,
+            item: name,
+            qty: `${totalQty} pcs`,
+            loc: items[0]?.location || items[0]?.to_location || 'Unknown',
+            status: currentView === 'Baked Items' ? 'Baked' : 
+                    currentView === 'Delivered Products' ? 'Delivered' : 
+                    currentView === 'Damaged Items' ? 'Loss' : 'In Stock'
+          }));
+        };
+
+        if (currentView === 'Baked Items') {
+          setDetailsList(aggregateByProduct(data.productions || []));
+        } 
+        else if (currentView === 'Delivered Products') {
+          setDetailsList(aggregateByProduct(data.deliveries || []));
+        } 
+        else if (currentView === 'Damaged Items') {
+          setDetailsList(aggregateByProduct(data.damages || []));
+        } 
+        else if (currentView === 'Shop Stock') {
+          const stockList = (data.shop_stock || []).map((s: any) => ({
+            id: s.id,
+            item: s.product?.name || `Product #${s.product_id}`,
+            qty: `${s.quantity} pcs`,
+            loc: 'Shop',
+            status: 'In Stock'
+          }));
+          setDetailsList(stockList);
+        } 
+        else if (currentView === 'Rest Products') {
+          setDetailsList(data.distributions?.map((d: any) => ({
+            id: d.id,
+            item: d.product?.name || `Product #${d.product_id}`,
+            qty: `${d.quantity} pcs`,
+            loc: d.category || 'General',
+            status: 'Sent'
+          })) || []);
+        } 
+        else if (currentView === 'Live Cake Orders') {
+          // Dedicated fetch for cake orders from sales endpoint
+          console.log("Fetching cake orders from /sales/cake-orders");
+          const cakeRes = await fetch(`${baseUrl}/sales/cake-orders`, { 
+            headers: { 'Authorization': `Bearer ${token}` } 
+          });
+          console.log("Cake orders response status:", cakeRes.status);
+          if (cakeRes.ok) {
+            const cakes = await cakeRes.json();
+            console.log("Raw cake orders:", cakes);
+            let filteredCakes = cakes;
+            if (selectedBranch !== 'all') {
+              filteredCakes = cakes.filter((c: any) => {
+                const branchField = c.location || c.branch;
+                console.log(`Order ${c.id} branch:`, branchField);
+                return branchField === selectedBranch;
+              });
+            }
+            console.log("Filtered cakes:", filteredCakes);
+            const mapped = filteredCakes.map((c: any) => ({
+              id: c.id,
+              item: c.cake_type || 'Unknown Cake',
+              qty: `Code: KS-${c.id}`,
+              loc: c.location || c.branch || 'Unknown',
+              status: c.status || 'Pending'
+            }));
+            console.log("Mapped cake orders:", mapped);
+            setDetailsList(mapped);
+          } else {
+            console.error("Failed to fetch cake orders:", cakeRes.status);
+            setDetailsList([]);
           }
         }
-      } catch (e) {
-        console.error("Detail fetch error", e);
       }
-    };
+    } catch (e) {
+      console.error("Detail fetch error", e);
+    }
+  };
 
-    fetchDetails();
-  }, [currentView, selectedBranch]);
+  fetchDetails();
+}, [currentView, selectedBranch, selectedDate]);
 
-  // --- GRID DATA ---
+  // --- GRID DATA (includes Revenue card) ---
   const stats = [
     { label: 'Baked Items', value: apiData.baked, sub: 'Completed Production', icon: Package, color: 'text-orange-600', bg: 'bg-orange-50' },
     { label: 'Delivered Products', value: apiData.delivered, sub: 'Dispatched to Branches', icon: Truck, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -136,12 +286,13 @@ export default function CICMDashboard() {
     { label: 'Rest Products', value: apiData.rest, sub: 'From Store Keeper', icon: Store, color: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Damaged Items', value: apiData.damaged, sub: 'Total Losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50' },
     { label: 'Live Cake Orders', value: apiData.orders, sub: 'Custom Orders', icon: Cake, color: 'text-pink-600', bg: 'bg-pink-50' },
+    { label: 'Revenue', value: revenueTotal, sub: 'Total Income', icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
       
-       {currentView === 'Dashboard' && (
+      {currentView === 'Dashboard' && (
         <div className="animate-in fade-in duration-500 space-y-10">
           
           {/* Header & Branch Filter */}
@@ -151,7 +302,7 @@ export default function CICMDashboard() {
               <p className="text-gray-500 text-sm mt-1">Management Overview and Real-time Auditing.</p>
             </div>
             
-            {/* --- NEW: BRANCH SWITCHER UI --- */}
+            {/* Branch Switcher */}
             <div className="bg-white border border-gray-200 p-1 rounded-2xl flex items-center shadow-sm w-full md:w-auto">
                {['all', 'kabuga', 'masaka'].map((branch) => (
                  <button
@@ -167,8 +318,8 @@ export default function CICMDashboard() {
             </div>
           </div>
 
-          {/* 1. GRIDS */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Stats Grid (7 cards) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
               <button 
                 key={index} 
@@ -195,15 +346,28 @@ export default function CICMDashboard() {
         </div>
       )}
 
-
       {currentView !== 'Dashboard' && (
         <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-          <button onClick={() => setCurrentView('Dashboard')} className="inline-flex items-center gap-2 text-gray-500 hover:text-[#5D4037] mb-6 text-sm font-bold transition-colors"><ArrowLeft size={18} /> Back to Dashboard</button>
+          <button onClick={() => setCurrentView('Dashboard')} className="inline-flex items-center gap-2 text-gray-500 hover:text-[#5D4037] mb-6 text-sm font-bold transition-colors">
+            <ArrowLeft size={18} /> Back to Dashboard
+          </button>
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
              <h1 className="text-3xl font-bold text-gray-900">{currentView}</h1>
              
-             {/* --- DETAILS VIEW BRANCH SWITCHER --- */}
+             {/* Date picker for Revenue view */}
+             {currentView === 'Revenue' && (
+               <div className="flex items-center gap-2">
+                 <input
+                   type="date"
+                   value={selectedDate}
+                   onChange={(e) => setSelectedDate(e.target.value)}
+                   className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#5D4037]/20"
+                 />
+               </div>
+             )}
+             
+             {/* Branch Switcher for all detailed views */}
              <div className="bg-white border border-gray-200 p-1 rounded-2xl flex items-center shadow-sm w-full md:w-auto">
                {['all', 'kabuga', 'masaka'].map((branch) => (
                  <button
@@ -222,26 +386,49 @@ export default function CICMDashboard() {
           <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
              <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="bg-gray-50/50"><tr><th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Item</th><th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-center">Qty / Code</th><th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Branch / Loc</th><th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-right">Status</th></tr></thead>
+                    <thead className="bg-gray-50/50">
+                      <tr>
+                        <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Item</th>
+                        {currentView === 'Revenue' ? (
+                          <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-center">Amount</th>
+                        ) : (
+                          <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-center">Qty / Code</th>
+                        )}
+                        {currentView !== 'Revenue' && <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Branch / Loc</th>}
+                        <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-right">Status</th>
+                      </tr>
+                    </thead>
                     <tbody className="divide-y divide-gray-50">
                       {detailsList.length > 0 ? (
                         detailsList.map((row, index) => (
                           <tr key={`${row.id}-${index}`} className="hover:bg-gray-50/50">
                              <td className="px-8 py-5 font-bold text-[#5D4037] text-sm uppercase">{row.item}</td>
-                             <td className="px-8 py-5 text-center font-bold text-gray-800">{row.qty}</td>
-                             <td className="px-8 py-5 text-sm text-gray-500 uppercase">{row.loc}</td>
-                             <td className="px-8 py-5 text-right"><span className={`${row.status === 'Loss' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'} px-3 py-1 rounded-full text-xs font-bold uppercase`}>{row.status}</span></td>
-                          </tr>
+                             {currentView === 'Revenue' ? (
+                               <td className="px-8 py-5 text-center font-bold text-gray-800">{formatCurrency(row.amount)}</td>
+                             ) : (
+                               <td className="px-8 py-5 text-center font-bold text-gray-800">{row.qty}</td>
+                             )}
+                             {currentView !== 'Revenue' && <td className="px-8 py-5 text-sm text-gray-500 uppercase">{row.loc}</td>}
+                             <td className="px-8 py-5 text-right">
+                               <span className={`${
+                                 row.status === 'Loss' ? 'bg-red-100 text-red-700' : 
+                                 row.status === 'In Stock' ? 'bg-green-100 text-green-700' :
+                                 'bg-green-100 text-green-700'
+                               } px-3 py-1 rounded-full text-xs font-bold uppercase`}>
+                                 {row.status}
+                               </span>
+                              </td>
+                            </tr>
                         ))
                       ) : (
-                        <tr><td colSpan={4} className="p-20 text-center text-gray-300 font-bold uppercase tracking-widest">No detailed records found for {selectedBranch.toUpperCase()}</td></tr>
+                          <tr><td colSpan={4} className="p-20 text-center text-gray-300 font-bold uppercase tracking-widest">No detailed records found for {selectedBranch.toUpperCase()}</td></tr>
                       )}
                     </tbody>
-                </table>
+                  </table>
              </div>
           </div>
-          </div>
+        </div>
       )}
-     </div>
+    </div>
   );
 }

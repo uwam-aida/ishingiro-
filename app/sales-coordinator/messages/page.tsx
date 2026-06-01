@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft } from 'lucide-react'; 
+import { Send, Users, CheckCircle2, AlertCircle, Loader2, MessageSquare, Megaphone, UserCircle2, ArrowLeft, Clock, History } from 'lucide-react'; 
 
 export default function SalesBroadcastPage() {
   const router = useRouter(); 
@@ -12,19 +12,57 @@ export default function SalesBroadcastPage() {
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
+  // --- STATE FOR MESSAGE HISTORY (MISSING API) ---
+  const [messageHistory, setMessageHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+
   // --- THE TARGET ROLES ---
   const targetRoles = [
     { id: 'all', label: 'All Staff (Allowed Roles)' },
-    { id: 'shop_manager_kabuga', label: 'Kabuga Shop Manager' }, // Updated ID to match API doc example
-    { id: 'shop_manager_masaka', label: 'Masaka Shop Manager' }, // Updated ID to match standard convention
-    { id: 'store_keeper', label: 'Store Keeper' },               // Updated ID to match standard convention
-    { id: 'baker_assistant', label: 'Baker Assistant' },         // Updated ID to match standard convention
-    { id: 'operations_manager', label: 'Production Manager' },   // Updated ID to match standard convention
+    { id: 'shop_manager_kabuga', label: 'Kabuga Shop Manager' },
+    { id: 'shop_manager_masaka', label: 'Masaka Shop Manager' },
+    { id: 'store_keeper', label: 'Store Keeper' },
+    { id: 'baker_assistant', label: 'Baker Assistant' },
+    { id: 'operations_manager', label: 'Production Manager' },
     { id: 'cicm', label: 'CICM (Audit)' },
   ];
 
-  // --- UPDATED: HANDLE REAL API REQUEST ---
-  // --- UPDATED: HANDLE REAL API REQUEST ---
+  // --- FETCH MESSAGE HISTORY (MISSING API CALL) ---
+  useEffect(() => {
+    const fetchMessageHistory = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+      
+      try {
+        const response = await fetch(`${baseUrl}/sales/messages/history`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // The endpoint returns { total, data: [...] }
+          setMessageHistory(data.data || []);
+        } else {
+          console.error('Failed to load message history');
+          setMessageHistory([]);
+        }
+      } catch (error) {
+        console.error('Error fetching message history:', error);
+        setMessageHistory([]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    fetchMessageHistory();
+  }, [router]);
+
+  // --- HANDLE REAL API REQUEST (POST) ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -51,16 +89,21 @@ export default function SalesBroadcastPage() {
       if (response.ok) {
         setSuccess(true);
         setMessage('');
+
+        // Refresh history after sending a new message
+        const historyResponse = await fetch(`${baseUrl}/sales/messages/history`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (historyResponse.ok) {
+          const data = await historyResponse.json();
+          setMessageHistory(data.data || []);
+        }
+
         setTimeout(() => setSuccess(false), 3000);
       } else {
-        // --- ADDED THIS TO CATCH THE REAL BACKEND ERROR ---
         const errorData = await response.json().catch(() => ({}));
         console.error("Backend Error Details:", errorData);
-        
-        // Show the actual backend message if it exists, otherwise show default
         const errorMessage = errorData.message || errorData.error || "Please check your permissions or input.";
-        
-        // If it's a validation error (422), show the specific field errors
         if (errorData.errors && errorData.errors.recipient_role) {
            alert(`Validation Error: ${errorData.errors.recipient_role[0]}`);
         } else {
@@ -77,9 +120,8 @@ export default function SalesBroadcastPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
-      {/* HEADER - UPDATED WITH BACK ARROW */}
+      {/* HEADER */}
       <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
-        
         <button 
           onClick={() => router.back()}
           className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
@@ -167,7 +209,7 @@ export default function SalesBroadcastPage() {
           )}
         </div>
 
-        {/* RIGHT: GUIDELINES */}
+        {/* RIGHT: GUIDELINES (unchanged) */}
         <div className="space-y-4">
           <div className="bg-blue-50 p-6 rounded-[2rem] border border-blue-100">
             <h3 className="text-blue-900 font-black uppercase text-[10px] tracking-widest mb-3 flex items-center gap-2">
@@ -187,6 +229,38 @@ export default function SalesBroadcastPage() {
             <p className="text-xs font-bold leading-relaxed mt-1">Messages sent here will appear in the recipient's notification tray instantly.</p>
           </div>
         </div>
+      </div>
+
+      {/* --- MESSAGE HISTORY SECTION (NEW, MISSING API INTEGRATION) --- */}
+      <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 mb-6">
+          <History size={18} className="text-blue-600" />
+          <h2 className="text-lg font-black text-[#1C1C1C] uppercase tracking-tight">Sent Messages History</h2>
+        </div>
+
+        {isLoadingHistory ? (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin text-gray-400" size={24} />
+          </div>
+        ) : messageHistory.length === 0 ? (
+          <p className="text-center text-sm text-gray-400 font-bold py-10">No messages have been sent yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {messageHistory.map((msg) => (
+              <div key={msg.id} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                    {msg.date} at {msg.time}
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-700">
+                    {msg.recipient_roles.join(', ')}
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-gray-800">{msg.message}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

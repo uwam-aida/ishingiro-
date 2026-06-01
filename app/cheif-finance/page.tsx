@@ -27,6 +27,12 @@ export default function ChiefFinanceDashboard() {
   const [financeSummary, setFinanceSummary] = useState<any>(null);
   const [analyticsSummary, setAnalyticsSummary] = useState<any>(null);
   const [measuredProducts, setMeasuredProducts] = useState<any[]>([]);
+  
+  // ✅ ADDED: States for the remaining missing Finance APIs
+  const [measuredInventory, setMeasuredInventory] = useState<any>(null);
+  const [bakedInventory, setBakedInventory] = useState<any>(null);
+  const [performanceAnalytics, setPerformanceAnalytics] = useState<any[]>([]);
+  const [activitiesAnalytics, setActivitiesAnalytics] = useState<any[]>([]);
 
   // 2. DATA STATE (Initialized with Mock Data as a fallback)
   const [allData, setAllData] = useState<any[]>([
@@ -120,15 +126,35 @@ export default function ChiefFinanceDashboard() {
 
         // --- NEW: FETCH MISSING APIs ---
         try {
-          const [summaryRes, analyticsRes, measuredRes] = await Promise.all([
+          // ✅ FIXED: Added the 4 missing endpoints to the Promise.all array
+          const [
+            summaryRes, 
+            analyticsRes, 
+            measuredRes,
+            measuredInvRes,
+            bakedInvRes,
+            performanceRes,
+            activitiesRes
+          ] = await Promise.all([
             fetch(`${baseUrl}/finance`, { headers: { 'Authorization': `Bearer ${token}` } }),
             fetch(`${baseUrl}/finance/analytics/summary`, { headers: { 'Authorization': `Bearer ${token}` } }),
-            fetch(`${baseUrl}/finance/measured-products`, { headers: { 'Authorization': `Bearer ${token}` } })
+            fetch(`${baseUrl}/finance/measured-products`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${baseUrl}/finance/inventory/measured`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${baseUrl}/finance/inventory/baked`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${baseUrl}/finance/analytics/performance`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`${baseUrl}/finance/analytics/activities`, { headers: { 'Authorization': `Bearer ${token}` } })
           ]);
 
           if (summaryRes.ok) setFinanceSummary(await summaryRes.json());
           if (analyticsRes.ok) setAnalyticsSummary(await analyticsRes.json());
           if (measuredRes.ok) setMeasuredProducts(await measuredRes.json());
+          
+          // ✅ ADDED: Resolving the missing API data to states
+          if (measuredInvRes.ok) setMeasuredInventory(await measuredInvRes.json());
+          if (bakedInvRes.ok) setBakedInventory(await bakedInvRes.json());
+          if (performanceRes.ok) setPerformanceAnalytics(await performanceRes.json());
+          if (activitiesRes.ok) setActivitiesAnalytics(await activitiesRes.json());
+          
         } catch (e) {
           console.error("Failed to fetch additional finance APIs", e);
         }

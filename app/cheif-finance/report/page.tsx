@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -23,6 +24,9 @@ export default function MeasuredProductsReport() {
   const reportDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   const isoDate = new Date().toISOString().split('T')[0];
 
+  // ✅ ADDED: State to hold the authenticated user profile
+  const [userProfile, setUserProfile] = useState<any>(null);
+
   // --- STATE WITH MOCK DATA FALLBACK (Will be overwritten by API) ---
   const [productData, setProductData] = useState<any[]>([
     { id: 1, branch: 'Kabuga', name: 'White Bread', unit: 'Piece', price: 1000, sold: 500, damaged: 10 },
@@ -46,12 +50,20 @@ export default function MeasuredProductsReport() {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
       
       try {
-        const response = await fetch(`${baseUrl}/finance/measured-products`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        // ✅ FIXED: Fetch both the User Profile (/me) and the Measured Products simultaneously
+        const [meResponse, reportResponse] = await Promise.all([
+          fetch(`${baseUrl}/me`, { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch(`${baseUrl}/finance/measured-products`, { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
 
-        if (response.ok) {
-          const data = await response.json();
+        // Save user profile state
+        if (meResponse.ok) {
+          const userData = await meResponse.json();
+          setUserProfile(userData);
+        }
+
+        if (reportResponse.ok) {
+          const data = await reportResponse.json();
           // Map backend response to match the exact structure expected by your UI
           const formattedData = data.map((item: any) => ({
              id: item.id,

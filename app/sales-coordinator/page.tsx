@@ -15,7 +15,7 @@ import {
   ClipboardList,
   History,
   Cake,
-  Target // Added Target icon for the missing API
+  Target
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -33,7 +33,7 @@ export default function SalesCoordinatorDashboard() {
     stock: 0,
     damaged_products: 0,
     history: 0,
-    targets: 0 // Added state for the missing targets API
+    targets: 0
   });
 
   // --- STATE FOR DETAILED LISTS ---
@@ -45,145 +45,150 @@ export default function SalesCoordinatorDashboard() {
     Stock: [] as any[],
     Damaged: [] as any[],
     History: [] as any[],
-    Targets: [] as any[] // Added list for the missing targets API
+    Targets: [] as any[]
   });
 
   // --- FETCH DATA ON LOAD ---
   useEffect(() => {
     const fetchSalesData = async () => {
-  const token = localStorage.getItem('token');
-  if (!token) {
-    router.push('/login');
-    return;
-  }
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
 
-  setIsLoading(true);
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-    const headers = { 'Authorization': `Bearer ${token}` };
-    
-    // 1. Fetch Dashboard Summary
-    const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, { headers });
-    if (summaryResponse.ok) {
-      const summary = await summaryResponse.json();
-      setApiData(prev => ({
-        ...prev,
-        shop_requests: summary.shop_requests || 0,
-        cake_orders: summary.cake_orders || 0,
-        baked_products: summary.baked_products || 0,
-        delivered_products: summary.delivered_products || 0,
-        stock: summary.shop_stock || 0,
-        damaged_products: summary.damaged_products || 0,
-        history: summary.delivered_products || 0,
-        targets: summary.targets || 0 // if targets is in summary
-      }));
-    }
+      setIsLoading(true);
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        const headers = { 'Authorization': `Bearer ${token}` };
 
-    // 2. Fetch detailed logs – handle failures gracefully
-    const [prodDetailsRes, stockRes, cakeRes, targetsRes] = await Promise.all([
-      fetch(`${baseUrl}/production/details`, { headers }),
-      fetch(`${baseUrl}/factory/stock`, { headers }),
-      fetch(`${baseUrl}/sales/cake-orders`, { headers }),
-      fetch(`${baseUrl}/sales/targets`, { headers })
-    ]);
+        // 1. Fetch Dashboard Summary
+        const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, { headers });
+        if (summaryResponse.ok) {
+          const summary = await summaryResponse.json();
+          setApiData(prev => ({
+            ...prev,
+            shop_requests: summary.shop_requests || 0,
+            cake_orders: summary.cake_orders || 0,
+            baked_products: summary.baked_products || 0,
+            delivered_products: summary.delivered_products || 0,
+            stock: summary.shop_stock || 0,
+            damaged_products: summary.damaged_products || 0,
+            history: summary.history || 0, // CORRECTED: use "history" field per API docs
+            // targets will be set from the actual targets fetch length
+          }));
+        }
 
-    // Correct fallback: use the same key names as the actual API
-    let prodData = { baked: [], delivered: [], damaged: [], orders: [] };
-    if (prodDetailsRes.ok) {
-      prodData = await prodDetailsRes.json();
-    } else {
-      console.warn('Production details endpoint failed:', prodDetailsRes.status);
-    }
+        // 2. Fetch all detailed data from the correct endpoints
+        const [
+          requestsRes,
+          cakeRes,
+          bakedRes,
+          deliveredRes,
+          stockRes,
+          damagedRes,
+          historyRes,
+          targetsRes
+        ] = await Promise.all([
+          fetch(`${baseUrl}/sales/requests`, { headers }),
+          fetch(`${baseUrl}/sales/cake-orders`, { headers }),
+          fetch(`${baseUrl}/sales/baked`, { headers }),
+          fetch(`${baseUrl}/sales/delivered`, { headers }),
+          fetch(`${baseUrl}/sales/stock`, { headers }),
+          fetch(`${baseUrl}/sales/damaged`, { headers }),
+          fetch(`${baseUrl}/sales/history`, { headers }),
+          fetch(`${baseUrl}/sales/targets`, { headers })
+        ]);
 
-    let stockData = [];
-    if (stockRes.ok) stockData = await stockRes.json();
+        // Parse each response or fallback to an empty array
+        const requestsData = requestsRes.ok ? await requestsRes.json() : [];
+        const cakeData = cakeRes.ok ? await cakeRes.json() : [];
+        const bakedData = bakedRes.ok ? await bakedRes.json() : [];
+        const deliveredData = deliveredRes.ok ? await deliveredRes.json() : [];
+        const stockData = stockRes.ok ? await stockRes.json() : [];
+        const damagedData = damagedRes.ok ? await damagedRes.json() : [];
+        const historyData = historyRes.ok ? await historyRes.json() : [];
+        const targetsData = targetsRes.ok ? await targetsRes.json() : [];
 
-    let cakeData = [];
-    if (cakeRes.ok) cakeData = await cakeRes.json();
+        // Update targets count (summary may not include it)
+        setApiData(prev => ({ ...prev, targets: targetsData.length }));
 
-    let targetsData = [];
-    if (targetsRes.ok) targetsData = await targetsRes.json();
-
-    // Update targets count
-    setApiData(prev => ({ ...prev, targets: targetsData.length }));
-
-    // Map detailed lists – use actual keys from prodData
-    setDetailedLists({
-      Requests: (prodData.orders || []).map((r: any) => ({
-        id: r.id,
-        item: r.location ? `${r.location.toUpperCase()} Order` : 'Order Batch',
-        qty: 'View Items',
-        stock: `${r.location || 'Branch'} Request`,
-        time: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
-        status: r.status || 'pending'
-      })),
-      CakeOrders: cakeData.map((c: any) => ({
-        id: c.id,
-        item: c.cake_type,
-        qty: `Code: CK-${c.id}`,
-        stock: `Customer: ${c.customer_name}`,
-        time: c.delivery_date || 'N/A',
-        status: c.status || 'pending'
-      })),
-      Baked: (prodData.baked || []).map((b: any) => ({
-        id: b.id,
-        item: b.product?.name || 'Baked Item',
-        qty: `${b.quantity} pcs`,
-        stock: `Factory - ${b.location || 'production'}`,
-        time: b.created_at ? new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
-        status: 'Ready'
-      })),
-      Delivered: (prodData.delivered || []).map((d: any) => ({
-        id: d.id,
-        item: d.product?.name || 'Product',
-        qty: `${d.quantity} pcs`,
-        stock: `To: ${d.to_location || 'branch'}`,
-        time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
-        status: 'Delivered'
-      })),
-      Stock: stockData.map((s: any) => ({
-        id: s.id,
-        item: s.product?.name || 'Unknown',
-        qty: `${s.quantity} pcs`,
-        stock: `${s.location || 'factory'} Inventory`,
-        time: 'In Store',
-        status: 'In Stock'
-      })),
-      Damaged: (prodData.damaged || []).map((d: any) => ({
-        id: d.id,
-        item: d.product?.name || 'Unknown',
-        qty: `${d.quantity} pcs`,
-        stock: d.location || 'Reported',
-        time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
-        status: 'Waste'
-      })),
-      History: (prodData.delivered || []).map((h: any) => ({
-        id: h.id,
-        item: h.product?.name || 'Product',
-        qty: `${h.quantity} pcs`,
-        stock: `DELIVERY - ${h.to_location || 'branch'}`,
-        time: h.created_at ? new Date(h.created_at).toLocaleDateString() : 'Logged',
-        status: 'Archived'
-      })),
-      Targets: targetsData.map((t: any) => ({
-        id: t.id,
-        item: t.product_name || 'Product',
-        qty: `${t.actual_volume || 0} / ${t.target_volume || 0}`,
-        stock: 'Target Volume',
-        time: 'Active Tracker',
-        status: t.status || 'Pending'
-      }))
-    });
-  } catch (error) {
-    console.error("Failed to fetch sales data:", error);
-  } finally {
-    setIsLoading(false);
-  }
-};
+        // Map all detailed lists according to the API response structures
+        setDetailedLists({
+          Requests: requestsData.map((r: any) => ({
+            id: r.id,
+            item: r.location ? `${r.location.toUpperCase()} Order` : 'Order Batch',
+            qty: 'View Items',
+            stock: `${r.location || 'Branch'} Request`,
+            time: r.created_at ? new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+            status: r.status || 'pending'
+          })),
+          CakeOrders: cakeData.map((c: any) => ({
+            id: c.id,
+            item: c.cake_type,
+            qty: `Code: CK-${c.id}`,
+            stock: `Customer: ${c.customer_name}`,
+            time: c.delivery_date || 'N/A',
+            status: c.status || 'pending'
+          })),
+          Baked: bakedData.map((b: any) => ({
+            id: b.id,
+            item: b.product?.name || 'Baked Item',
+            qty: `${b.quantity} pcs`,
+            stock: `Factory - ${b.location || 'production'}`,
+            time: b.created_at ? new Date(b.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
+            status: 'Ready'
+          })),
+          Delivered: deliveredData.map((d: any) => ({
+            id: d.id,
+            item: d.product?.name || 'Product',
+            qty: `${d.quantity} pcs`,
+            stock: `To: ${d.to_location || 'branch'}`,
+            time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
+            status: 'Delivered'
+          })),
+          Stock: stockData.map((s: any) => ({
+            id: s.id,
+            item: s.product?.name || 'Unknown',
+            qty: `${s.quantity} pcs`,
+            stock: `${s.location || 'factory'} Inventory`,
+            time: 'In Store',
+            status: 'In Stock'
+          })),
+          Damaged: damagedData.map((d: any) => ({
+            id: d.id,
+            item: d.product?.name || 'Unknown',
+            qty: `${d.quantity} pcs`,
+            stock: d.location || 'Reported',
+            time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
+            status: 'Waste'
+          })),
+          History: historyData.map((h: any) => ({
+            id: h.id,
+            item: h.product?.name || 'Product',
+            qty: `${h.quantity} pcs`,
+            stock: `${h.type?.toUpperCase() || 'MOVEMENT'} - ${h.location || 'branch'}`,
+            time: h.created_at ? new Date(h.created_at).toLocaleDateString() : 'Logged',
+            status: 'Archived'
+          })),
+          Targets: targetsData.map((t: any) => ({
+            id: t.id,
+            item: t.product_name || 'Product',
+            qty: `${t.actual_volume || 0} / ${t.target_volume || 0}`,
+            stock: 'Target Volume',
+            time: 'Active Tracker',
+            status: t.status || 'Pending'
+          }))
+        });
+      } catch (error) {
+        console.error("Failed to fetch sales data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
     fetchSalesData();
   }, [router]);
-
 
   // --- 1. DATA CONFIGURATION ---
   const stats = [
@@ -243,14 +248,13 @@ export default function SalesCoordinatorDashboard() {
     },
     { 
       label: 'History', 
-      fullLabel: 'Full Added Products',
+      fullLabel: 'Stock Movement History',
       value: apiData.history.toString(), 
       sub: 'Total lifetime logs', 
       icon: History, 
       color: 'text-purple-600', 
       bg: 'bg-purple-50',
     },
-    // MISSING API ADDED HERE: Targets Card
     { 
       label: 'Targets', 
       fullLabel: 'Sales Targets',
@@ -272,7 +276,7 @@ export default function SalesCoordinatorDashboard() {
       case 'Stock': return detailedLists.Stock;
       case 'Damaged': return detailedLists.Damaged;
       case 'History': return detailedLists.History;
-      case 'Targets': return detailedLists.Targets; // MISSING API ADDED HERE
+      case 'Targets': return detailedLists.Targets;
       default: return [];
     }
   };
