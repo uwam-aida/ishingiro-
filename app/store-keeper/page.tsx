@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { 
   Package, Bell, ShoppingBag, AlertCircle, FileText, X, ArrowLeft, 
@@ -79,7 +79,7 @@ export default function StoreKeeperDashboard() {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
   // --- STATE INITIALIZATION ---
-  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'cake_requests' | 'full_history'>('requests');  
+  const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'full_history'>('requests');  
   const [deliveryNote, setDeliveryNote] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editQty, setEditQty] = useState('');
@@ -89,7 +89,6 @@ export default function StoreKeeperDashboard() {
   const [myStock, setMyStock] = useState<any[]>([]);
   const [shopRequests, setShopRequests] = useState<any[]>([]);
   const [cakeOrders, setCakeOrders] = useState<any[]>([]);
-  const [cakeRequests, setCakeRequests] = useState<any[]>([]);
   const [deliveryHistory, setDeliveryHistory] = useState<any[]>([]);
   const [damagedProducts, setDamagedProducts] = useState<any[]>([]);
   const [bakedProducts, setBakedProducts] = useState<any[]>([]);
@@ -106,10 +105,27 @@ export default function StoreKeeperDashboard() {
   const [bakedSearch, setBakedSearch] = useState('');
   const [damageSearch, setDamageSearch] = useState('');
   const [cakeOrderSearch, setCakeOrderSearch] = useState('');
-  const [cakeRequestSearch, setCakeRequestSearch] = useState('');
   const [fullHistorySearch, setFullHistorySearch] = useState('');
   const [deliveredSearch, setDeliveredSearch] = useState('');
   const [notesSearch, setNotesSearch] = useState('');
+
+  // --- DERIVED: Available Stock = Physical - Sum of all requested quantities ---
+  const availableStock = useMemo(() => {
+    const requestedMap = new Map<number, number>();
+    shopRequests.forEach(req => {
+      const prev = requestedMap.get(req.product_id) || 0;
+      requestedMap.set(req.product_id, prev + req.quantity);
+    });
+
+    return myStock.map(item => {
+      const requestedQty = requestedMap.get(item.product_id) || 0;
+      return {
+        ...item,
+        requested: requestedQty,
+        available: item.quantity - requestedQty,
+      };
+    });
+  }, [myStock, shopRequests]);
 
   // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS ---
 
@@ -225,7 +241,9 @@ export default function StoreKeeperDashboard() {
             product_id: item.product_id,
             item: item.product?.name || 'Unknown',
             quantity: item.quantity,
-            unit: item.unit || 'pcs'
+            unit: item.unit || 'pcs',
+            // Store timestamp if available, else placeholder
+            created_at: item.created_at || null,
           }));
           mappedStock.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setMyStock(mappedStock);
@@ -291,20 +309,6 @@ export default function StoreKeeperDashboard() {
           setCakeOrders(mappedCakes);
         }
 
-        // Fetch 5: Cake Requests - GET /shop/cake-requests
-        const cakeReqRes = await fetch(`${baseUrl}/shop/cake-requests`, { headers });
-        if (cakeReqRes.ok) {
-          const data = await cakeReqRes.json();
-          const mappedCakeReqs = data.map((c: any) => ({
-             id: c.id,
-             branch: c.location || 'Branch',
-             details: c.cake_type,
-             pickupTime: 'Pending'
-          }));
-          mappedCakeReqs.sort((a: any, b: any) => Number(b.id) - Number(a.id));
-          setCakeRequests(mappedCakeReqs);
-        }
-
         // Fetch 6: Baked Products (Production Log)
         const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
         if (bakedRes.ok) {
@@ -329,7 +333,8 @@ export default function StoreKeeperDashboard() {
             quantity: d.quantity,
             reason: d.reason || 'N/A',
             date: d.date || 'N/A',
-            time: d.time || ''
+            time: d.time || '',
+            created_at: d.created_at || null,
           }));
           mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setDamagedProducts(mappedDamaged);
@@ -392,14 +397,24 @@ export default function StoreKeeperDashboard() {
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-
-  // --- FULL HISTORY COMBINED DATA (sorted by time descending) ---
+  // --- UPDATED FULL HISTORY: only stock additions and damages ---
   const fullHistory = [
-    ...shopRequests.map(r => ({ type: 'REQUEST', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
-    ...damagedProducts.map(d => ({ type: 'DAMAGE', item: d.item, qty: d.quantity, time: d.date, color: 'text-red-600' })),
-    ...cakeOrders.map(c => ({ type: 'CAKE ORDER', item: c.details, qty: 1, time: c.pickupTime, color: 'text-[#F57C00]' })),
-    ...deliveryHistory.map(h => ({ type: 'DELIVERED', item: h.item, qty: h.quantity, time: h.date, color: 'text-green-600' })),
-    ...bakedProducts.map(b => ({ type: 'PRODUCTION', item: b.item, qty: b.quantity, time: b.time, color: 'text-purple-600' })),
+    // Products added by the store keeper (from "Add Product")
+    ...myStock.map(s => ({
+      type: 'STOCK ADDED',
+      item: s.item,
+      qty: s.quantity,
+      time: s.created_at ? new Date(s.created_at).toLocaleString() : 'In Stock',
+      color: 'text-teal-600',
+    })),
+    // Damages reported by the store keeper
+    ...damagedProducts.map(d => ({
+      type: 'DAMAGE',
+      item: d.item,
+      qty: d.quantity,
+      time: d.created_at ? new Date(d.created_at).toLocaleString() : (d.date || 'N/A'),
+      color: 'text-red-600',
+    })),
   ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
   const handlePrint = () => { window.print(); };
@@ -413,6 +428,18 @@ export default function StoreKeeperDashboard() {
   // --- 2. BULK DELIVERY (POST /storekeeper/deliver) ---
   const handleBulkDelivery = async () => {
     if (selectedProductIds.length === 0) return;
+    // Validate available stock for each selected item
+for (const item of selectedItems) {
+  const stockItem = availableStock.find(s => s.product_id === item.product_id);
+  if (!stockItem) {
+    alert(`Product "${item.item}" not found in stock.`);
+    return;
+  }
+  if (item.quantity > stockItem.available) {
+    alert(`Not enough stock for "${item.item}". Available: ${stockItem.available}, requested: ${item.quantity}`);
+    return;
+  }
+}
     const token = localStorage.getItem('token');
 
     const uniqueOrderIds = Array.from(new Set(selectedItems.map(item => item.id)));
@@ -533,7 +560,6 @@ export default function StoreKeeperDashboard() {
     { id: 'baked_log', label: 'Baked Products', value: (bakedProducts?.length || 0).toString(), icon: ChefHat },
     { id: 'my_stock', label: 'Stock', value: (myStock?.length || 0).toString(), icon: ShoppingBag },
     { id: 'cake_orders', label: 'Cake Orders', value: (cakeOrders?.length || 0).toString(), icon: ClipboardList }, 
-    { id: 'cake_requests', label: 'Cake Requests', value: (cakeRequests?.length || 0).toString(), icon: Package }, 
     { id: 'full_history', label: 'Full History', value: (fullHistory?.length || 0).toString(), icon: CheckCheck },
     { id: 'damaged', label: 'Damaged', value: (damagedProducts?.length || 0).toString(), icon: ShieldAlert },
     { id: 'notes', label: 'Delivery Notes', value: (deliveryNotesList?.length || 0).toString(), icon: FileText },
@@ -792,36 +818,56 @@ export default function StoreKeeperDashboard() {
         )}
 
         {/* MY STOCK GRID (with search) */}
-        {activeFilter === 'my_stock' && (
-          <div className="overflow-x-auto text-black">
-            <div className="flex justify-between items-center p-4 border-b border-gray-200">
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">My Stock</h3>
-              <input
-                type="text"
-                placeholder="Search stock..."
-                value={stockSearch}
-                onChange={(e) => setStockSearch(e.target.value)}
-                className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
-              />
-            </div>
-            <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Item Name</th><th className="px-8 py-4 text-center">Qty In Store</th></tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {myStock
-                  .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
-                  .map((s) => (
-                    <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
-                      <td className="px-8 py-6 text-center font-black text-lg text-gray-900">{s.quantity}</td>
-                    </tr>
-                  ))}
-                {myStock.filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase())).length === 0 && (
-                  <tr><td colSpan={2} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching stock items</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* MY STOCK GRID – NOW WITH PHYSICAL / REQUESTED / AVAILABLE COLUMNS */}
+{activeFilter === 'my_stock' && (
+  <div className="overflow-x-auto text-black">
+    <div className="flex justify-between items-center p-4 border-b border-gray-200">
+      <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">My Stock</h3>
+      <input
+        type="text"
+        placeholder="Search stock..."
+        value={stockSearch}
+        onChange={(e) => setStockSearch(e.target.value)}
+        className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+      />
+    </div>
+    <table className="w-full text-left font-bold">
+      <thead>
+        <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
+          <th className="px-8 py-4">Item Name</th>
+          <th className="px-8 py-4 text-center">Physical</th>
+          <th className="px-8 py-4 text-center">Requested</th>
+          <th className="px-8 py-4 text-center">Available</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100">
+        {availableStock
+          .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
+          .map((s) => (
+            <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+              <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">
+                {s.item}
+              </td>
+              <td className="px-8 py-6 text-center font-black text-gray-900">
+                {s.quantity}
+              </td>
+              <td className="px-8 py-6 text-center font-black text-blue-600">
+                {s.requested}
+              </td>
+              <td className="px-8 py-6 text-center font-black text-lg">
+                <span className={s.available < 0 ? 'text-red-600' : 'text-green-700'}>
+                  {s.available}
+                </span>
+              </td>
+            </tr>
+          ))}
+        {availableStock.filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase())).length === 0 && (
+          <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching stock items</td></tr>
         )}
+      </tbody>
+    </table>
+  </div>
+)}
 
         {/* BAKED PRODUCTS GRID (with search) */}
         {activeFilter === 'baked_log' && (
@@ -1105,43 +1151,7 @@ export default function StoreKeeperDashboard() {
           </div>
         )}
 
-        {/* CAKE REQUESTS (with search) */}
-        {activeFilter === 'cake_requests' && (
-          <div className="overflow-x-auto p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Cake Requests</h3>
-              <input
-                type="text"
-                placeholder="Search cake requests..."
-                value={cakeRequestSearch}
-                onChange={(e) => setCakeRequestSearch(e.target.value)}
-                className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
-              />
-            </div>
-            <div className="grid gap-4">
-              {cakeRequests
-                .filter(req => req.details.toLowerCase().includes(cakeRequestSearch.toLowerCase()) || req.branch.toLowerCase().includes(cakeRequestSearch.toLowerCase()))
-                .map((req) => (
-                  <div key={req.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
-                    <div className="flex justify-between items-start flex-wrap gap-4">
-                      <div>
-                        <p className="font-black text-[#F57C00] text-lg">{req.details}</p>
-                        <p className="text-xs text-gray-500 mt-1">Branch: {req.branch}</p>
-                        <p className="text-xs font-bold mt-2">Customer: {req.customer}</p>
-                        <p className="text-xs text-gray-500">Pickup: {req.pickupTime}</p>
-                      </div>
-                      <button className="px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-black uppercase">Process</button>
-                    </div>
-                  </div>
-                ))}
-              {cakeRequests.length === 0 && (
-                <div className="p-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No Cake Requests Found</div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* FULL HISTORY SECTION (with search) */}
+        {/* FULL HISTORY SECTION (with search) – NOW ONLY SHOWS STOCK ADDITIONS & DAMAGES */}
         {activeFilter === 'full_history' && (
           <div className="overflow-x-auto p-8">
             <div className="flex justify-between items-center mb-4">

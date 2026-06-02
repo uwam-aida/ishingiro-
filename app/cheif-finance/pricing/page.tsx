@@ -16,10 +16,10 @@ interface Product {
 
 export const defaultProducts: Product[] = [ 
     // BREAD (Baked)
-    { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
-    { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
+    { name: 'big milk Bread', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'small milk Bread', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
-    { name: 'sen', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'scn', price: 1000, category: 'BREAD', type: 'baked' },
     { name: 'salted bread', price: 1100, category: 'BREAD', type: 'baked' },
     { name: 'baguette', price: 500, category: 'BREAD', type: 'baked' },
     { name: 'milk slice bread', price: 200, category: 'BREAD', type: 'baked' },
@@ -51,7 +51,6 @@ export const defaultProducts: Product[] = [
     { name: 'ISH.MILK Cookie', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'butter biscuits', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'chocolate biscuits', price: 140, category: 'OTHERS', type: 'baked' },
-    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'baked' },
     
     // UNBAKED OTHERS
     { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS', type: 'unbaked' },
@@ -62,6 +61,8 @@ export const defaultProducts: Product[] = [
     { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS', type: 'unbaked' },
     { name: 'cashnewnuts', price: 5500, category: 'OTHERS', type: 'unbaked' },
     { name: 'cornfresh cream', price: 500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'unbaked' },
 
     // BIG CAKES (Baked)
     { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
@@ -79,7 +80,6 @@ export const defaultProducts: Product[] = [
     { name: 'cakes 7000', price: 7000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
-    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
 export default function FinancePricingPage() {

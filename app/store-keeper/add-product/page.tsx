@@ -14,10 +14,11 @@ import {
 
 // The hardcoded list acts as a fallback if the API is unreachable
 const STORE_PRODUCTS = [
-    { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
-    { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
+  // BREAD (Baked)
+    { name: 'big milk Bread', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'small milk Bread', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
-    { name: 'sen', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'scn', price: 1000, category: 'BREAD', type: 'baked' },
     { name: 'salted bread', price: 1100, category: 'BREAD', type: 'baked' },
     { name: 'baguette', price: 500, category: 'BREAD', type: 'baked' },
     { name: 'milk slice bread', price: 200, category: 'BREAD', type: 'baked' },
@@ -27,23 +28,30 @@ const STORE_PRODUCTS = [
     { name: 'mult graine', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'milk mult graine', price: 1000, category: 'BREAD', type: 'baked' },
     { name: 'brown bread', price: 800, category: 'BREAD', type: 'baked' },
+ 
+    // CAKES (Baked)
     { name: 'tea cake', price: 1000, category: 'CAKES', type: 'baked' },
     { name: 'marble cake', price: 1200, category: 'CAKES', type: 'baked' },
     { name: 'brown cake', price: 250, category: 'CAKES', type: 'baked' },
     { name: 'oliver corn cake', price: 350, category: 'CAKES', type: 'baked' },
     { name: 'muffin cake', price: 170, category: 'CAKES', type: 'baked' },
+
+    // AMANDAZI (Baked)
     { name: 'ishingiro', price: 150, category: 'AMANDAZI', type: 'baked' },
     { name: 's.begne', price: 70, category: 'AMANDAZI', type: 'baked' },
     { name: 'dark donut', price: 450, category: 'AMANDAZI', type: 'baked' },
     { name: 'choc donuts', price: 450, category: 'AMANDAZI', type: 'baked' },
     { name: 'kk donuts', price: 250, category: 'AMANDAZI', type: 'baked' },
     { name: 'triangle', price: 150, category: 'AMANDAZI', type: 'baked' },
+
+    // OTHERS (Mixed)
     { name: 'meat samosa', price: 450, category: 'OTHERS', type: 'baked' },
     { name: 'biscuits', price: 85, category: 'OTHERS', type: 'baked' },
     { name: 'ISH.MILK Cookie', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'butter biscuits', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'chocolate biscuits', price: 140, category: 'OTHERS', type: 'baked' },
-    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'baked' },
+    
+    // UNBAKED OTHERS
     { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS', type: 'unbaked' },
     { name: 'ikinyuranyo 3kg', price: 4500, category: 'OTHERS', type: 'unbaked' },
     { name: 'ikinyuranyo 5kg', price: 7500, category: 'OTHERS', type: 'unbaked' },
@@ -52,6 +60,10 @@ const STORE_PRODUCTS = [
     { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS', type: 'unbaked' },
     { name: 'cashnewnuts', price: 5500, category: 'OTHERS', type: 'unbaked' },
     { name: 'cornfresh cream', price: 500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'unbaked' },
+
+    // BIG CAKES (Baked)
     { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 20000', price: 20000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cakes 24000', price: 24000, category: 'BIG CAKES', type: 'baked' },
@@ -67,7 +79,6 @@ const STORE_PRODUCTS = [
     { name: 'cakes 7000', price: 7000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
-    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
 export default function StoreKeeperAddProduct() {

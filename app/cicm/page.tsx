@@ -276,7 +276,7 @@ export default function CICMDashboard() {
   };
 
   fetchDetails();
-}, [currentView, selectedBranch, selectedDate]);
+}, [currentView, selectedBranch, selectedDate]); 
 
   // --- GRID DATA (includes Revenue card) ---
   const stats = [
