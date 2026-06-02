@@ -28,7 +28,8 @@ class ShopManagerController extends Controller
             'updateCakeOrder', 
             'receiveOrder',
             'recordDamage',
-            'storeFeedback'
+            'storeFeedback',
+            'getCakeRequests'
         ]);
     }
 
@@ -370,6 +371,25 @@ class ShopManagerController extends Controller
         }
         
         return response()->json($result);
+    }
+
+    // GET ALL CAKE REQUESTS FOR CURRENT MANAGER'S BRANCH (NEW METHOD)
+    public function getCakeRequests()
+    {
+        $myLocation = $this->myLocation();
+        
+        $cakeRequests = CakeOrder::where('location', $myLocation)
+            ->where('type', 'request')
+            ->latest()
+            ->get()
+            ->map(function ($cake) {
+                if ($cake->inspo_image_path) {
+                    $cake->inspo_image_url = asset('storage/' . $cake->inspo_image_path);
+                }
+                return $cake;
+            });
+        
+        return response()->json($cakeRequests);
     }
 
     // GET CAKE REQUESTS BY LOCATION (only type = 'request')

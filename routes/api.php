@@ -124,7 +124,6 @@ Route::middleware('auth:sanctum')->group(function () {
     | SHOP MANAGERS — Location-specific order posting
     |--------------------------------------------------------------------------
     */
-    // Replace the two separate routes with one combined route
     Route::middleware('role:shop_manager_kabuga,shop_manager_masaka')->post('/orders', [OrderController::class, 'store']);
 
     /*
@@ -164,6 +163,9 @@ Route::middleware('auth:sanctum')->group(function () {
         // NEW: Dashboard summary
         Route::get('/shop/dashboard', [ShopManagerController::class, 'getDashboardSummary']);
 
+        // NEW: Get all cake requests for current manager's branch (without location parameter)
+        Route::get('/shop/cake-requests', [ShopManagerController::class, 'getCakeRequests']);
+        
         // NEW: Cake requests endpoints (pending cake orders only)
         Route::get('/shop/cake-requests/{location}', [ShopManagerController::class, 'cakeRequestsByLocation']);
         Route::post('/shop/cake-requests', [ShopManagerController::class, 'storeCakeRequest']);
@@ -261,7 +263,33 @@ Route::middleware('auth:sanctum')->group(function () {
 
         //stock
         Route::get('/stock/{location}', [StockController::class, 'salesStockByLocation']);
+    });
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | CICM — Analytics, Reporting & Cake Orders Access
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:cicm')->group(function () {
+        // Reports
+        Route::prefix('reports')->group(function () {
+            Route::get('/combined', [ReportController::class, 'combined']);
+            Route::get('/kabuga', [ReportController::class, 'byLocation'])->defaults('location', 'kabuga');
+            Route::get('/masaka', [ReportController::class, 'byLocation'])->defaults('location', 'masaka');
+            Route::get('/detailed', [ReportController::class, 'detailed']);
+            Route::get('/revenue', [ReportController::class, 'revenue']);
+        });
+        
+        // Cake Orders for CICM
+        Route::prefix('cicm')->group(function () {
+            Route::get('/cake-orders', [SalesController::class, 'cakeOrders']);
+            Route::get('/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
+        });
+        
+        // Also allow CICM to access sales cake orders directly
+        Route::get('/sales/cake-orders', [SalesController::class, 'cakeOrders']);
+        Route::get('/sales/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
     });
 
 
@@ -299,20 +327,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/profit-margins', [FinanceController::class, 'profitMargins']);
         Route::get('/branch-performance', [FinanceController::class, 'branchPerformance']);
         Route::get('/cash-flow', [FinanceController::class, 'cashFlow']);
-    });
-
-
-    /*
-    |--------------------------------------------------------------------------
-    | CICM — Analytics & Reporting
-    |--------------------------------------------------------------------------
-    */
-    Route::middleware('role:cicm')->prefix('reports')->group(function () {
-        Route::get('/combined', [ReportController::class, 'combined']);
-        Route::get('/kabuga', [ReportController::class, 'byLocation'])->defaults('location', 'kabuga');
-        Route::get('/masaka', [ReportController::class, 'byLocation'])->defaults('location', 'masaka');
-        Route::get('/detailed', [ReportController::class, 'detailed']);
-        Route::get('/revenue', [ReportController::class, 'revenue']);
     });
 
 });
