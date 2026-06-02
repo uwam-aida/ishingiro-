@@ -48,7 +48,7 @@ class ProductSeeder extends Seeder
             ['name' => 'ISH.Milk Cookie',     'price' => 130,  'category' => 'OTHERS',    'type' => 'baked'],
             ['name' => 'Butter Biscuits',     'price' => 130,  'category' => 'OTHERS',    'type' => 'baked'],
             ['name' => 'Chocolate Biscuits',  'price' => 140,  'category' => 'OTHERS',    'type' => 'baked'],
-            ['name' => 'Ubunyobwa',           'price' => 1800, 'category' => 'OTHERS',    'type' => 'baked'],
+            ['name' => 'Ubunyobwa',           'price' => 1800, 'category' => 'OTHERS',    'type' => 'unbaked'],
 
             // ── OTHERS — Unbaked ──────────────────────────────────────────
             ['name' => 'Ikinyuranyo 1kg',     'price' => 1600, 'category' => 'OTHERS',    'type' => 'unbaked'],
