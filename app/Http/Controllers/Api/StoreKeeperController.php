@@ -104,7 +104,6 @@ class StoreKeeperController extends Controller
             ->latest()
             ->get();
         
-        // Transform the data to avoid modifying the model directly
         return $orders->map(function ($order) {
             return [
                 'id' => $order->id,
@@ -280,26 +279,34 @@ class StoreKeeperController extends Controller
                 }
             }
 
-            // ── Save delivery note to database ────────────────────────────
+            // ── Save delivery note to database with BOTH keys for compatibility ──
             $allItems = collect();
 
             foreach ($orders as $order) {
                 foreach ($order->items as $item) {
+                    $productName = optional($item->product)->name ?? 'Unknown Product';
                     $allItems->push([
-                        'product_name' => optional($item->product)->name ?? 'Unknown Product',
-                        'quantity'     => $item->quantity,
-                        'unit_price'   => $item->price,
-                        'total'        => $item->quantity * $item->price,
+                        'name' => $productName,
+                        'product_name' => $productName,
+                        'qty' => $item->quantity,
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->price,
+                        'price' => $item->price,
+                        'total' => $item->quantity * $item->price,
                     ]);
                 }
             }
 
             foreach ($cakeOrders as $cake) {
+                $cakeName = $cake->cake_type;
                 $allItems->push([
-                    'product_name' => $cake->cake_type,
-                    'quantity'     => $cake->quantity,
-                    'unit_price'   => $cake->price,
-                    'total'        => $cake->quantity * $cake->price,
+                    'name' => $cakeName,
+                    'product_name' => $cakeName,
+                    'qty' => $cake->quantity,
+                    'quantity' => $cake->quantity,
+                    'unit_price' => $cake->price,
+                    'price' => $cake->price,
+                    'total' => $cake->quantity * $cake->price,
                 ]);
             }
 
@@ -458,6 +465,9 @@ class StoreKeeperController extends Controller
     public function productionLog()
     {
         return Production::with('product')
+            ->whereHas('product', function ($query) {
+                $query->where('type', 'baked');
+            })
             ->latest()
             ->get()
             ->each(function ($p) {
@@ -496,7 +506,7 @@ class StoreKeeperController extends Controller
     {
         $request->validate([
             'payment_amount' => 'required|numeric|min:1',
-            'payment_method' => 'required|string|in:cash,card,momo,bank',
+            'payment_method' => 'required|string|in:cash,card,mobile_money,bank_transfer',
             'payer_name' => 'nullable|string',
         ]);
 
@@ -689,12 +699,18 @@ class StoreKeeperController extends Controller
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
         
-        // Transform items to have consistent keys for the frontend
         $transformedItems = collect($note->items)->map(function ($item) {
+            // Try multiple possible keys for product name
+            $productName = $item['product_name'] 
+                ?? $item['name'] 
+                ?? $item['item'] 
+                ?? $item['product'] 
+                ?? 'Unknown Product';
+            
             return [
-                'name' => $item['product_name'] ?? $item['name'] ?? 'Unknown',
+                'name' => $productName,
                 'qty' => $item['quantity'] ?? $item['qty'] ?? 0,
-                'unit_price' => $item['unit_price'] ?? 0,
+                'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
                 'total' => $item['total'] ?? 0,
             ];
         });
@@ -718,10 +734,17 @@ class StoreKeeperController extends Controller
         $note = DeliveryNote::with('user')->findOrFail($id);
         
         $items = collect($note->items)->map(function ($item) {
+            // Try multiple possible keys for product name
+            $productName = $item['product_name'] 
+                ?? $item['name'] 
+                ?? $item['item'] 
+                ?? $item['product'] 
+                ?? 'Unknown Product';
+            
             return [
-                'name' => $item['product_name'] ?? $item['name'] ?? 'Unknown',
+                'name' => $productName,
                 'qty' => $item['quantity'] ?? $item['qty'] ?? 0,
-                'unit_price' => $item['unit_price'] ?? 0,
+                'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
                 'total' => $item['total'] ?? 0,
             ];
         });
@@ -838,19 +861,16 @@ class StoreKeeperController extends Controller
     {
         $location = $request->query('location', 'all');
         
-        // Get physical stock
         $stockQuery = Stock::with('product');
         if ($location !== 'all') {
             $stockQuery->where('location', $location);
         }
         $physicalStock = $stockQuery->get();
         
-        // Get pending requests (not yet delivered)
         $pendingRequests = Order::with('items')
             ->where('status', 'pending')
             ->get();
         
-        // Calculate available stock
         $availableStock = [];
         
         foreach ($physicalStock as $stock) {
@@ -891,15 +911,12 @@ class StoreKeeperController extends Controller
      */
     public function getCakeOrder($id)
     {
-        $cakeOrder = CakeOrder::with('product') // if relationship exists
-            ->findOrFail($id);
+        $cakeOrder = CakeOrder::findOrFail($id);
         
-        // Add image URL if exists
         if ($cakeOrder->inspo_image_path) {
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
         }
         
-        // Add formatted time and date
         $cakeOrder->time = $cakeOrder->created_at->format('h:i A');
         $cakeOrder->date = $cakeOrder->created_at->toDateString();
         

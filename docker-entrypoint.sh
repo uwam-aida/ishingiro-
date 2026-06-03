@@ -56,6 +56,12 @@ echo "Setting up storage link..."
 php artisan storage:link
 
 # ============================================
+# FIX EXISTING DELIVERY NOTES
+# ============================================
+echo "Fixing delivery notes product names..."
+php artisan fix:delivery-notes
+
+# ============================================
 # START QUEUE WORKER (Run in background)
 # ============================================
 echo "Starting queue worker..."
