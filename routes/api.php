@@ -132,6 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('role:sales_coordinator,shop_manager_kabuga,shop_manager_masaka')->group(function () {
     Route::get('/sales/available-stock', [SalesController::class, 'getAvailableStock']);
+
 });
 
     /*
@@ -187,6 +188,9 @@ Route::middleware('auth:sanctum')->group(function () {
         
         // NEW: Generic orders endpoint (gets orders for current manager's branch)
         Route::get('/my-orders', [ShopManagerController::class, 'myOrders']);
+
+        // NEW: Get factory available stock for shop managers
+        Route::get('/sales/factory-available-stock', [SalesController::class, 'getFactoryAvailableStock']);
     });
 
 

@@ -30,7 +30,7 @@ class SalesController extends Controller
         }
         return 'kabuga'; // default
     }
-    
+
     // DASHBOARD — all summary cards + history count
     public function dashboard()
     {
@@ -549,6 +549,58 @@ class SalesController extends Controller
         
         return response()->json([
             'location' => $location,
+            'total_available' => collect($availableStock)->sum('available_quantity'),
+            'data' => $availableStock
+        ]);
+    }
+
+    /**
+     * Get factory available stock (physical - pending requests from all shops)
+     * GET /api/sales/factory-available-stock
+     */
+    public function getFactoryAvailableStock(Request $request)
+    {
+        // Get physical factory stock
+        $factoryStock = Stock::with('product')
+            ->where('location', 'factory')
+            ->get();
+        
+        // Get ALL pending requests from ALL branches (Kabuga + Masaka)
+        $pendingRequests = Order::with('items')
+            ->where('status', 'pending')
+            ->get();
+        
+        // Calculate available stock
+        $availableStock = [];
+        
+        foreach ($factoryStock as $stock) {
+            $productId = $stock->product_id;
+            $requestedQty = 0;
+            
+            foreach ($pendingRequests as $request) {
+                foreach ($request->items as $item) {
+                    if ($item->product_id === $productId) {
+                        $requestedQty += $item->quantity;
+                    }
+                }
+            }
+            
+            $availableStock[] = [
+                'id' => $stock->id,
+                'product_id' => $productId,
+                'product_name' => $stock->product->name,
+                'product_price' => $stock->product->price,
+                'physical_quantity' => $stock->quantity,
+                'requested_quantity' => $requestedQty,
+                'available_quantity' => max(0, $stock->quantity - $requestedQty),
+                'location' => $stock->location,
+                'unit' => $stock->unit ?? 'pcs',
+                'status' => ($stock->quantity - $requestedQty) < 10 ? 'Low Stock' : 'Available',
+            ];
+        }
+        
+        return response()->json([
+            'location' => 'factory',
             'total_available' => collect($availableStock)->sum('available_quantity'),
             'data' => $availableStock
         ]);
