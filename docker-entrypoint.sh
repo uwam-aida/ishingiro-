@@ -27,6 +27,12 @@ echo "Creating test users..."
 php artisan app:seed-system-users
 
 # ============================================
+# INITIALIZE STOCK FOR ALL PRODUCTS
+# ============================================
+echo "Initializing stock for all products..."
+php artisan stock:init
+
+# ============================================
 # CRITICAL: Rebuild Composer Autoloader
 # ============================================
 echo "Rebuilding Composer autoloader..."
