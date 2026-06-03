@@ -20,6 +20,17 @@ use Illuminate\Support\Facades\Storage;
 
 class SalesController extends Controller
 {
+    private function myLocation(): string
+    {
+        $userRole = auth()->user()->role->name;
+        if ($userRole === 'shop_manager_kabuga') {
+            return 'kabuga';
+        } elseif ($userRole === 'shop_manager_masaka') {
+            return 'masaka';
+        }
+        return 'kabuga'; // default
+    }
+    
     // DASHBOARD — all summary cards + history count
     public function dashboard()
     {
@@ -471,6 +482,75 @@ class SalesController extends Controller
         return response()->json([
             'total' => $messages->count(),
             'data' => $messages
+        ]);
+    }
+
+    /**
+     * Get net available stock for shop manager (physical - requested)
+     * GET /api/sales/available-stock
+     */
+    public function getAvailableStock(Request $request)
+    {
+        $myLocation = $this->myLocation(); // You need to add this helper or get from auth
+        
+        // Alternative: get location from request or user role
+        $location = $request->query('location');
+        if (!$location) {
+            $userRole = auth()->user()->role->name;
+            if ($userRole === 'shop_manager_kabuga') {
+                $location = 'kabuga';
+            } elseif ($userRole === 'shop_manager_masaka') {
+                $location = 'masaka';
+            }
+        }
+        
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+        
+        // Get physical stock for this branch
+        $physicalStock = Stock::with('product')
+            ->where('location', $location)
+            ->get();
+        
+        // Get pending requests for this branch (not yet delivered)
+        $pendingRequests = Order::with('items')
+            ->where('location', $location)
+            ->where('status', 'pending')
+            ->get();
+        
+        // Calculate available stock
+        $availableStock = [];
+        
+        foreach ($physicalStock as $stock) {
+            $productId = $stock->product_id;
+            $requestedQty = 0;
+            
+            foreach ($pendingRequests as $request) {
+                foreach ($request->items as $item) {
+                    if ($item->product_id === $productId) {
+                        $requestedQty += $item->quantity;
+                    }
+                }
+            }
+            
+            $availableStock[] = [
+                'id' => $stock->id,
+                'product_id' => $productId,
+                'product_name' => $stock->product->name,
+                'product_price' => $stock->product->price,
+                'physical_quantity' => $stock->quantity,
+                'requested_quantity' => $requestedQty,
+                'available_quantity' => max(0, $stock->quantity - $requestedQty),
+                'location' => $stock->location,
+                'unit' => $stock->unit ?? 'pcs',
+            ];
+        }
+        
+        return response()->json([
+            'location' => $location,
+            'total_available' => collect($availableStock)->sum('available_quantity'),
+            'data' => $availableStock
         ]);
     }
 }

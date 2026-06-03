@@ -116,8 +116,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
         //payment
         Route::post('/cake-order/{id}/payment', [StoreKeeperController::class, 'recordCakePayment']);
+
+        // Get single cake order
+        Route::get('/cake-orders/{id}', [StoreKeeperController::class, 'getCakeOrder']);
+        
+        // Get available stock
+        Route::get('/available-stock', [StoreKeeperController::class, 'getAvailableStock']);
     });
 
+    /*
+    |--------------------------------------------------------------------------
+    |Shared routes for SALES COORDINATOR & SHOP MANAGERS — Available stock by location
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware('role:sales_coordinator,shop_manager_kabuga,shop_manager_masaka')->group(function () {
+    Route::get('/sales/available-stock', [SalesController::class, 'getAvailableStock']);
+});
 
     /*
     |--------------------------------------------------------------------------

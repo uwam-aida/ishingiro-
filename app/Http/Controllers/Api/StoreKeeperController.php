@@ -829,4 +829,80 @@ class StoreKeeperController extends Controller
         
         return response()->json($stock);
     }
+
+    /**
+     * Get available stock (physical stock minus pending requests)
+     * GET /api/storekeeper/available-stock
+     */
+    public function getAvailableStock(Request $request)
+    {
+        $location = $request->query('location', 'all');
+        
+        // Get physical stock
+        $stockQuery = Stock::with('product');
+        if ($location !== 'all') {
+            $stockQuery->where('location', $location);
+        }
+        $physicalStock = $stockQuery->get();
+        
+        // Get pending requests (not yet delivered)
+        $pendingRequests = Order::with('items')
+            ->where('status', 'pending')
+            ->get();
+        
+        // Calculate available stock
+        $availableStock = [];
+        
+        foreach ($physicalStock as $stock) {
+            $productId = $stock->product_id;
+            $requestedQty = 0;
+            
+            foreach ($pendingRequests as $request) {
+                foreach ($request->items as $item) {
+                    if ($item->product_id === $productId) {
+                        $requestedQty += $item->quantity;
+                    }
+                }
+            }
+            
+            $availableStock[] = [
+                'id' => $stock->id,
+                'product_id' => $productId,
+                'product_name' => $stock->product->name,
+                'product_price' => $stock->product->price,
+                'physical_quantity' => $stock->quantity,
+                'requested_quantity' => $requestedQty,
+                'available_quantity' => max(0, $stock->quantity - $requestedQty),
+                'location' => $stock->location,
+                'unit' => $stock->unit ?? 'pcs',
+                'status' => ($stock->quantity - $requestedQty) < 10 ? 'Low Stock' : 'Available',
+            ];
+        }
+        
+        return response()->json([
+            'total_available' => collect($availableStock)->sum('available_quantity'),
+            'data' => $availableStock
+        ]);
+    }
+
+    /**
+     * Get single cake order by ID for store keeper
+     * GET /api/storekeeper/cake-orders/{id}
+     */
+    public function getCakeOrder($id)
+    {
+        $cakeOrder = CakeOrder::with('product') // if relationship exists
+            ->findOrFail($id);
+        
+        // Add image URL if exists
+        if ($cakeOrder->inspo_image_path) {
+            $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
+        }
+        
+        // Add formatted time and date
+        $cakeOrder->time = $cakeOrder->created_at->format('h:i A');
+        $cakeOrder->date = $cakeOrder->created_at->toDateString();
+        
+        return response()->json($cakeOrder);
+    }
 }
