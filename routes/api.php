@@ -191,6 +191,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // NEW: Get factory available stock for shop managers
         Route::get('/sales/factory-available-stock', [SalesController::class, 'getFactoryAvailableStock']);
+
+        // NEW: Closing day endpoints
+        Route::get('/shop/stock/{location}', [ShopManagerController::class, 'getCurrentStock']);
+        Route::post('/shop/close-day', [ShopManagerController::class, 'closeDay']);
+        Route::get('/shop/close-day/{location}/latest', [ShopManagerController::class, 'getLatestClosingRecord']);
+        Route::get('/shop/close-day-report/{location}', [ShopManagerController::class, 'getClosingReport']);
     });
 
 
@@ -309,7 +315,10 @@ Route::middleware('auth:sanctum')->group(function () {
         // Also allow CICM to access sales cake orders directly
         Route::get('/sales/cake-orders', [SalesController::class, 'cakeOrders']);
         Route::get('/sales/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
+
+        Route::get('/shop/close-day-report/{location}', [ShopManagerController::class, 'getClosingReport']);
     });
+
 
 
     /*

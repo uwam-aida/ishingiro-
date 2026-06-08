@@ -11,6 +11,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Revenue;
+use App\Models\ShopClosingRecord;
 use App\Models\Stock;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
@@ -770,5 +771,277 @@ class ShopManagerController extends Controller
             });
         
         return response()->json($orders);
+    }
+
+    /**
+     * Get current stock for a branch (opening stock for today)
+     * GET /api/shop/stock/{location}
+     */
+    public function getCurrentStock($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+
+        // Check if location matches manager's role
+        if ($this->myLocation() !== $location) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $stock = Stock::with('product')
+            ->where('location', $location)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product->name,
+                    'quantity' => $item->quantity,
+                    'unit' => $item->unit ?? 'pcs',
+                    'price' => $item->product->price,
+                ];
+            });
+
+        return response()->json([
+            'location' => $location,
+            'date' => now()->toDateString(),
+            'opening_stock' => $stock,
+        ]);
+    }
+
+    /**
+     * Close the day by recording remaining, damaged, and expired stock
+     * POST /api/shop/close-day
+     */
+    public function closeDay(Request $request)
+    {
+        $myLocation = $this->myLocation();
+
+        $request->validate([
+            'closing_date' => 'required|date',
+            'products' => 'required|array',
+            'products.*.product_id' => 'required|exists:products,id',
+            'products.*.remaining' => 'required|integer|min:0',
+            'products.*.damaged' => 'nullable|integer|min:0',
+            'products.*.expired' => 'nullable|integer|min:0',
+        ]);
+
+        $closingDate = $request->closing_date;
+
+        // Check if already closed for this date
+        $existing = ShopClosingRecord::where('location', $myLocation)
+            ->where('closing_date', $closingDate)
+            ->first();
+
+        if ($existing) {
+            return response()->json(['error' => 'Already closed for this date'], 400);
+        }
+
+        // Get current stock (opening stock for the day)
+        $currentStock = Stock::with('product')
+            ->where('location', $myLocation)
+            ->get()
+            ->keyBy('product_id');
+
+        $productsData = [];
+        $summary = [
+            'total_sold' => 0,
+            'total_damaged' => 0,
+            'total_expired' => 0,
+            'total_remaining' => 0,
+            'total_products' => 0,
+        ];
+
+        DB::transaction(function () use ($request, $myLocation, $closingDate, $currentStock, &$productsData, &$summary) {
+            foreach ($request->products as $productData) {
+                $productId = $productData['product_id'];
+                $stock = $currentStock[$productId] ?? null;
+
+                if (!$stock) {
+                    continue;
+                }
+
+                $product = $stock->product;
+                $openingStock = $stock->quantity;
+                $remaining = $productData['remaining'];
+                $damaged = $productData['damaged'] ?? 0;
+                $expired = $productData['expired'] ?? 0;
+
+                // Validate remaining doesn't exceed opening stock
+                if ($remaining > $openingStock) {
+                    throw new \Exception("Remaining quantity for {$product->name} cannot exceed opening stock");
+                }
+
+                // Calculate sold
+                $sold = $openingStock - $remaining - $damaged - $expired;
+
+                if ($sold < 0) {
+                    throw new \Exception("Invalid calculation for {$product->name}: Sold cannot be negative");
+                }
+
+                // Record damage and expired as separate entries
+                if ($damaged > 0) {
+                    Damage::create([
+                        'product_id' => $productId,
+                        'quantity' => $damaged,
+                        'reason' => 'End of day damage',
+                        'location' => $myLocation,
+                    ]);
+                }
+
+                if ($expired > 0) {
+                    Damage::create([
+                        'product_id' => $productId,
+                        'quantity' => $expired,
+                        'reason' => 'Expired',
+                        'location' => $myLocation,
+                    ]);
+                }
+
+                // Record revenue for sold items
+                if ($sold > 0) {
+                    Revenue::create([
+                        'amount' => $sold * $product->price,
+                        'source' => 'end_of_day_sales',
+                        'location' => $myLocation,
+                    ]);
+                }
+
+                // Update stock to remaining quantity for next day
+                $stock->update(['quantity' => $remaining]);
+
+                StockMovement::create([
+                    'product_id' => $productId,
+                    'type' => 'out',
+                    'quantity' => $sold + $damaged + $expired,
+                    'location' => $myLocation,
+                    'user_id' => auth()->id(),
+                    'note' => 'End of day adjustment',
+                ]);
+
+                $productsData[] = [
+                    'product_id' => $productId,
+                    'product_name' => $product->name,
+                    'opening_stock' => $openingStock,
+                    'remaining' => $remaining,
+                    'damaged' => $damaged,
+                    'expired' => $expired,
+                    'sold' => $sold,
+                    'unit' => $stock->unit ?? 'pcs',
+                ];
+
+                $summary['total_sold'] += $sold;
+                $summary['total_damaged'] += $damaged;
+                $summary['total_expired'] += $expired;
+                $summary['total_remaining'] += $remaining;
+                $summary['total_products']++;
+            }
+
+            // Create closing record
+            ShopClosingRecord::create([
+                'shop_manager_id' => auth()->id(),
+                'location' => $myLocation,
+                'closing_date' => $closingDate,
+                'products' => $productsData,
+                'summary' => $summary,
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Day closed successfully',
+            'closing_record' => [
+                'location' => $myLocation,
+                'closing_date' => $closingDate,
+                'products' => $productsData,
+                'summary' => $summary,
+            ],
+        ], 201);
+    }
+
+    /**
+     * Get latest closing record for a branch
+     * GET /api/shop/close-day/{location}/latest
+     */
+    public function getLatestClosingRecord($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+
+        $record = ShopClosingRecord::with('shopManager')
+            ->where('location', $location)
+            ->latest('closing_date')
+            ->first();
+
+        if (!$record) {
+            return response()->json(['error' => "No closing record found for {$location}"], 404);
+        }
+
+        return response()->json([
+            'id' => $record->id,
+            'closing_date' => $record->closing_date,
+            'location' => $record->location,
+            'products' => $record->products,
+            'summary' => $record->summary,
+            'closed_at' => $record->created_at,
+            'closed_by' => $record->shopManager->name,
+        ]);
+    }
+
+    /**
+     * Get closing day report for a branch
+     * GET /api/shop/close-day-report/{location}
+     */
+    public function getClosingReport(Request $request, $location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+
+        $date = $request->query('date');
+
+        $query = ShopClosingRecord::where('location', $location);
+
+        if ($date) {
+            $query->where('closing_date', $date);
+        } else {
+            $query->latest('closing_date');
+        }
+
+        $record = $query->first();
+
+        if (!$record) {
+            return response()->json(['error' => "No closing record found for {$location}"], 404);
+        }
+
+        $productsWithRevenue = collect($record->products)->map(function ($product) {
+            $productModel = Product::find($product['product_id']);
+            return [
+                'product_id' => $product['product_id'],
+                'product_name' => $product['product_name'],
+                'opening_stock' => $product['opening_stock'],
+                'sold' => $product['sold'],
+                'damaged' => $product['damaged'],
+                'expired' => $product['expired'],
+                'remaining' => $product['remaining'],
+                'revenue' => $product['sold'] * ($productModel->price ?? 0),
+                'loss_value' => ($product['damaged'] + $product['expired']) * ($productModel->cost ?? 0),
+                'unit' => $product['unit'],
+            ];
+        });
+
+        return response()->json([
+            'location' => $location,
+            'report_date' => $record->closing_date,
+            'products' => $productsWithRevenue,
+            'summary' => [
+                'total_revenue' => $productsWithRevenue->sum('revenue'),
+                'total_loss' => $productsWithRevenue->sum('loss_value'),
+                'total_sold' => $record->summary['total_sold'],
+                'total_damaged' => $record->summary['total_damaged'],
+                'total_expired' => $record->summary['total_expired'],
+                'total_remaining' => $record->summary['total_remaining'],
+            ],
+        ]);
     }
 }
