@@ -10,6 +10,7 @@ use App\Models\Feedback;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\Production;
 use App\Models\Revenue;
 use App\Models\ShopClosingRecord;
 use App\Models\Stock;
@@ -1043,5 +1044,35 @@ class ShopManagerController extends Controller
                 'total_remaining' => $record->summary['total_remaining'],
             ],
         ]);
+    }
+
+    /**
+     * Get baked items (production log) for shop manager
+     * GET /api/shop/baked-items
+     */
+    public function getBakedItems()
+    {
+        $productions = Production::with('product')
+            ->whereHas('product', function ($query) {
+                $query->where('type', 'baked');
+            })
+            ->latest()
+            ->get()
+            ->map(function ($production) {
+                return [
+                    'id' => $production->id,
+                    'product_id' => $production->product_id,
+                    'product_name' => $production->product->name,
+                    'product_price' => $production->product->price,
+                    'quantity' => $production->quantity,
+                    'unit' => $production->product->type === 'unbaked' ? 'kg' : 'pcs',
+                    'location' => $production->location,
+                    'baked_at' => $production->created_at->toDateTimeString(),
+                    'time' => $production->created_at->format('h:i A'),
+                    'date' => $production->created_at->toDateString(),
+                ];
+            });
+        
+        return response()->json($productions);
     }
 }

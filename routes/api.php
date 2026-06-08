@@ -197,6 +197,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/shop/close-day', [ShopManagerController::class, 'closeDay']);
         Route::get('/shop/close-day/{location}/latest', [ShopManagerController::class, 'getLatestClosingRecord']);
         Route::get('/shop/close-day-report/{location}', [ShopManagerController::class, 'getClosingReport']);
+
+        Route::get('/shop/baked-items', [ShopManagerController::class, 'getBakedItems']);
     });
 
 
