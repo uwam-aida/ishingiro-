@@ -90,50 +90,29 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/cake-requests', [StoreKeeperController::class, 'cakeRequests']);
         Route::post('/deliver', [StoreKeeperController::class, 'deliver']);
         Route::put('/requests/{id}', [StoreKeeperController::class, 'updateRequest']);
-        // NEW: Stock movement history for store keeper
         Route::get('/movements', [StoreKeeperController::class, 'history']);
-        
-        // NEW: Single stock item endpoints
         Route::get('/stock/{id}', [StoreKeeperController::class, 'getStockItem']);
         Route::delete('/stock/{id}', [StoreKeeperController::class, 'deleteStockItem']);
-        
-        // NEW: Stock movement history
         Route::get('/stock/movements', [StoreKeeperController::class, 'getStockMovements']);
-
-        // NEW: Delivery Notes endpoints
         Route::get('/delivery-notes', [StoreKeeperController::class, 'getDeliveryNotes']);
         Route::get('/delivery-notes/{id}', [StoreKeeperController::class, 'getDeliveryNote']);
         Route::get('/delivery-notes/{id}/pdf', [StoreKeeperController::class, 'regenerateDeliveryNotePdf']);
-
-        // NEW: Get orders by branch for store keeper
         Route::get('/orders/{location}', [StoreKeeperController::class, 'getOrdersByLocation']);
-        
-        // NEW: Get all orders (across all branches)
         Route::get('/all-orders', [StoreKeeperController::class, 'getAllOrders']);
-
-        // NEW: Get stock by location
         Route::get('/stock/{location}', [StoreKeeperController::class, 'getStockByLocation']);
-
-        //payment
         Route::post('/cake-order/{id}/payment', [StoreKeeperController::class, 'recordCakePayment']);
-
-        // Get single cake order
         Route::get('/cake-orders/{id}', [StoreKeeperController::class, 'getCakeOrder']);
-        
-        // Get available stock
         Route::get('/available-stock', [StoreKeeperController::class, 'getAvailableStock']);
     });
 
     /*
     |--------------------------------------------------------------------------
-    |Shared routes for SALES COORDINATOR & SHOP MANAGERS — Available stock by location
+    | Shared routes for SALES COORDINATOR & SHOP MANAGERS — Available stock
     |--------------------------------------------------------------------------
     */
-
     Route::middleware('role:sales_coordinator,shop_manager_kabuga,shop_manager_masaka')->group(function () {
-    Route::get('/sales/available-stock', [SalesController::class, 'getAvailableStock']);
-
-});
+        Route::get('/sales/available-stock', [SalesController::class, 'getAvailableStock']);
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -148,57 +127,46 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:shop_manager_kabuga,shop_manager_masaka')->group(function () {
+        // Cake routes
         Route::post('/shop/cake-orders', [ShopManagerController::class, 'storeCakeOrder']);
         Route::put('/shop/cake-orders/{id}', [ShopManagerController::class, 'updateCakeOrder']);
-        Route::put('/orders/{id}/receive', [ShopManagerController::class, 'receiveOrder']);
-        Route::post('/shop/feedback', [ShopManagerController::class, 'storeFeedback']);
-        Route::post('/shop/damages', [ShopManagerController::class, 'recordDamage']);
-
-        Route::get('/stock/{location}', [StockController::class, 'byLocation']);
-        Route::get('/orders/{location}', [OrderController::class, 'indexByLocation']);
-        Route::get('/shop/cake-orders/{location}', [ShopManagerController::class, 'cakeOrdersByLocation']);
-        Route::get('/shop/damages/{location}', [ShopManagerController::class, 'damagesByLocation']);
-        Route::get('/factory/stock', [StockController::class, 'factoryStock']);
-
-        // NEW: Single order details
-        Route::get('/orders/{id}', [ShopManagerController::class, 'getOrderDetails']);
-        
-        // NEW: Update order status
-        Route::put('/orders/{id}/status', [ShopManagerController::class, 'updateOrderStatus']);
-        
-        // NEW: Shop stock management
-        Route::get('/shop/stock/{id}', [ShopManagerController::class, 'getStockItem']);
-        Route::put('/shop/stock/{id}', [ShopManagerController::class, 'updateStockItem']);
-
-        // NEW: Feedback endpoints
-        Route::get('/shop/feedback', [ShopManagerController::class, 'getFeedback']);
-        
-        // NEW: Cake orders with filters
         Route::get('/shop/cake-orders', [ShopManagerController::class, 'getAllCakeOrders']);
-        
-        // NEW: Dashboard summary
-        Route::get('/shop/dashboard', [ShopManagerController::class, 'getDashboardSummary']);
-
-        // NEW: Get all cake requests for current manager's branch (without location parameter)
+        Route::get('/shop/cake-orders/{location}', [ShopManagerController::class, 'cakeOrdersByLocation']);
         Route::get('/shop/cake-requests', [ShopManagerController::class, 'getCakeRequests']);
-        
-        // NEW: Cake requests endpoints (pending cake orders only)
         Route::get('/shop/cake-requests/{location}', [ShopManagerController::class, 'cakeRequestsByLocation']);
         Route::post('/shop/cake-requests', [ShopManagerController::class, 'storeCakeRequest']);
-        
-        // NEW: Generic orders endpoint (gets orders for current manager's branch)
+
+        // Order routes
+        Route::get('/orders/{location}', [OrderController::class, 'indexByLocation']);
+        Route::get('/orders/{id}', [ShopManagerController::class, 'getOrderDetails']);
+        Route::put('/orders/{id}/status', [ShopManagerController::class, 'updateOrderStatus']);
+        Route::put('/orders/{id}/receive', [ShopManagerController::class, 'receiveOrder']);
         Route::get('/my-orders', [ShopManagerController::class, 'myOrders']);
 
-        // NEW: Get factory available stock for shop managers
+        // Stock routes - FIXED: Use different patterns
+        Route::get('/shop/stock-by-location/{location}', [StockController::class, 'byLocation']);
+        Route::get('/shop/stock/{id}', [ShopManagerController::class, 'getStockItem'])->where('id', '[0-9]+');
+        Route::put('/shop/stock/{id}', [ShopManagerController::class, 'updateStockItem'])->where('id', '[0-9]+');
+        
+        // Factory stock
+        Route::get('/factory/stock', [StockController::class, 'factoryStock']);
         Route::get('/sales/factory-available-stock', [SalesController::class, 'getFactoryAvailableStock']);
 
-        // NEW: Closing day endpoints
-        Route::get('/shop/stock/{location}', [ShopManagerController::class, 'getCurrentStock']);
+        // Damage and feedback
+        Route::get('/shop/damages/{location}', [ShopManagerController::class, 'damagesByLocation']);
+        Route::post('/shop/damages', [ShopManagerController::class, 'recordDamage']);
+        Route::post('/shop/feedback', [ShopManagerController::class, 'storeFeedback']);
+        Route::get('/shop/feedback', [ShopManagerController::class, 'getFeedback']);
+
+        // Dashboard and baked items
+        Route::get('/shop/dashboard', [ShopManagerController::class, 'getDashboardSummary']);
+        Route::get('/shop/baked-items', [ShopManagerController::class, 'getBakedItems']);
+
+        // Closing day endpoints - FIXED: Use clear, distinct patterns
+        Route::get('/shop/current-stock/{location}', [ShopManagerController::class, 'getCurrentStock']);
         Route::post('/shop/close-day', [ShopManagerController::class, 'closeDay']);
         Route::get('/shop/close-day/{location}/latest', [ShopManagerController::class, 'getLatestClosingRecord']);
         Route::get('/shop/close-day-report/{location}', [ShopManagerController::class, 'getClosingReport']);
-
-        Route::get('/shop/baked-items', [ShopManagerController::class, 'getBakedItems']);
     });
 
 
@@ -284,11 +252,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/targets/{id}', [SalesController::class, 'updateTarget']);
         Route::delete('/targets/{id}', [SalesController::class, 'destroyTarget']);
 
-        //NEW
         Route::get('/requests/{id}', [SalesController::class, 'getRequestDetails']);
         Route::get('/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
-
-        //stock
         Route::get('/stock/{location}', [StockController::class, 'salesStockByLocation']);
     });
 
@@ -299,7 +264,6 @@ Route::middleware('auth:sanctum')->group(function () {
     |--------------------------------------------------------------------------
     */
     Route::middleware('role:cicm')->group(function () {
-        // Reports
         Route::prefix('reports')->group(function () {
             Route::get('/combined', [ReportController::class, 'combined']);
             Route::get('/kabuga', [ReportController::class, 'byLocation'])->defaults('location', 'kabuga');
@@ -308,19 +272,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/revenue', [ReportController::class, 'revenue']);
         });
         
-        // Cake Orders for CICM
         Route::prefix('cicm')->group(function () {
             Route::get('/cake-orders', [SalesController::class, 'cakeOrders']);
             Route::get('/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
         });
         
-        // Also allow CICM to access sales cake orders directly
         Route::get('/sales/cake-orders', [SalesController::class, 'cakeOrders']);
         Route::get('/sales/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
-
         Route::get('/shop/close-day-report/{location}', [ShopManagerController::class, 'getClosingReport']);
     });
-
 
 
     /*
@@ -348,7 +308,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/analytics/activities', [FinanceController::class, 'analyticsActivities']);
         Route::get('/production', [StoreKeeperController::class, 'productionLog']);
 
-        //new
         Route::get('/dashboard/summary', [FinanceController::class, 'dashboardSummary']);
         Route::get('/weekly-revenue', [FinanceController::class, 'weeklyRevenue']);
         Route::get('/monthly-revenue', [FinanceController::class, 'monthlyRevenue']);

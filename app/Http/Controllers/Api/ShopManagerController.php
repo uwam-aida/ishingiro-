@@ -375,7 +375,7 @@ class ShopManagerController extends Controller
         return response()->json($result);
     }
 
-    // GET ALL CAKE REQUESTS FOR CURRENT MANAGER'S BRANCH (NEW METHOD)
+    // GET ALL CAKE REQUESTS FOR CURRENT MANAGER'S BRANCH
     public function getCakeRequests()
     {
         $myLocation = $this->myLocation();
@@ -774,9 +774,13 @@ class ShopManagerController extends Controller
         return response()->json($orders);
     }
 
+    // ============================================
+    // CLOSING DAY & STOCK METHODS
+    // ============================================
+
     /**
-     * Get current stock for a branch (opening stock for today)
-     * GET /api/shop/stock/{location}
+     * Get current stock for a branch (for closing day)
+     * GET /api/shop/current-stock/{location}
      */
     public function getCurrentStock($location)
     {
@@ -797,9 +801,10 @@ class ShopManagerController extends Controller
                     'id' => $item->id,
                     'product_id' => $item->product_id,
                     'product_name' => $item->product->name,
+                    'product_price' => $item->product->price,
                     'quantity' => $item->quantity,
                     'unit' => $item->unit ?? 'pcs',
-                    'price' => $item->product->price,
+                    'location' => $item->location,
                 ];
             });
 
