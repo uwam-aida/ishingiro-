@@ -8,7 +8,7 @@ export default function SalesBroadcastPage() {
   const router = useRouter(); 
   
   const [message, setMessage] = useState('');
-  const [selectedRole, setSelectedRole] = useState('all');
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(['all']); // array of role IDs
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -27,7 +27,7 @@ export default function SalesBroadcastPage() {
     { id: 'cicm', label: 'CICM (Audit)' },
   ];
 
-  // --- FETCH MESSAGE HISTORY (MISSING API CALL) ---
+  // --- FETCH MESSAGE HISTORY (unchanged) ---
   useEffect(() => {
     const fetchMessageHistory = async () => {
       const token = localStorage.getItem('token');
@@ -45,7 +45,6 @@ export default function SalesBroadcastPage() {
 
         if (response.ok) {
           const data = await response.json();
-          // The endpoint returns { total, data: [...] }
           setMessageHistory(data.data || []);
         } else {
           console.error('Failed to load message history');
@@ -62,10 +61,14 @@ export default function SalesBroadcastPage() {
     fetchMessageHistory();
   }, [router]);
 
-  // --- HANDLE REAL API REQUEST (POST) ---
+  // --- HANDLE REAL API REQUEST (POST) – updated for multiple roles ---
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
+    if (selectedRoles.length === 0) {
+      alert('Please select at least one recipient group.');
+      return;
+    }
 
     setIsSending(true);
     setSuccess(false);
@@ -74,16 +77,23 @@ export default function SalesBroadcastPage() {
       const token = localStorage.getItem('token');
       const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
+      // Build payload based on selection
+      const payload: any = { message };
+      if (selectedRoles.includes('all')) {
+        payload.recipient_role = 'all';
+      } else if (selectedRoles.length === 1) {
+        payload.recipient_role = selectedRoles[0];
+      } else {
+        payload.recipient_roles = selectedRoles;
+      }
+
       const response = await fetch(`${baseUrl}/sales/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          recipient_role: selectedRole,
-          message: message
-        })
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -118,9 +128,26 @@ export default function SalesBroadcastPage() {
     }
   };
 
+  // Helper to toggle a role on/off, handling 'all' special behaviour
+  const toggleRole = (roleId: string) => {
+    setSelectedRoles(prev => {
+      if (roleId === 'all') {
+        // If 'all' is already selected, deselect it. Otherwise select only 'all'.
+        return prev.includes('all') ? [] : ['all'];
+      }
+      // For any other role:
+      let updated = prev.includes(roleId)
+        ? prev.filter(id => id !== roleId)
+        : [...prev.filter(id => id !== 'all'), roleId]; // remove 'all' if present
+      // If nothing selected, default back to 'all' (optional)
+      if (updated.length === 0) updated = ['all'];
+      return updated;
+    });
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-4">
-      {/* HEADER */}
+      {/* HEADER (unchanged) */}
       <div className="flex items-center gap-4 border-b border-gray-100 pb-6">
         <button 
           onClick={() => router.back()}
@@ -143,41 +170,46 @@ export default function SalesBroadcastPage() {
         <div className="md:col-span-2 bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
           <form onSubmit={handleSendMessage} className="space-y-6">
             
-            {/* RADIO BUTTON SELECTION */}
+            {/* CHECKBOX SELECTION (formerly radio) */}
             <div className="space-y-3">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Select Recipient Group</label>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Select Recipient Groups</label>
               <div className="grid grid-cols-1 gap-2">
-                {targetRoles.map((role) => (
-                  <label 
-                    key={role.id}
-                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer group ${
-                      selectedRole === role.id 
-                      ? 'border-blue-600 bg-blue-50/50' 
-                      : 'border-gray-50 bg-gray-50 hover:border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${selectedRole === role.id ? 'bg-blue-600 text-white' : 'bg-white text-gray-400'}`}>
-                        <UserCircle2 size={18} />
+                {targetRoles.map((role) => {
+                  const isSelected = selectedRoles.includes(role.id);
+                  return (
+                    <label 
+                      key={role.id}
+                      className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all cursor-pointer group ${
+                        isSelected
+                        ? 'border-blue-600 bg-blue-50/50' 
+                        : 'border-gray-50 bg-gray-50 hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${isSelected ? 'bg-blue-600 text-white' : 'bg-white text-gray-400'}`}>
+                          <UserCircle2 size={18} />
+                        </div>
+                        <span className={`text-sm font-bold ${isSelected ? 'text-blue-900' : 'text-gray-600'}`}>
+                          {role.label}
+                        </span>
                       </div>
-                      <span className={`text-sm font-bold ${selectedRole === role.id ? 'text-blue-900' : 'text-gray-600'}`}>
-                        {role.label}
-                      </span>
-                    </div>
-                    
-                    <input 
-                      type="radio"
-                      name="role-selection"
-                      value={role.id}
-                      checked={selectedRole === role.id}
-                      onChange={(e) => setSelectedRole(e.target.value)}
-                      className="w-5 h-5 accent-blue-600 cursor-pointer"
-                    />
-                  </label>
-                ))}
+                      
+                      <input 
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleRole(role.id)}
+                        className="w-5 h-5 accent-blue-600 cursor-pointer"
+                      />
+                    </label>
+                  );
+                })}
               </div>
+              <p className="text-[10px] text-gray-400 mt-1 ml-1">
+                Select one or more roles. Choosing “All Staff” overrides individual selections.
+              </p>
             </div>
 
+            {/* Message input (unchanged) */}
             <div className="space-y-2 pt-4">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Your Message</label>
               <textarea 
@@ -231,7 +263,7 @@ export default function SalesBroadcastPage() {
         </div>
       </div>
 
-      {/* --- MESSAGE HISTORY SECTION (NEW, MISSING API INTEGRATION) --- */}
+      {/* --- MESSAGE HISTORY SECTION (unchanged) --- */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-6">
           <History size={18} className="text-blue-600" />

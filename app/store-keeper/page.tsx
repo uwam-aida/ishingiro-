@@ -109,7 +109,15 @@ export default function StoreKeeperDashboard() {
   const [deliveredSearch, setDeliveredSearch] = useState('');
   const [notesSearch, setNotesSearch] = useState('');
 
-  // --- DERIVED: Available Stock = Physical - Sum of all requested quantities ---
+  // --- NEW: API available stock data (fetched from /storekeeper/available-stock) ---
+  const [apiAvailableStock, setApiAvailableStock] = useState<any[]>([]);
+  const [isAvailableStockLoading, setIsAvailableStockLoading] = useState(true);
+
+  // --- NEW: Cake order detail modal states ---
+  const [selectedCakeOrderDetail, setSelectedCakeOrderDetail] = useState<any>(null);
+  const [showCakeDetailModal, setShowCakeDetailModal] = useState(false);
+
+  // --- DERIVED: Available Stock = Physical - Sum of all requested quantities (fallback) ---
   const availableStock = useMemo(() => {
     const requestedMap = new Map<number, number>();
     shopRequests.forEach(req => {
@@ -127,32 +135,29 @@ export default function StoreKeeperDashboard() {
     });
   }, [myStock, shopRequests]);
 
-  // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS ---
-
-  // GET /storekeeper/delivery-notes - Fetch all delivery notes
+  // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS (unchanged) ---
   const fetchAllDeliveryNotes = async () => {
-  const token = localStorage.getItem('token');
-  const headers = { 
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/json' 
+    const token = localStorage.getItem('token');
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json' 
+    };
+
+    try {
+      const response = await fetch(`${baseUrl}/storekeeper/delivery-notes`, { headers });
+      if (response.ok) {
+        const data = await response.json();
+        const notes = data.data || [];
+        notes.sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
+        setDeliveryNotesList(notes);
+        return data;
+      }
+    } catch (err) {
+      console.error("Failed to fetch delivery notes", err);
+    }
+    return [];
   };
 
-  try {
-    const response = await fetch(`${baseUrl}/storekeeper/delivery-notes`, { headers });
-    if (response.ok) {
-      const data = await response.json();
-      const notes = data.data || [];
-      // Sort by created_at descending (newest first)
-      notes.sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
-      setDeliveryNotesList(notes);
-      return data;
-    }
-  } catch (err) {
-    console.error("Failed to fetch delivery notes", err);
-  }
-  return [];
-};
-  // GET /storekeeper/delivery-notes/{id} - Fetch single delivery note by ID
   const fetchDeliveryNoteById = async (noteId: number) => {
     const token = localStorage.getItem('token');
     const headers = { 
@@ -174,50 +179,49 @@ export default function StoreKeeperDashboard() {
     return null;
   };
 
-  // GET /storekeeper/delivery-notes/{id}/pdf - Download PDF
   const downloadDeliveryNotePDF = async (noteId) => {
-  const token = localStorage.getItem('token');
-  const url = `${baseUrl}/storekeeper/delivery-notes/${noteId}/pdf`;
+    const token = localStorage.getItem('token');
+    const url = `${baseUrl}/storekeeper/delivery-notes/${noteId}/pdf`;
 
-  try {
-    const response = await fetch(url, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/pdf'
+    try {
+      const response = await fetch(url, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/pdf'
+        }
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('PDF download failed:', response.status, errorText);
+        alert(`Failed to download PDF (${response.status}). Please check console.`);
+        return;
       }
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('PDF download failed:', response.status, errorText);
-      alert(`Failed to download PDF (${response.status}). Please check console.`);
-      return;
+      const blob = await response.blob();
+      if (blob.type !== 'application/pdf') {
+        console.warn('Response is not a PDF, might be an error page');
+        const text = await blob.text();
+        console.error('Response content:', text);
+        alert('Server did not return a valid PDF. Please check console.');
+        return;
+      }
+
+      const urlBlob = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = urlBlob;
+      a.download = `delivery-note-${noteId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(urlBlob);
+    } catch (err) {
+      console.error('PDF download error:', err);
+      alert('Network error while downloading PDF');
     }
+  };
 
-    const blob = await response.blob();
-    if (blob.type !== 'application/pdf') {
-      console.warn('Response is not a PDF, might be an error page');
-      const text = await blob.text();
-      console.error('Response content:', text);
-      alert('Server did not return a valid PDF. Please check console.');
-      return;
-    }
-
-    const urlBlob = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = urlBlob;
-    a.download = `delivery-note-${noteId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(urlBlob);
-  } catch (err) {
-    console.error('PDF download error:', err);
-    alert('Network error while downloading PDF');
-  }
-};
-
-  // --- 1. INITIAL FETCH LOGIC ---
+  // --- 1. INITIAL FETCH LOGIC (UPDATED WITH NEW APIs) ---
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -232,7 +236,17 @@ export default function StoreKeeperDashboard() {
       };
 
       try {
-        // Fetch 1: My Stock
+        // Fetch available stock from the new API
+        setIsAvailableStockLoading(true);
+        const availStockRes = await fetch(`${baseUrl}/storekeeper/available-stock`, { headers });
+        if (availStockRes.ok) {
+          const availData = await availStockRes.json();
+          // The response is { total_available, data: [...] }
+          setApiAvailableStock(availData.data || []);
+        }
+        setIsAvailableStockLoading(false);
+
+        // Fetch 1: My Stock (physical) – keeping as fallback
         const stockRes = await fetch(`${baseUrl}/storekeeper`, { headers });
         if (stockRes.ok) {
           const data = await stockRes.json();
@@ -242,7 +256,6 @@ export default function StoreKeeperDashboard() {
             item: item.product?.name || 'Unknown',
             quantity: item.quantity,
             unit: item.unit || 'pcs',
-            // Store timestamp if available, else placeholder
             created_at: item.created_at || null,
           }));
           mappedStock.sort((a: any, b: any) => Number(b.id) - Number(a.id));
@@ -297,8 +310,8 @@ export default function StoreKeeperDashboard() {
              id: c.id,
              customer: c.customer_name,
              details: c.cake_type,
-             pickupLocation: c.location,       // store location separately
-             pickupDate: c.delivery_date,   
+             pickupLocation: c.location,
+             pickupDate: c.delivery_date,
              status: c.status,
              totalPrice: c.price,
              paid: c.total_paid,
@@ -351,7 +364,7 @@ export default function StoreKeeperDashboard() {
     fetchAllData();
   }, [router, baseUrl]);
   
-  // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS ---
+  // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS (unchanged) ---
   useEffect(() => {
     if (activeFilter !== 'requests') return;
 
@@ -397,9 +410,9 @@ export default function StoreKeeperDashboard() {
   const getCurrentTime = () => {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-  // --- UPDATED FULL HISTORY: only stock additions and damages ---
+
+  // --- FULL HISTORY (unchanged) ---
   const fullHistory = [
-    // Products added by the store keeper (from "Add Product")
     ...myStock.map(s => ({
       type: 'STOCK ADDED',
       item: s.item,
@@ -407,7 +420,6 @@ export default function StoreKeeperDashboard() {
       time: s.created_at ? new Date(s.created_at).toLocaleString() : 'In Stock',
       color: 'text-teal-600',
     })),
-    // Damages reported by the store keeper
     ...damagedProducts.map(d => ({
       type: 'DAMAGE',
       item: d.item,
@@ -425,69 +437,77 @@ export default function StoreKeeperDashboard() {
 
   const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
 
-  // --- 2. BULK DELIVERY (POST /storekeeper/deliver) ---
-  const handleBulkDelivery = async () => {
-    if (selectedProductIds.length === 0) return;
-    // Validate available stock for each selected item
-for (const item of selectedItems) {
-  const stockItem = availableStock.find(s => s.product_id === item.product_id);
-  if (!stockItem) {
-    alert(`Product "${item.item}" not found in stock.`);
+// --- BULK DELIVERY (with branch validation & cleanup) ---
+const handleBulkDelivery = async () => {
+  if (selectedProductIds.length === 0) return;
+
+  // 1. ENSURE ALL SELECTED ITEMS ARE FROM THE SAME BRANCH
+  const branches = new Set(selectedItems.map(item => item.branch));
+  if (branches.size > 1) {
+    alert('Please select products from only one branch at a time.');
     return;
   }
-  if (item.quantity > stockItem.available) {
-    alert(`Not enough stock for "${item.item}". Available: ${stockItem.available}, requested: ${item.quantity}`);
-    return;
-  }
-}
-    const token = localStorage.getItem('token');
 
-    const uniqueOrderIds = Array.from(new Set(selectedItems.map(item => item.id)));
-    const destinationBranch = selectedItems[0]?.branch 
-        ? `${selectedItems[0].branch} Shop` 
-        : 'Unknown Shop';
-
-    try {
-      const response = await fetch(`${baseUrl}/storekeeper/deliver`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify({
-          order_ids: uniqueOrderIds,
-          cake_order_ids: [], 
-          recipient_name: destinationBranch,
-          payment_received: true
-        })
-      });
-
-      if (response.ok) {
-        const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
-        const noteData = { 
-            id: newNoteId, 
-            date: new Date().toLocaleDateString(), 
-            time: getCurrentTime(), 
-            items: selectedItems.map(item => ({ 
-                name: item.item, 
-                quantity: item.quantity, 
-                destination: `${item.branch.toUpperCase()} SHOP` 
-            })) 
-        };
-        setDeliveryNote(noteData);
-        setIssuedNotes(prev => [noteData, ...prev]);
-        setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
-        setSelectedProductIds([]);
-        
-        // Refresh delivery notes list after successful delivery
-        await fetchAllDeliveryNotes();
-      }
-    } catch (err) {
-      console.error("Delivery recording failed", err);
+  // 2. VALIDATE AVAILABLE STOCK FOR EACH SELECTED ITEM
+  for (const item of selectedItems) {
+    const stockItem = availableStock.find(s => s.item?.toLowerCase() === item.item?.toLowerCase());
+    if (!stockItem) {
+      alert(`Product "${item.item}" not found in stock.`);
+      return;
     }
-  };
+    if (item.quantity > stockItem.available) {
+      alert(`Not enough stock for "${item.item}". Available: ${stockItem.available}, requested: ${item.quantity}`);
+      return;
+    }
+  }
 
-  // --- 3. CORRECTED EDIT REQUEST (PUT /storekeeper/requests/{id} or /stock/{id}) ---
+  const token = localStorage.getItem('token');
+  const uniqueOrderIds = Array.from(new Set(selectedItems.map(item => item.id)));
+  const destinationBranch = selectedItems[0]?.branch 
+      ? `${selectedItems[0].branch} Shop` 
+      : 'Unknown Shop';
+
+  try {
+    const response = await fetch(`${baseUrl}/storekeeper/deliver`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify({
+        order_ids: uniqueOrderIds,
+        cake_order_ids: [], 
+        recipient_name: destinationBranch,
+        payment_received: true
+      })
+    });
+
+    if (response.ok) {
+      const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
+      const noteData = { 
+          id: newNoteId, 
+          date: new Date().toLocaleDateString(), 
+          time: getCurrentTime(), 
+          items: selectedItems.map(item => ({ 
+              name: item.item, 
+              quantity: item.quantity, 
+              destination: `${item.branch.toUpperCase()} SHOP` 
+          })) 
+      };
+      setDeliveryNote(noteData);
+      setIssuedNotes(prev => [noteData, ...prev]);
+      // Remove the fulfilled requests from the list
+      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
+      setSelectedProductIds([]);
+      
+      await fetchAllDeliveryNotes();
+    }
+  } catch (err) {
+    console.error("Delivery recording failed", err);
+  }
+};
+
+  // --- EDIT REQUEST (unchanged) ---
   const handleEditRequest = async () => {
     const qty = parseInt(editQty);
     if (isNaN(qty) || qty < 0 || !editingItem) return;
@@ -525,7 +545,7 @@ for (const item of selectedItems) {
     }
   };
 
-  // --- 4. NEW: RECORD CAKE PAYMENT (POST /sales/cake-order/{id}/payment) ---
+  // --- RECORD CAKE PAYMENT (unchanged) ---
   const handleRecordCakePayment = async (cakeId: number, amount: number) => {
     const token = localStorage.getItem('token');
     try {
@@ -555,6 +575,99 @@ for (const item of selectedItems) {
     }
   };
 
+  // --- NEW: Fetch single cake order detail ---
+  const fetchCakeOrderDetail = async (cakeId: number) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch(`${baseUrl}/storekeeper/cake-orders/${cakeId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const detail = await response.json();
+        setSelectedCakeOrderDetail(detail);
+        setShowCakeDetailModal(true);
+      } else {
+        alert("Failed to load cake order details.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch cake order detail", err);
+    }
+  };
+  // --- SUBMIT DAMAGE (NEW) ---
+const handleSubmitDamage = async () => {
+  const productNameEl = document.getElementById('damageProductName') as HTMLInputElement;
+  const qtyEl = document.getElementById('damageQty') as HTMLInputElement;
+  const reasonEl = document.getElementById('damageReason') as HTMLInputElement;
+
+  const productName = productNameEl?.value?.trim();
+  const qty = parseFloat(qtyEl?.value || '0');
+  const reason = reasonEl?.value?.trim() || '';
+
+  if (!productName || isNaN(qty) || qty <= 0) {
+    alert('Please select a product and enter a valid quantity.');
+    return;
+  }
+
+  // Find product by name in the available stock list (which includes product_id)
+  const stockItem = availableStock.find(
+    s => s.item?.toLowerCase() === productName.toLowerCase()
+  );
+  if (!stockItem) {
+    alert('Product not found in stock. Please use a valid product name.');
+    return;
+  }
+
+  const token = localStorage.getItem('token');
+  if (!token) return;
+
+  try {
+    const res = await fetch(`${baseUrl}/storekeeper/damage`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        product_id: stockItem.product_id,
+        quantity: qty,
+        unit: 'pcs',            // you can add a unit dropdown later
+        reason: reason,
+        location: 'store'       // adjust if needed
+      })
+    });
+
+    if (res.ok) {
+      // Refresh the damaged products list
+      const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+      const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
+      if (damagedRes.ok) {
+        const data = await damagedRes.json();
+        const mappedDamaged = data.map((d: any) => ({
+          id: d.id,
+          item: d.product?.name || 'Damaged Item',
+          quantity: d.quantity,
+          reason: d.reason || 'N/A',
+          date: d.date || 'N/A',
+          time: d.time || '',
+          created_at: d.created_at || null,
+        }));
+        mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+        setDamagedProducts(mappedDamaged);
+      }
+
+      // Clear the form
+      if (productNameEl) productNameEl.value = '';
+      if (qtyEl) qtyEl.value = '';
+      if (reasonEl) reasonEl.value = '';
+    } else {
+      const errorData = await res.json().catch(() => null);
+      alert('Failed to submit damage: ' + (errorData?.message || res.statusText));
+    }
+  } catch (err) {
+    console.error('Damage submission error:', err);
+    alert('Network error. Please try again.');
+  }
+};
   const stats = [
     { id: 'requests', label: 'Requests', value: (shopRequests?.length || 0).toString(), icon: Bell },
     { id: 'baked_log', label: 'Baked Products', value: (bakedProducts?.length || 0).toString(), icon: ChefHat },
@@ -571,7 +684,55 @@ for (const item of selectedItems) {
         @media print { body * { visibility: hidden; } #printable-note, #printable-note * { visibility: visible; } #printable-note { position: absolute; left: 0; top: 0; width: 100%; border: none !important; } .no-print { display: none !important; } }
       `}</style>
 
-      {/* --- DELIVERY NOTE DETAIL MODAL --- */}
+      {/* --- CAKE ORDER DETAIL MODAL (NEW) --- */}
+      {showCakeDetailModal && selectedCakeOrderDetail && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 no-print">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+            <div className="bg-[#F57C00] text-white p-4 flex justify-between items-center">
+              <h3 className="font-black uppercase text-sm">Cake Order #{selectedCakeOrderDetail.id}</h3>
+              <button onClick={() => setShowCakeDetailModal(false)} className="text-white hover:opacity-80">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
+              <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
+              <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
+              <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
+              <div><strong>Price:</strong> {selectedCakeOrderDetail.price} RWF</div>
+              <div><strong>Advance Payment:</strong> {selectedCakeOrderDetail.advance_payment} RWF</div>
+              <div><strong>Remaining:</strong> {selectedCakeOrderDetail.remaining_payment} RWF</div>
+              <div><strong>Total Paid:</strong> {selectedCakeOrderDetail.total_paid} RWF</div>
+              <div><strong>Location:</strong> {selectedCakeOrderDetail.location}</div>
+              <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
+              <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
+              <div><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
+              <div><strong>Cake Size:</strong> {selectedCakeOrderDetail.cake_size}</div>
+              <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
+              <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
+              <div><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
+              <div><strong>Reception Location:</strong> {selectedCakeOrderDetail.reception_location}</div>
+              <div><strong>Needs Sample:</strong> {selectedCakeOrderDetail.needs_sample ? 'Yes' : 'No'}</div>
+              {selectedCakeOrderDetail.inspo_image_url && (
+                <div className="col-span-2">
+                  <strong>Inspiration Image:</strong><br />
+                  <img src={selectedCakeOrderDetail.inspo_image_url} alt="Cake inspo" className="max-h-48 rounded-xl mt-2" />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 p-4">
+              <button 
+                onClick={() => setShowCakeDetailModal(false)}
+                className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- DELIVERY NOTE DETAIL MODAL (unchanged) --- */}
       {showDeliveryNoteModal && selectedDeliveryNote && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 no-print">
           <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
@@ -583,36 +744,36 @@ for (const item of selectedItems) {
             </div>
             <div className="p-6">
               <div id="printable-detail" className="bg-white p-6 rounded-xl border border-gray-200">
-  <div className="text-center mb-6">
-    <h2 className="font-bold text-lg uppercase">BINYA LTD</h2>
-    <p className="text-[10px]">Delivery Note</p>
-    <p>Date: {selectedDeliveryNote.date} | Time: {selectedDeliveryNote.time}</p>
-    <p>Recipient: {selectedDeliveryNote.recipient_name}</p>
-  </div>
-  <table className="w-full border-collapse border border-black text-xs">
-    <thead>
-      <tr className="border-b border-black font-bold">
-        <th className="border-r border-black p-1 text-left">ITEM</th>
-        <th className="border-r border-black p-1 text-center">QTY</th>
-        <th className="border-r border-black p-1 text-center">PRICE</th>
-        <th className="p-1 text-right">TOTAL</th>
-      </tr>
-    </thead>
-    <tbody>
-      {selectedDeliveryNote.items?.map((item, idx) => (
-        <tr key={idx} className="border-b border-black">
-          <td className="border-r border-black p-1">{item.product_name}</td>
-          <td className="border-r border-black p-1 text-center">{item.quantity}</td>
-          <td className="border-r border-black p-1 text-center">{item.unit_price}</td>
-          <td className="p-1 text-right">{item.total}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-  <div className="mt-4 text-right font-bold">
-    Total: {selectedDeliveryNote.total_amount} RWF
-  </div>
-</div>
+                <div className="text-center mb-6">
+                  <h2 className="font-bold text-lg uppercase">BINYA LTD</h2>
+                  <p className="text-[10px]">Delivery Note</p>
+                  <p>Date: {selectedDeliveryNote.date} | Time: {selectedDeliveryNote.time}</p>
+                  <p>Recipient: {selectedDeliveryNote.recipient_name}</p>
+                </div>
+                <table className="w-full border-collapse border border-black text-xs">
+                  <thead>
+                    <tr className="border-b border-black font-bold">
+                      <th className="border-r border-black p-1 text-left">ITEM</th>
+                      <th className="border-r border-black p-1 text-center">QTY</th>
+                      <th className="border-r border-black p-1 text-center">PRICE</th>
+                      <th className="p-1 text-right">TOTAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedDeliveryNote.items?.map((item, idx) => (
+                      <tr key={idx} className="border-b border-black">
+                        <td className="border-r border-black p-1">{item.product_name}</td>
+                        <td className="border-r border-black p-1 text-center">{item.quantity}</td>
+                        <td className="border-r border-black p-1 text-center">{item.unit_price}</td>
+                        <td className="p-1 text-right">{item.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-4 text-right font-bold">
+                  Total: {selectedDeliveryNote.total_amount} RWF
+                </div>
+              </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button 
                   onClick={() => downloadDeliveryNotePDF(selectedDeliveryNote.id)}
@@ -632,7 +793,7 @@ for (const item of selectedItems) {
         </div>
       )}
 
-      {/* --- EDIT POPUP --- */}
+      {/* --- EDIT POPUP (unchanged) --- */}
       {editingItem && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 no-print">
           <div className="bg-white w-full max-w-sm rounded-3xl p-8 space-y-5 shadow-2xl border border-gray-100 text-center text-black">
@@ -650,7 +811,7 @@ for (const item of selectedItems) {
         </div>
       )}
 
-      {/* --- DELIVERY NOTE POPUP --- */}
+      {/* --- DELIVERY NOTE POPUP (unchanged) --- */}
       {deliveryNote && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4 no-print">
           <div id="printable-note" className="bg-white w-full max-w-md shadow-2xl overflow-y-auto text-black p-8 font-serif border border-gray-200 max-h-[90vh]">
@@ -739,12 +900,12 @@ for (const item of selectedItems) {
         </div>
       )}
 
-      {/* --- HEADER --- */}
+      {/* --- HEADER (unchanged) --- */}
       <div className="flex items-center gap-4 pt-6 no-print text-black">
         <h1 className="text-2xl font-black text-black uppercase tracking-tight">STORE KEEPER</h1>
       </div>
 
-      {/* --- STATS GRID --- */}
+      {/* --- STATS GRID (unchanged) --- */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 no-print text-black">
         {stats.map((stat) => (
           <div 
@@ -769,7 +930,7 @@ for (const item of selectedItems) {
         ))}
       </div>
 
-      {/* --- MAIN CONTENT --- */}
+      {/* --- MAIN CONTENT (unchanged except for My Stock table and Cake Orders) --- */}
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 min-h-[450px] no-print overflow-hidden text-black">
         <div className={`flex flex-col md:flex-row md:items-center justify-between p-7 gap-4 border-b ${activeFilter === 'damaged' ? 'border-rose-100 bg-rose-50/30' : 'border-gray-200'}`}>
            <h2 className={`text-xl font-black uppercase tracking-tight ${activeFilter === 'damaged' ? 'text-rose-700' : 'text-[#F57C00]'}`}>
@@ -781,7 +942,7 @@ for (const item of selectedItems) {
            )}
         </div>
 
-        {/* REQUESTS GRID (with search) */}
+        {/* REQUESTS GRID (unchanged) */}
         {activeFilter === 'requests' && (
           <div className="overflow-x-auto text-black">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
@@ -817,59 +978,70 @@ for (const item of selectedItems) {
           </div>
         )}
 
-        {/* MY STOCK GRID (with search) */}
-        {/* MY STOCK GRID – NOW WITH PHYSICAL / REQUESTED / AVAILABLE COLUMNS */}
-{activeFilter === 'my_stock' && (
-  <div className="overflow-x-auto text-black">
-    <div className="flex justify-between items-center p-4 border-b border-gray-200">
-      <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">My Stock</h3>
-      <input
-        type="text"
-        placeholder="Search stock..."
-        value={stockSearch}
-        onChange={(e) => setStockSearch(e.target.value)}
-        className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
-      />
-    </div>
-    <table className="w-full text-left font-bold">
-      <thead>
-        <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
-          <th className="px-8 py-4">Item Name</th>
-          <th className="px-8 py-4 text-center">Physical</th>
-          <th className="px-8 py-4 text-center">Requested</th>
-          <th className="px-8 py-4 text-center">Available</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100">
-        {availableStock
-          .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
-          .map((s) => (
-            <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-              <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">
-                {s.item}
-              </td>
-              <td className="px-8 py-6 text-center font-black text-gray-900">
-                {s.quantity}
-              </td>
-              <td className="px-8 py-6 text-center font-black text-blue-600">
-                {s.requested}
-              </td>
-              <td className="px-8 py-6 text-center font-black text-lg">
-                <span className={s.available < 0 ? 'text-red-600' : 'text-green-700'}>
-                  {s.available}
-                </span>
-              </td>
-            </tr>
-          ))}
-        {availableStock.filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase())).length === 0 && (
-          <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching stock items</td></tr>
+        {/* MY STOCK GRID (NOW USING API DATA WITH FALLBACK) */}
+        {activeFilter === 'my_stock' && (
+          <div className="overflow-x-auto text-black">
+            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">My Stock</h3>
+              <input
+                type="text"
+                placeholder="Search stock..."
+                value={stockSearch}
+                onChange={(e) => setStockSearch(e.target.value)}
+                className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+              />
+            </div>
+            <table className="w-full text-left font-bold">
+              <thead>
+                <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
+                  <th className="px-8 py-4">Item Name</th>
+                  <th className="px-8 py-4 text-center">Physical</th>
+                  <th className="px-8 py-4 text-center">Requested</th>
+                  <th className="px-8 py-4 text-center">Available</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {/* Use API data if available, else fallback to computed availableStock */}
+                {apiAvailableStock.length > 0 ? (
+                  apiAvailableStock
+                    .filter(s => s.product_name.toLowerCase().includes(stockSearch.toLowerCase()))
+                    .map((s) => (
+                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.product_name}</td>
+                        <td className="px-8 py-6 text-center font-black text-gray-900">{s.physical_quantity}</td>
+                        <td className="px-8 py-6 text-center font-black text-blue-600">{s.requested_quantity}</td>
+                        <td className="px-8 py-6 text-center font-black text-lg">
+                          <span className={s.available_quantity < 0 ? 'text-red-600' : 'text-green-700'}>
+                            {s.available_quantity}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                ) : (
+                  availableStock
+                    .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
+                    .map((s) => (
+                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
+                        <td className="px-8 py-6 text-center font-black text-gray-900">{s.quantity}</td>
+                        <td className="px-8 py-6 text-center font-black text-blue-600">{s.requested}</td>
+                        <td className="px-8 py-6 text-center font-black text-lg">
+                          <span className={s.available < 0 ? 'text-red-600' : 'text-green-700'}>{s.available}</span>
+                        </td>
+                      </tr>
+                    ))
+                )}
+                {(apiAvailableStock.length === 0 ? availableStock : apiAvailableStock).filter((s: any) => 
+                  (s.product_name || s.item).toLowerCase().includes(stockSearch.toLowerCase())
+                ).length === 0 && (
+                  <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching stock items</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         )}
-      </tbody>
-    </table>
-  </div>
-)}
 
-        {/* BAKED PRODUCTS GRID (with search) */}
+        {/* BAKED PRODUCTS GRID (unchanged) */}
         {activeFilter === 'baked_log' && (
           <div className="overflow-x-auto">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
@@ -902,10 +1074,9 @@ for (const item of selectedItems) {
           </div>
         )}
 
-        {/* DAMAGED GRID (with search) */}
+        {/* DAMAGED GRID (unchanged) */}
         {activeFilter === 'damaged' && (
           <div className="p-8 animate-in fade-in">
-            {/* Damage report form unchanged */}
             <div className="bg-red-50/30 p-6 rounded-3xl border border-red-100 mb-8">
               <h3 className="text-[10px] font-black uppercase mb-4 text-red-600 tracking-[0.2em]">Report New Damage</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -975,16 +1146,13 @@ for (const item of selectedItems) {
                   className="bg-white border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500"
                 />
                 <button 
-                  onClick={async () => {
-                    // ... existing damage submission code unchanged
-                  }}
-                  className="bg-red-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-700 transition-all"
-                >
-                  Submit Damage
-                </button>
+  onClick={handleSubmitDamage}
+  className="bg-red-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-red-700 transition-all"
+>
+  Submit Damage
+</button>
               </div>
             </div>
-            {/* Damaged products list with search */}
             <div className="overflow-x-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-[10px] font-black uppercase text-red-600 tracking-[0.2em]">Damaged Products Log</h3>
@@ -1023,7 +1191,7 @@ for (const item of selectedItems) {
           </div>
         )}
 
-        {/* DELIVERY NOTES SECTION - GET /storekeeper/delivery-notes (with search) */}
+        {/* DELIVERY NOTES SECTION (unchanged) */}
         {activeFilter === 'notes' && (
           <div className="overflow-x-auto p-8">
             <div className="mb-6">
@@ -1096,7 +1264,7 @@ for (const item of selectedItems) {
           </div>
         )}
 
-        {/* CAKE ORDERS WITH PAYMENT API LOGIC (with search) */}
+        {/* CAKE ORDERS WITH PAYMENT API LOGIC (NOW WITH CLICKABLE ROWS FOR DETAIL) */}
         {activeFilter === 'cake_orders' && (
           <div className="overflow-x-auto">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">
@@ -1115,7 +1283,7 @@ for (const item of selectedItems) {
                 {cakeOrders
                   .filter(order => order.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || order.details.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
                   .map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => fetchCakeOrderDetail(order.id)}>
                       <td className="px-8 py-6">
                         <div className="flex flex-col">
                           <span className="font-black text-[#F57C00] uppercase text-sm">{order.customer}</span>
@@ -1134,7 +1302,7 @@ for (const item of selectedItems) {
                        <td className="px-8 py-6 text-right text-xs font-black text-gray-400">
                                             {order.pickupLocation} – {order.pickupDate?.split('T')[0]}
                         </td>
-                       <td className="px-8 py-6 text-right">
+                       <td className="px-8 py-6 text-right" onClick={(e) => e.stopPropagation()}>
                          {order.remaining > 0 && (
                             <button onClick={() => handleRecordCakePayment(order.id, order.remaining)} className="text-[9px] bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors uppercase font-black shadow-md active:scale-95">
                               Record Pay
@@ -1151,7 +1319,7 @@ for (const item of selectedItems) {
           </div>
         )}
 
-        {/* FULL HISTORY SECTION (with search) – NOW ONLY SHOWS STOCK ADDITIONS & DAMAGES */}
+        {/* FULL HISTORY SECTION (unchanged) */}
         {activeFilter === 'full_history' && (
           <div className="overflow-x-auto p-8">
             <div className="flex justify-between items-center mb-4">
@@ -1194,7 +1362,7 @@ for (const item of selectedItems) {
           </div>
         )}
 
-        {/* DELIVERED (Full Added Products) with search */}
+        {/* DELIVERED (unchanged) */}
         {activeFilter === 'delivered' && (
           <div className="overflow-x-auto">
             <div className="flex justify-between items-center p-4 border-b border-gray-200">

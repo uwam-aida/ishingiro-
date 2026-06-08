@@ -139,7 +139,7 @@ export default function StoreKeeperAddProduct() {
       const payload = {
         product_id: exactMatch.id || (STORE_PRODUCTS.indexOf(exactMatch) + 1), 
         quantity: Number(quantity),
-        location: 'kabuga', 
+        location: 'factory',
         unit: unit.toLowerCase(), // Required field from documentation
         description: "Stock addition via dashboard"
       };
