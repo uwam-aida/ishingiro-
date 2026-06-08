@@ -192,7 +192,6 @@ class StoreKeeperController extends Controller
                         $itemTotal = $item->quantity * $item->price;
                         $orderTotal += $itemTotal;
 
-                        // Record delivery
                         Delivery::create([
                             'product_id'    => $item->product_id,
                             'quantity'      => $item->quantity,
@@ -200,7 +199,6 @@ class StoreKeeperController extends Controller
                             'to_location'   => $order->location,
                         ]);
 
-                        // Get or create factory stock (auto-create if doesn't exist)
                         $factoryStock = Stock::firstOrCreate(
                             ['product_id' => $item->product_id, 'location' => 'factory'],
                             [
@@ -210,15 +208,13 @@ class StoreKeeperController extends Controller
                             ]
                         );
 
-                        // Check if enough stock available
                         if ($factoryStock->quantity < $item->quantity) {
                             throw new \Exception(
                                 "Insufficient stock for product: " . ($product->name ?? 'Unknown') . ". " .
-                                "Available in factory: {$factoryStock->quantity}, Requested: {$item->quantity}"
+                                "Available: {$factoryStock->quantity}, Requested: {$item->quantity}"
                             );
                         }
 
-                        // Reduce factory stock
                         $factoryStock->decrement('quantity', $item->quantity);
 
                         StockMovement::create([
@@ -230,7 +226,6 @@ class StoreKeeperController extends Controller
                             'note'       => "Dispatched to {$order->location}",
                         ]);
 
-                        // Increase shop stock
                         $shopStock = Stock::firstOrCreate([
                             'product_id' => $item->product_id,
                             'location'   => $order->location,
@@ -296,7 +291,7 @@ class StoreKeeperController extends Controller
                 }
             }
 
-            // ── Save delivery note to database ────────────────────────────
+            // ── Save delivery note with ALL possible keys ─────────────────
             $allItems = collect();
 
             foreach ($orders as $order) {
@@ -305,6 +300,7 @@ class StoreKeeperController extends Controller
                     $allItems->push([
                         'name' => $productName,
                         'product_name' => $productName,
+                        'item_name' => $productName,
                         'qty' => $item->quantity,
                         'quantity' => $item->quantity,
                         'unit_price' => $item->price,
@@ -319,6 +315,7 @@ class StoreKeeperController extends Controller
                 $allItems->push([
                     'name' => $cakeName,
                     'product_name' => $cakeName,
+                    'item_name' => $cakeName,
                     'qty' => $cake->quantity,
                     'quantity' => $cake->quantity,
                     'unit_price' => $cake->price,
@@ -717,15 +714,16 @@ class StoreKeeperController extends Controller
         $note = DeliveryNote::with('user')->findOrFail($id);
         
         $transformedItems = collect($note->items)->map(function ($item) {
-            $productName = $item['product_name'] 
-                ?? $item['name'] 
+            // Try all possible keys for product name
+            $productName = $item['name'] 
+                ?? $item['product_name'] 
+                ?? $item['item_name'] 
                 ?? $item['item'] 
-                ?? $item['product'] 
                 ?? 'Unknown Product';
             
             return [
                 'name' => $productName,
-                'qty' => $item['quantity'] ?? $item['qty'] ?? 0,
+                'qty' => $item['qty'] ?? $item['quantity'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
                 'total' => $item['total'] ?? 0,
             ];
@@ -750,15 +748,16 @@ class StoreKeeperController extends Controller
         $note = DeliveryNote::with('user')->findOrFail($id);
         
         $items = collect($note->items)->map(function ($item) {
-            $productName = $item['product_name'] 
-                ?? $item['name'] 
+            // Try all possible keys for product name
+            $productName = $item['name'] 
+                ?? $item['product_name'] 
+                ?? $item['item_name'] 
                 ?? $item['item'] 
-                ?? $item['product'] 
                 ?? 'Unknown Product';
             
             return [
                 'name' => $productName,
-                'qty' => $item['quantity'] ?? $item['qty'] ?? 0,
+                'qty' => $item['qty'] ?? $item['quantity'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
                 'total' => $item['total'] ?? 0,
             ];

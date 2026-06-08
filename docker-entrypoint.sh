@@ -64,7 +64,7 @@ php artisan storage:link
 # ============================================
 # FIX EXISTING DELIVERY NOTES
 # ============================================
-echo "Fixing delivery notes product names..."
+echo "Fixing delivery notes..."
 php artisan fix:delivery-notes
 
 # ============================================

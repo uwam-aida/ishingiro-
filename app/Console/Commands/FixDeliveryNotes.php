@@ -16,7 +16,7 @@ class FixDeliveryNotes extends Command
         $fixed = 0;
 
         if ($notes->count() === 0) {
-            $this->info('No delivery notes found to fix.');
+            $this->info('No delivery notes found.');
             return;
         }
 
@@ -26,30 +26,33 @@ class FixDeliveryNotes extends Command
 
             foreach ($items as &$item) {
                 // Determine the product name from any available key
-                $productName = $item['product_name'] ?? $item['name'] ?? $item['item'] ?? null;
+                $productName = null;
                 
-                if ($productName) {
-                    if (!isset($item['name'])) {
-                        $item['name'] = $productName;
-                        $updated = true;
-                    }
-                    if (!isset($item['product_name'])) {
-                        $item['product_name'] = $productName;
-                        $updated = true;
-                    }
-                } else {
-                    // If no product name found, set a default
-                    if (!isset($item['name'])) {
-                        $item['name'] = 'Product';
-                        $updated = true;
-                    }
-                    if (!isset($item['product_name'])) {
-                        $item['product_name'] = 'Product';
-                        $updated = true;
-                    }
+                if (isset($item['name'])) {
+                    $productName = $item['name'];
+                } elseif (isset($item['product_name'])) {
+                    $productName = $item['product_name'];
+                } elseif (isset($item['item_name'])) {
+                    $productName = $item['item_name'];
+                } elseif (isset($item['item'])) {
+                    $productName = $item['item'];
                 }
                 
-                // Ensure qty keys exist
+                if ($productName) {
+                    // Set ALL possible keys
+                    $item['name'] = $productName;
+                    $item['product_name'] = $productName;
+                    $item['item_name'] = $productName;
+                    $updated = true;
+                } else {
+                    // If no name found, set a default
+                    $item['name'] = 'Product';
+                    $item['product_name'] = 'Product';
+                    $item['item_name'] = 'Product';
+                    $updated = true;
+                }
+                
+                // Ensure quantity keys
                 if (isset($item['quantity']) && !isset($item['qty'])) {
                     $item['qty'] = $item['quantity'];
                     $updated = true;
@@ -59,7 +62,7 @@ class FixDeliveryNotes extends Command
                     $updated = true;
                 }
                 
-                // Ensure price keys exist
+                // Ensure price keys
                 if (isset($item['unit_price']) && !isset($item['price'])) {
                     $item['price'] = $item['unit_price'];
                     $updated = true;
@@ -69,7 +72,7 @@ class FixDeliveryNotes extends Command
                     $updated = true;
                 }
                 
-                // Ensure total exists
+                // Ensure total
                 if (!isset($item['total']) && isset($item['qty']) && isset($item['unit_price'])) {
                     $item['total'] = $item['qty'] * $item['unit_price'];
                     $updated = true;
