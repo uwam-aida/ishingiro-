@@ -287,6 +287,7 @@ class SalesController extends Controller
     // Get single order with full details
     public function getRequestDetails($id)
     {
+      
         $order = Order::with('items.product', 'user')->findOrFail($id);
         
         return response()->json([
