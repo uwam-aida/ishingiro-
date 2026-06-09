@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  ChefHat, 
-  Trash2, 
-  History, 
+import {
+  ChefHat,
+  Trash2,
+  History,
   ArrowLeft,
   Search,
   Package,
@@ -13,7 +13,7 @@ import {
   X,
   Scale,
   Box,
-  AlertCircle
+  AlertCircle,
 } from 'lucide-react';
 
 export default function BakerDashboard() {
@@ -37,11 +37,14 @@ export default function BakerDashboard() {
   const [productSearch, setProductSearch] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
-  // --- MODAL STATES for production/damage (existing) ---
+  // --- MODAL STATES for production/damage ---
   const [showModal, setShowModal] = useState<'production' | 'damage' | null>(null);
   const [prodFormProduct, setProdFormProduct] = useState('');
   const [prodFormQty, setProdFormQty] = useState('');
   const [prodFormReason, setProdFormReason] = useState('');
+  // NEW state for damaged product search
+  const [damageProdSearch, setDamageProdSearch] = useState('');
+  const [showDamageDropdown, setShowDamageDropdown] = useState(false);
 
   // --- AUTHENTICATION CHECK & API FETCH ---
   const fetchBakerData = async () => {
@@ -61,7 +64,6 @@ export default function BakerDashboard() {
 
       const productsRes = await fetch(`${baseUrl}/products`, { headers });
       if (productsRes.ok) setRealProducts(await productsRes.json());
-
     } catch (error) {
       console.error("Failed to fetch baker data", error);
     }
@@ -119,7 +121,7 @@ export default function BakerDashboard() {
         setFormProduct('');
         setFormQty('');
         setFormUnit('kg');
-        fetchBakerData(); // refresh all data
+        fetchBakerData();
       } else {
         const error = await response.json();
         setErrorMessage(error.message || "Failed to add measured product");
@@ -132,7 +134,7 @@ export default function BakerDashboard() {
     }
   };
 
-  // --- POST API for production and damage (existing, kept unchanged) ---
+  // --- POST API for production and damage ---
   const handlePostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -154,13 +156,19 @@ export default function BakerDashboard() {
         await fetch(`${baseUrl}/baker/damage`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ product_id: dbProductId, quantity: parseInt(prodFormQty), reason: prodFormReason, location: 'kabuga' })
+          body: JSON.stringify({
+            product_id: dbProductId,
+            quantity: parseInt(prodFormQty),
+            reason: prodFormReason,
+            location: 'kabuga'
+          })
         });
       }
       setShowModal(null);
       setProdFormProduct('');
       setProdFormQty('');
       setProdFormReason('');
+      setDamageProdSearch(''); // clear search
       fetchBakerData();
     } catch (error) {
       console.error("Submission failed", error);
@@ -169,19 +177,24 @@ export default function BakerDashboard() {
     }
   };
 
-  // --- STATS CARDS (new card for Measured Products) ---
+  // --- Filter products for search dropdowns ---
+  const filteredProductsForMeasured = realProducts.filter(p =>
+    p.name.toLowerCase().includes(productSearch.toLowerCase())
+  );
+  const filteredProductsForDamage = realProducts.filter(p =>
+    p.name.toLowerCase().includes(damageProdSearch.toLowerCase())
+  );
+
+  // --- STATS CARDS ---
   const stats = [
-    { label: 'Measured Products', value: ingredients.length.toString(), icon: Scale, color: 'bg-orange-50 text-[#F57C00]' },    { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
+    { label: 'Measured Products', value: ingredients.length.toString(), icon: Scale, color: 'bg-orange-50 text-[#F57C00]' },
+    { label: 'Baked Products', value: bakedProducts.length.toString(), icon: ChefHat, color: 'bg-orange-50 text-[#F57C00]' },
     { label: 'Damaged Items', value: damagedItems.length.toString(), icon: Trash2, color: 'bg-red-50 text-red-600' },
-    { label: 'Full Added Products', value: (damagedItems.length + ingredients.length).toString(), icon: History, color: 'bg-gray-100 text-black' },  ];
-  const filteredProducts = realProducts.filter(p =>
-     p.name.toLowerCase().includes(productSearch.toLowerCase())
-      );
+    { label: 'Full Added Products', value: (damagedItems.length + ingredients.length).toString(), icon: History, color: 'bg-gray-100 text-black' },
+  ];
+
   // --- LIST DATA with real timestamps and sorting ---
   const getGridData = (view: string) => {
-    const filteredProducts = realProducts.filter(p =>
-  p.name.toLowerCase().includes(productSearch.toLowerCase())
-);
     let items: any[] = [];
 
     switch (view) {
@@ -194,7 +207,6 @@ export default function BakerDashboard() {
           status: 'Measured',
           rawDate: i.created_at
         }));
-        items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
         break;
       case 'Baked Products':
         items = bakedProducts.map(p => ({
@@ -205,7 +217,6 @@ export default function BakerDashboard() {
           status: 'In Stock',
           rawDate: p.created_at
         }));
-        items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
         break;
       case 'Damaged Items':
         items = damagedItems.map(d => ({
@@ -216,30 +227,30 @@ export default function BakerDashboard() {
           status: 'Waste',
           rawDate: d.created_at
         }));
-        items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
         break;
       case 'Full Added Products':
-  const damageEntries = damagedItems.map(d => ({
-    id: `DM-${d.id}`,
-    item: d.product?.name || `Product #${d.product_id}`,
-    qty: `${d.quantity} pcs`,
-    dateTime: d.created_at ? new Date(d.created_at).toLocaleString() : 'Logged',
-    status: 'Damage',
-    rawDate: d.created_at
-  }));
-  const ingredientEntries = ingredients.map(i => ({
-    id: `ING-${i.id}`,
-    item: i.name || 'Ingredient',
-    qty: `${i.quantity} ${i.unit || ''}`,
-    dateTime: i.created_at ? new Date(i.created_at).toLocaleString() : 'Logged',
-    status: 'Measured',
-    rawDate: i.created_at
-  }));
-  items = [...damageEntries, ...ingredientEntries];
-  items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
-  break;
-      default: return [];
+        const damageEntries = damagedItems.map(d => ({
+          id: `DM-${d.id}`,
+          item: d.product?.name || `Product #${d.product_id}`,
+          qty: `${d.quantity} pcs`,
+          dateTime: d.created_at ? new Date(d.created_at).toLocaleString() : 'Logged',
+          status: 'Damage',
+          rawDate: d.created_at
+        }));
+        const ingredientEntries = ingredients.map(i => ({
+          id: `ING-${i.id}`,
+          item: i.name || 'Ingredient',
+          qty: `${i.quantity} ${i.unit || ''}`,
+          dateTime: i.created_at ? new Date(i.created_at).toLocaleString() : 'Logged',
+          status: 'Measured',
+          rawDate: i.created_at
+        }));
+        items = [...damageEntries, ...ingredientEntries];
+        break;
+      default:
+        return [];
     }
+    items.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
     return items;
   };
 
@@ -250,8 +261,8 @@ export default function BakerDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10 px-4 pt-4 relative">
-      
-      {/* --- MODAL FOR ADDING MEASURED PRODUCT (NEW) --- */}
+
+      {/* --- MODAL FOR ADDING MEASURED PRODUCT (unchanged) --- */}
       {showMeasuredModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
@@ -265,69 +276,59 @@ export default function BakerDashboard() {
               <h2 className="text-2xl font-black uppercase text-black">Add Measured Item</h2>
             </div>
             <form onSubmit={handleAddMeasuredProduct} className="space-y-5">
-              <div className="relative">
-  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1 mb-1">
-    <Box size={12} /> Product Name
-  </label>
-  <div className="relative">
-    <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-      <Search size={16} className="text-gray-400" />
-    </div>
-    <input
-      type="text"
-      value={productSearch}
-      onChange={(e) => {
-        setProductSearch(e.target.value);
-        setShowProductDropdown(true);
-      }}
-      onFocus={() => setShowProductDropdown(true)}
-      onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
-      placeholder="Search product..."
-      className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-4 pl-12 pr-4 font-bold outline-none focus:border-[#F57C00]"
-    />
-  </div>
-  {showProductDropdown && productSearch && (
-    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-      {filteredProducts.length > 0 ? (
-        filteredProducts.map((prod) => (
-          <div
-            key={prod.id}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              setFormProduct(prod.name);
-              setProductSearch(prod.name);
-              setShowProductDropdown(false);
-            }}
-            className="px-5 py-3 hover:bg-orange-50 cursor-pointer flex justify-between items-center text-sm font-bold text-gray-700 uppercase transition-colors"
-          >
-            <span>{prod.name}</span>
-            <span className="text-[10px] text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">{prod.category}</span>
-          </div>
-        ))
-      ) : (
-        <div className="px-5 py-4 text-sm font-bold text-gray-400 text-center uppercase">No products found</div>
-      )}
-    </div>
-  )}
-</div>
+              {/* Product search dropdown (as before) */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1 mb-1">
+                  <Box size={12} /> Product Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <Search size={16} className="text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setShowProductDropdown(true);
+                    }}
+                    onFocus={() => setShowProductDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
+                    placeholder="Search product..."
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-4 pl-12 pr-4 font-bold outline-none focus:border-[#F57C00]"
+                  />
+                </div>
+                {showProductDropdown && productSearch && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                    {filteredProductsForMeasured.length > 0 ? (
+                      filteredProductsForMeasured.map((prod) => (
+                        <div
+                          key={prod.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setFormProduct(prod.name);
+                            setProductSearch(prod.name);
+                            setShowProductDropdown(false);
+                          }}
+                          className="px-5 py-3 hover:bg-orange-50 cursor-pointer flex justify-between items-center text-sm font-bold text-gray-700 uppercase transition-colors"
+                        >
+                          <span>{prod.name}</span>
+                          <span className="text-[10px] text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">{prod.category}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-5 py-4 text-sm font-bold text-gray-400 text-center uppercase">No products found</div>
+                    )}
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantity</label>
-                <input
-                  required
-                  type="number"
-                  value={formQty}
-                  onChange={(e) => setFormQty(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl font-bold outline-none focus:border-blue-500 mt-1"
-                  placeholder="0.00"
-                />
+                <input required type="number" value={formQty} onChange={(e) => setFormQty(e.target.value)} className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl font-bold outline-none focus:border-blue-500 mt-1" placeholder="0.00" />
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Unit</label>
-                <select
-                  value={formUnit}
-                  onChange={(e) => setFormUnit(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl font-bold outline-none focus:border-blue-500 mt-1"
-                >
+                <select value={formUnit} onChange={(e) => setFormUnit(e.target.value)} className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl font-bold outline-none focus:border-blue-500 mt-1">
                   <option value="kg">kg</option>
                   <option value="g">g</option>
                   <option value="liters">liters</option>
@@ -339,32 +340,74 @@ export default function BakerDashboard() {
                   <AlertCircle size={14} /> {errorMessage}
                 </div>
               )}
-              <button
-                   type="submit"
-                   disabled={isSubmitting}
-                   className="w-full bg-[#F57C00] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition disabled:opacity-50"
-              >
-                    {isSubmitting ? 'Saving...' : 'Confirm and Add'}
+              <button type="submit" disabled={isSubmitting} className="w-full bg-[#F57C00] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-black transition disabled:opacity-50">
+                {isSubmitting ? 'Saving...' : 'Confirm and Add'}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* --- MODAL FOR PRODUCTION / DAMAGE (unchanged) --- */}
+      {/* --- MODAL FOR PRODUCTION / DAMAGE (UPDATED: searchable product dropdown for damage) --- */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
-            <button onClick={() => setShowModal(null)} className="absolute top-6 right-6 text-gray-400 hover:text-black">
+            <button onClick={() => {
+              setShowModal(null);
+              setDamageProdSearch('');
+            }} className="absolute top-6 right-6 text-gray-400 hover:text-black">
               <X size={24} />
             </button>
             <h2 className="text-2xl font-black uppercase mb-6 text-[#F57C00]">
               {showModal === 'production' ? 'Log Production' : 'Report Damage'}
             </h2>
             <form onSubmit={handlePostSubmit} className="space-y-4">
+              {/* Product selection */}
               <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Product Name</label>
-                <input required type="text" value={prodFormProduct} onChange={(e) => setProdFormProduct(e.target.value)} className="w-full bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-[#F57C00] mt-1" />
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-1 mb-1">
+                  <Box size={12} /> Product Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                    <Search size={16} className="text-gray-400" />
+                  </div>
+                  <input
+                    required
+                    type="text"
+                    value={damageProdSearch}
+                    onChange={(e) => {
+                      setDamageProdSearch(e.target.value);
+                      setShowDamageDropdown(true);
+                    }}
+                    onFocus={() => setShowDamageDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDamageDropdown(false), 200)}
+                    placeholder="Search product..."
+                    className="w-full bg-gray-50 border border-gray-200 rounded-2xl py-4 pl-12 pr-4 font-bold outline-none focus:border-[#F57C00]"
+                  />
+                </div>
+                {showDamageDropdown && damageProdSearch && (
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                    {filteredProductsForDamage.length > 0 ? (
+                      filteredProductsForDamage.map((prod) => (
+                        <div
+                          key={prod.id}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setProdFormProduct(prod.name);
+                            setDamageProdSearch(prod.name);
+                            setShowDamageDropdown(false);
+                          }}
+                          className="px-5 py-3 hover:bg-orange-50 cursor-pointer flex justify-between items-center text-sm font-bold text-gray-700 uppercase transition-colors"
+                        >
+                          <span>{prod.name}</span>
+                          <span className="text-[10px] text-gray-400 px-2 py-1 bg-gray-100 rounded-lg">{prod.category}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-5 py-4 text-sm font-bold text-gray-400 text-center uppercase">No products found</div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantity</label>
@@ -396,8 +439,8 @@ export default function BakerDashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
-              <button 
-                key={index} 
+              <button
+                key={index}
                 onClick={() => setCurrentView(stat.label)}
                 className="bg-white p-10 rounded-[48px] border-2 border-transparent shadow-sm hover:border-[#F57C00] hover:shadow-xl transition-all text-left group active:scale-95 flex flex-col"
               >
@@ -416,14 +459,13 @@ export default function BakerDashboard() {
           </div>
         </>
       ) : (
-        /* --- LIST VIEWS (Measured Products, Baked Products, Damaged Items, Full Added Products) --- */
         <div className="animate-in slide-in-from-right-4 duration-400">
-          <button 
+          <button
             onClick={() => setCurrentView('Dashboard')}
             className="flex items-center gap-3 text-black font-black uppercase text-[10px] tracking-[0.2em] hover:text-[#F57C00] mb-10 transition-colors group"
           >
             <div className="p-2 bg-gray-100 rounded-lg group-hover:bg-orange-100 transition-colors">
-              <ArrowLeft size={16} /> 
+              <ArrowLeft size={16} />
             </div>
             Back to Overview
           </button>
@@ -433,18 +475,18 @@ export default function BakerDashboard() {
               <div className="text-center md:text-left">
                 <h2 className="text-4xl font-black text-black uppercase tracking-tighter">{currentView}</h2>
                 <p className="text-[#F57C00] text-[10px] font-black uppercase tracking-[0.2em] mt-1">
-                  {currentView === 'Measured Products' ? 'Ingredients ready for baking' : 
+                  {currentView === 'Measured Products' ? 'Ingredients ready for baking' :
                    currentView === 'Full Added Products' ? 'Complete production log' : 'Current shift records'}
                 </p>
               </div>
-              
+
               <div className="flex items-center gap-4 w-full md:w-auto">
                 {currentView === 'Measured Products' && (
                   <button onClick={() => setShowMeasuredModal(true)} className="bg-[#F57C00] text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-black transition-colors flex-shrink-0">
                     <PlusCircle size={16}/> Add Measured Item
                   </button>
                 )}
-                
+
                 {currentView === 'Damaged Items' && (
                   <button onClick={() => setShowModal('damage')} className="bg-red-600 text-white px-6 py-4 rounded-3xl font-black uppercase text-[10px] tracking-widest flex items-center gap-2 hover:bg-red-700 transition-colors flex-shrink-0">
                     <Trash2 size={16}/> Report Waste
@@ -452,12 +494,12 @@ export default function BakerDashboard() {
                 )}
                 <div className="relative w-full md:w-64">
                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input 
-                    type="text" 
-                    placeholder="SEARCH..." 
+                  <input
+                    type="text"
+                    placeholder="SEARCH..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-14 pr-8 py-4 bg-gray-50 border-none rounded-3xl outline-none focus:ring-2 focus:ring-[#F57C00]/20 font-bold text-[10px] uppercase tracking-widest text-black" 
+                    className="w-full pl-14 pr-8 py-4 bg-gray-50 border-none rounded-3xl outline-none focus:ring-2 focus:ring-[#F57C00]/20 font-bold text-[10px] uppercase tracking-widest text-black"
                   />
                 </div>
               </div>
@@ -493,7 +535,7 @@ export default function BakerDashboard() {
                         <div className="flex flex-col items-end gap-1">
                           <span className={`px-5 py-2 rounded-2xl text-[9px] font-black uppercase tracking-[0.15em] shadow-sm ${
                             row.status === 'Measured' ? 'bg-blue-600 text-white' :
-                            row.status === 'Waste' || row.status === 'Damage' ? 'bg-red-600 text-white' : 
+                            row.status === 'Waste' || row.status === 'Damage' ? 'bg-red-600 text-white' :
                             'bg-black text-white'
                           }`}>
                             {row.status}
@@ -506,7 +548,7 @@ export default function BakerDashboard() {
                 </tbody>
               </table>
             </div>
-            
+
             {currentData.length === 0 && (
               <div className="p-32 text-center uppercase font-black text-gray-200 text-xl tracking-[0.5em]">No Data</div>
             )}
@@ -517,7 +559,6 @@ export default function BakerDashboard() {
   );
 }
 
-// PlusCircleIcon helper (unchanged)
 function PlusCircleIcon({size}: {size: number}) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

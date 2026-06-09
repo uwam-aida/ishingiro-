@@ -1,8 +1,9 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Bell, CheckCircle, SlidersHorizontal, Clock, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { Bell, SlidersHorizontal, Clock, ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 
 export default function StoreKeeperNotifications() {
   const router = useRouter(); 
@@ -10,8 +11,7 @@ export default function StoreKeeperNotifications() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- 1. FETCH NOTIFICATIONS (WITH AUTO-REFRESH) ---
-  // --- 1. FETCH NOTIFICATIONS (WITH AUTO-REFRESH) ---
+  // --- FETCH NOTIFICATIONS (WITH AUTO-REFRESH) ---
   const fetchNotifications = async (showLoader = false) => {
     if (showLoader) setIsLoading(true);
     try {
@@ -26,14 +26,24 @@ export default function StoreKeeperNotifications() {
 
       if (response.ok) {
         const rawData = await response.json();
-        
-        // --- DEBUGGING: LOOK IN YOUR BROWSER CONSOLE ---
         console.log("Real Notifications from API:", rawData);
         
-        // Safely extract the array, whether the backend wrapped it in { data: [...] } or not
         const notificationsArray = Array.isArray(rawData) ? rawData : (rawData.data || []);
-        
-        const formattedData = notificationsArray.map((n: any) => ({
+
+        // --- FILTER OUT ORDER-RELATED, CAKE ORDER, AND ANY AUTOMATIC ALERTS ---
+        const broadcastOnly = notificationsArray.filter((n: any) => {
+          const msg = (n.message || '').toLowerCase();
+          // Exclude messages that contain these patterns
+          return !msg.includes('new order') && 
+                 !msg.includes('order received') &&
+                 !msg.includes('delivered') &&     // Added: Just looks for 'delivered'
+                 !msg.includes('order #') &&       // Added: Catches "Order #15", etc.
+                 !msg.includes('cake order') && 
+                 !msg.includes('cake-order') &&
+                 !msg.includes('new cake');
+        });
+
+        const formattedData = broadcastOnly.map((n: any) => ({
           id: n.id,
           type: 'general', 
           title: 'System Announcement', 
@@ -54,22 +64,20 @@ export default function StoreKeeperNotifications() {
   };
 
   useEffect(() => {
-    // Fetch immediately on load
     fetchNotifications(true);
 
-    // AUTO-POLLING: Check for new messages every 10 seconds
+    // AUTO-POLLING every 10 seconds
     const intervalId = setInterval(() => {
-      fetchNotifications(false); // fetch without showing the big loading spinner
+      fetchNotifications(false);
     }, 10000); 
 
-    return () => clearInterval(intervalId); // Cleanup when leaving page
+    return () => clearInterval(intervalId);
   }, []);
 
-  // --- 2. MISSING API: MARK SINGLE AS READ (Section 3.3) ---
+  // --- MARK SINGLE AS READ ---
   const handleMarkAsRead = async (id: number, currentStatus: string) => {
-    if (currentStatus === 'read') return; // Do nothing if already read
+    if (currentStatus === 'read') return;
 
-    // Optimistic UI update (instantly remove red dot)
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, status: 'read' } : n));
 
     try {
@@ -85,9 +93,8 @@ export default function StoreKeeperNotifications() {
     }
   };
 
-  // --- 3. MISSING API: MARK ALL AS READ (Section 3.4) ---
+  // --- MARK ALL AS READ ---
   const handleMarkAllAsRead = async () => {
-    // Optimistic UI update
     setNotifications(prev => prev.map(n => ({ ...n, status: 'read' })));
 
     try {
@@ -103,8 +110,7 @@ export default function StoreKeeperNotifications() {
     }
   };
 
-  // Filter
-  const filtered = notifications.filter(n => n.type === 'general');
+  const filtered = notifications;   // already filtered from fetch
   const unreadCount = filtered.filter(n => n.status === 'unread').length;
 
   return (
@@ -133,7 +139,6 @@ export default function StoreKeeperNotifications() {
            </div>
         </div>
         
-        {/* Added "Mark All Read" Button */}
         <div className="flex items-center gap-2 self-start md:self-auto ml-14 md:ml-0">
             {unreadCount > 0 && (
               <button 
@@ -165,7 +170,6 @@ export default function StoreKeeperNotifications() {
                 : 'bg-white border-gray-100 hover:bg-gray-50'
             }`}
           >
-            {/* Icon Status */}
             <div className={`mt-0.5 md:mt-1 w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-md ${
               note.status === 'unread' ? 'bg-red-500 text-white shadow-red-200' : 'bg-gray-200 text-gray-500 shadow-gray-100'
             }`}>
@@ -178,7 +182,6 @@ export default function StoreKeeperNotifications() {
                    {note.title}
                  </h3>
                  
-                 {/* Unread indicator */}
                  {note.status === 'unread' && (
                    <span className="shrink-0 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white"></span>
                  )}

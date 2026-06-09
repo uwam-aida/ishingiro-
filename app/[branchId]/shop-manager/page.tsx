@@ -82,7 +82,7 @@ export default function DynamicShopDashboard() {
 
   // --- STATE (damage states removed, close day added) ---
   const [factoryStock, setFactoryStock] = useState(MARKETING_PRODUCTS.map(p => ({ 
-    item: p.name, quantity: 100, unit: p.name.includes('kg') ? 'Kg' : 'Pieces', entryTime: '06:00 AM' 
+    item: p.name, quantity:0, unit: p.name.includes('kg') ? 'Kg' : 'Pieces', entryTime: '06:00 AM' 
   })));
   const [requestQty, setRequestQty] = useState('');
   // restQty removed
@@ -133,88 +133,120 @@ export default function DynamicShopDashboard() {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
     const fetchAllData = async () => {
-        try {
-            const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+    try {
+        const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
 
-            const productionRes = await fetch(`${baseUrl}/shop/baked-items`, { headers });
-            if (productionRes.ok) {
-                const prodData = await productionRes.json();
-                if (prodData.length > 0) {
-                    setBakedProductsLog(prodData.map((b: any) => ({
-                        id: b.id,
-                        item: b.product_name || 'Baked Item',
-                        quantity: b.quantity,
-                        time: b.time || (b.baked_at
-                            ? new Date(b.baked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                            : 'Logged'),
-                    })));
-                }
+        // 1. Baked products log
+        const productionRes = await fetch(`${baseUrl}/shop/baked-items`, { headers });
+        if (productionRes.ok) {
+            const prodData = await productionRes.json();
+            if (prodData.length > 0) {
+                setBakedProductsLog(prodData.map((b: any) => ({
+                    id: b.id,
+                    item: b.product_name || 'Baked Item',
+                    quantity: b.quantity,
+                    time: b.time || (b.baked_at
+                        ? new Date(b.baked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : 'Logged'),
+                })));
             }
-                          const stockRes = await fetch(`${baseUrl}/stock/${branchIdString}`, { headers });
-            if (stockRes.ok) {
-                const stockData = await stockRes.json();
-                if (stockData.length > 0) {
-                    setMyStock(stockData.map((s: any) => ({
-                        id: s.id,
-                        product_id: s.product_id,
-                        item: s.product?.name || 'Unknown',
-                        quantity: s.quantity,
-                        unit: s.unit || 'Pieces'
-                    })));
-                }
+        }
+
+        // 2. Branch physical stock (for My Stock tab / Close Day)
+        const branchStockRes = await fetch(`${baseUrl}/sales/available-stock?location=${branchIdString}`, { headers });
+        if (branchStockRes.ok) {
+            const branchData = await branchStockRes.json();
+            const branchItems = branchData.data || [];
+            if (branchItems.length > 0) {
+                setMyStock(branchItems.map((s: any) => ({
+                    id: s.id,
+                    product_id: s.product_id,
+                    item: s.product_name,
+                    quantity: s.physical_quantity,   // actual amount in the branch
+                    unit: s.unit || 'Pieces'
+                })));
             }
-            const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
-            if (ordRes.ok) {
-                const ordData = await ordRes.json();
-                if(ordData.length > 0) {
-                   const pendingOrders: any[] = [];
-                   const dispatchedOrders: any[] = [];
-                   
-                  ordData.forEach((o: any) => {
+        }
+
+        // 3. Factory available stock (for ordering) – only one call
+        const factoryRes = await fetch(`${baseUrl}/sales/factory-available-stock`, { headers });
+        if (factoryRes.ok) {
+            const factoryData = await factoryRes.json();
+            const stockArray = factoryData.data || [];
+            if (stockArray.length > 0) {
+                setFactoryStock(prevStock =>
+                    prevStock.map(product => {
+                        const liveStock = stockArray.find(
+                            (apiItem: any) =>
+                                apiItem.product_name &&
+                                apiItem.product_name.toLowerCase().trim() === product.item.toLowerCase().trim()
+                        );
+                        if (liveStock) {
+                            return {
+                                ...product,
+                                quantity: parseInt(liveStock.available_quantity) || 0,
+                                unit: liveStock.unit || product.unit,
+                            };
+                        }
+                        return product; // keep 0 if not in factory
+                    })
+                );
+            }
+        }
+
+        // 4. Orders / received
+        const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
+        if (ordRes.ok) {
+            const ordData = await ordRes.json();
+            if (ordData.length > 0) {
+                const pendingOrders: any[] = [];
+                const dispatchedOrders: any[] = [];
+
+                ordData.forEach((o: any) => {
                     o.items?.forEach((i: any) => {
-                      const mappedItem = {
-                        id: o.id, 
-                        item: i.product?.name || `Order #${o.id}`,
-                        quantity: i.quantity,
-                        status: o.status,
-                        time: o.created_at ? new Date(o.created_at).toLocaleString() : 'Unknown',
-                        unit: 'Pieces',
-                        arrivalTime: o.updated_at ? new Date(o.updated_at).toLocaleString() : 'Unknown'
-                      };
-                      if (o.status === 'pending') {
-                        pendingOrders.push(mappedItem);
-                      } else {
-                        dispatchedOrders.push(mappedItem);
-                      }
+                        const mappedItem = {
+                            id: o.id,
+                            item: i.product?.name || `Order #${o.id}`,
+                            quantity: i.quantity,
+                            status: o.status,
+                            time: o.created_at ? new Date(o.created_at).toLocaleString() : 'Unknown',
+                            unit: 'Pieces',
+                            arrivalTime: o.updated_at ? new Date(o.updated_at).toLocaleString() : 'Unknown'
+                        };
+                        if (o.status === 'pending') {
+                            pendingOrders.push(mappedItem);
+                        } else {
+                            dispatchedOrders.push(mappedItem);
+                        }
                     });
-                  });
+                });
 
-                   pendingOrders.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-                   setMyRequests(pendingOrders);
-                   setReceivedStock(dispatchedOrders);
-                }
+                pendingOrders.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                setMyRequests(pendingOrders);
+                setReceivedStock(dispatchedOrders);
             }
+        }
 
-            // Damage fetch removed
-
-            const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
-            if (cakeRes.ok) {
-                const cakeData = await cakeRes.json();
-                if(cakeData.length > 0) {
-                   const mappedCakes = cakeData.map((c:any) => ({ 
-                     id: c.id, 
-                     item: c.cake_type, 
-                     code: `CK-${c.id}`, 
-                     customer: c.customer_name,   
-                     time: c.created_at ? new Date(c.created_at).toLocaleString() : (c.delivery_date || 'Pending')
-                   }));
-                   mappedCakes.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-                   setCakeOrders(mappedCakes);
-                }
+        // 5. Cake orders
+        const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
+        if (cakeRes.ok) {
+            const cakeData = await cakeRes.json();
+            if (cakeData.length > 0) {
+                const mappedCakes = cakeData.map((c: any) => ({
+                    id: c.id,
+                    item: c.cake_type,
+                    code: `CK-${c.id}`,
+                    customer: c.customer_name,
+                    time: c.created_at ? new Date(c.created_at).toLocaleString() : (c.delivery_date || 'Pending')
+                }));
+                mappedCakes.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                setCakeOrders(mappedCakes);
             }
-
-        } catch(e) { console.error("Failed to fetch shop data", e); }
-    };
+        }
+    } catch (e) {
+        console.error("Failed to fetch shop data", e);
+    }
+};
 
     fetchAllData();
   }, [router, branchIdString]);

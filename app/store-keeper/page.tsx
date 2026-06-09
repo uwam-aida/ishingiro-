@@ -258,7 +258,11 @@ export default function StoreKeeperDashboard() {
             unit: item.unit || 'pcs',
             created_at: item.created_at || null,
           }));
-          mappedStock.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+          mappedStock.sort((a: any, b: any) => {
+  const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
+  return dateB - dateA;
+});
           setMyStock(mappedStock);
         }
 
@@ -355,7 +359,32 @@ export default function StoreKeeperDashboard() {
 
         // Fetch 8: Delivery Notes - GET /storekeeper/delivery-notes
         await fetchAllDeliveryNotes();
-
+           // Immediately refresh the shop‑requests list so fulfilled orders disappear
+const refreshedReqRes = await fetch(`${baseUrl}/storekeeper/all-orders`, {
+  headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+});
+if (refreshedReqRes.ok) {
+  const result = await refreshedReqRes.json();
+  const orders = result.data || [];
+  const freshRequests: any[] = [];
+  orders.forEach((order: any) => {
+    order.items?.forEach((item: any) => {
+      freshRequests.push({
+        id: order.id,
+        request_item_id: item.id,
+        product_id: item.product_id,
+        item: item.product?.name || item.product_name || 'Unknown',
+        quantity: item.quantity,
+        unit: 'pcs',
+        time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+        branch: order.location,
+        isEdited: false,
+        type: 'request'
+      });
+    });
+  });
+  setShopRequests(freshRequests);
+}
       } catch (err) {
         console.error("Failed to fetch storekeeper data", err);
       }

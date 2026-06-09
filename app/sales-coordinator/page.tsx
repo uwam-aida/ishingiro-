@@ -97,7 +97,13 @@ export default function SalesCoordinatorDashboard() {
         ]);
 
         const requestsData = requestsRes.ok ? await requestsRes.json() : [];
-        const cakeData = cakeRes.ok ? await cakeRes.json() : [];
+        let cakeData = [];
+if (cakeRes.ok) {
+    const rawData = await cakeRes.json();
+    // This handles both cases: if API returns [{}, {}] OR { data: [{}, {}] }
+    cakeData = Array.isArray(rawData) ? rawData : (rawData.data || []);
+}
+console.log("DEBUG CAKE DATA:", cakeData);
         const bakedData = bakedRes.ok ? await bakedRes.json() : [];
         const deliveredData = deliveredRes.ok ? await deliveredRes.json() : [];
         const stockData = stockRes.ok ? await stockRes.json() : [];
@@ -268,10 +274,11 @@ export default function SalesCoordinatorDashboard() {
         return detailedLists.Requests.filter(
           req => branchFilter === 'all' || req.location === branchFilter
         );
-      case 'Cake Orders':
-        return detailedLists.CakeOrders.filter(
-          cake => branchFilter === 'all' || cake.location === branchFilter
-        );
+     case 'Cake Orders':
+  return detailedLists.CakeOrders.filter(
+    cake => branchFilter === 'all' || 
+            (cake.location && cake.location.toLowerCase() === branchFilter.toLowerCase())
+  );
       case 'Baked':
         return detailedLists.Baked;
       case 'Delivered':
