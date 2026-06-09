@@ -5,23 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Notification extends Model
+class SentMessage extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'user_id',  // ← ADD THIS
-        'role',
+        'sender_id',
+        'recipient_role',
         'message',
-        'is_read',
+        'recipient_count',
     ];
 
     protected $casts = [
-        'is_read' => 'boolean',
+        'recipient_count' => 'integer',
     ];
 
-    public function user()
+    public function sender()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'sender_id');
     }
 }

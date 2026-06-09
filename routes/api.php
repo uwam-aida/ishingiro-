@@ -143,8 +143,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/orders/{id}/receive', [ShopManagerController::class, 'receiveOrder']);
         Route::get('/my-orders', [ShopManagerController::class, 'myOrders']);
 
-        // Stock routes - FIXED: Use different patterns
-        Route::get('/shop/stock-by-location/{location}', [StockController::class, 'byLocation']);
+        // Stock routes - FIXED: Added the endpoint for shop manager stock by location
+        Route::get('/shop/stock/{location}', [ShopManagerController::class, 'getShopStock']);
         Route::get('/shop/stock/{id}', [ShopManagerController::class, 'getStockItem'])->where('id', '[0-9]+');
         Route::put('/shop/stock/{id}', [ShopManagerController::class, 'updateStockItem'])->where('id', '[0-9]+');
         
@@ -162,7 +162,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/shop/dashboard', [ShopManagerController::class, 'getDashboardSummary']);
         Route::get('/shop/baked-items', [ShopManagerController::class, 'getBakedItems']);
 
-        // Closing day endpoints - FIXED: Use clear, distinct patterns
+        // Closing day endpoints
         Route::get('/shop/current-stock/{location}', [ShopManagerController::class, 'getCurrentStock']);
         Route::post('/shop/close-day', [ShopManagerController::class, 'closeDay']);
         Route::get('/shop/close-day/{location}/latest', [ShopManagerController::class, 'getLatestClosingRecord']);
@@ -255,6 +255,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/requests/{id}', [SalesController::class, 'getRequestDetails']);
         Route::get('/cake-orders/{id}', [SalesController::class, 'getCakeOrderDetails']);
         Route::get('/stock/{location}', [StockController::class, 'salesStockByLocation']);
+        Route::get('/messages/history', [SalesController::class, 'getSentMessagesHistory']);
     });
 
 

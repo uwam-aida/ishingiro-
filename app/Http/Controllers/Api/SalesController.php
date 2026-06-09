@@ -12,8 +12,10 @@ use App\Models\OrderItem;
 use App\Models\Production;
 use App\Models\Revenue;
 use App\Models\SalesTarget;
+use App\Models\SentMessage;
 use App\Models\Stock;
 use App\Models\StockMovement;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -28,10 +30,10 @@ class SalesController extends Controller
         } elseif ($userRole === 'shop_manager_masaka') {
             return 'masaka';
         }
-        return 'kabuga'; // default
+        return 'kabuga';
     }
 
-    // DASHBOARD — all summary cards + history count
+    // DASHBOARD
     public function dashboard()
     {
         return [
@@ -84,7 +86,7 @@ class SalesController extends Controller
         return StockMovement::with('product')->latest()->get();
     }
 
-    // ALL CAKE ORDERS — with inspo image URL resolved
+    // ALL CAKE ORDERS
     public function cakeOrders()
     {
         return CakeOrder::latest()->get()->map(function ($order) {
@@ -95,10 +97,7 @@ class SalesController extends Controller
         });
     }
 
-    // CREATE CAKE ORDER (sales coordinator)
-    // - Full payment fields + image upload
-    // - Records advance payment as Revenue
-    // - Notifies shop manager + store keeper
+    // CREATE CAKE ORDER
     public function storeCakeOrder(Request $request)
     {
         $request->validate([
@@ -178,8 +177,6 @@ class SalesController extends Controller
     }
 
     // ADD PAYMENT TO EXISTING CAKE ORDER
-    // - Updates total_paid + remaining_payment
-    // - Records Revenue for the payment amount
     public function addCakeOrderPayment(Request $request, $id)
     {
         $request->validate([
@@ -222,8 +219,6 @@ class SalesController extends Controller
             'remaining_balance' => $cakeOrder->remaining_payment,
         ]);
     }
-
-    
 
     // GET TARGETS WITH LIVE PROGRESS
     public function targets()
@@ -289,11 +284,9 @@ class SalesController extends Controller
         return response()->noContent();
     }
 
-    //Get single order with full details including items
-    
+    // Get single order with full details
     public function getRequestDetails($id)
     {
-        /** @var Order $order */
         $order = Order::with('items.product', 'user')->findOrFail($id);
         
         return response()->json([
@@ -320,20 +313,15 @@ class SalesController extends Controller
         ]);
     }
 
-    /**
-     * Get single cake order with full details including payment info
-     * GET /api/sales/cake-orders/{id}
-     */
+    // Get single cake order with full details
     public function getCakeOrderDetails($id)
     {
         $cakeOrder = CakeOrder::findOrFail($id);
         
-        // Add image URL if exists
         if ($cakeOrder->inspo_image_path) {
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
         }
         
-        // Calculate payment summary
         $paymentSummary = [
             'total_price' => (float) $cakeOrder->price,
             'advance_payment' => (float) $cakeOrder->advance_payment,
@@ -344,7 +332,6 @@ class SalesController extends Controller
             'payer_name' => $cakeOrder->payer_name,
         ];
         
-        // Get payment history from revenues
         $paymentHistory = Revenue::where(function ($query) use ($cakeOrder) {
                 $query->where('source', 'cake_order_advance')
                       ->orWhere('source', 'cake_order_payment');
@@ -385,6 +372,14 @@ class SalesController extends Controller
         ]);
     }
 
+    // ============================================
+    // MESSAGE SENDING WITH TRACKING (SINGLE METHOD)
+    // ============================================
+
+    /**
+     * Send message to selected roles (with tracking)
+     * POST /api/sales/messages
+     */
     public function sendMessage(Request $request)
     {
         $request->validate([
@@ -396,16 +391,13 @@ class SalesController extends Controller
 
         $message = $request->message;
         
-        // Get list of roles to send to
         $roles = [];
+        $recipientCount = 0;
         
         if ($request->has('recipient_roles')) {
-            // Multiple roles selected
             $roles = $request->recipient_roles;
         } elseif ($request->has('recipient_role')) {
-            // Single role or "all"
             if ($request->recipient_role === 'all') {
-                // All roles except marketing_manager and finance_chief
                 $roles = [
                     'shop_manager_kabuga',
                     'shop_manager_masaka',
@@ -424,7 +416,6 @@ class SalesController extends Controller
             ], 422);
         }
 
-        // Exclude forbidden roles (security)
         $forbiddenRoles = ['marketing_manager', 'finance_chief'];
         $roles = array_diff($roles, $forbiddenRoles);
 
@@ -434,48 +425,49 @@ class SalesController extends Controller
             ], 422);
         }
 
-        // Send notification to each role
-        $sentCount = 0;
+        // Send notification to each role and count recipients
         foreach ($roles as $role) {
+            $count = User::whereHas('role', fn($q) => $q->where('name', $role))->count();
+            $recipientCount += $count;
             SendNotificationJob::dispatch($role, $message);
-            $sentCount++;
         }
 
-        // Also create a record for the sender (sales coordinator) to see sent messages
-        DB::table('sent_messages')->insert([
+        // Save sent message record
+        SentMessage::create([
             'sender_id' => auth()->id(),
-            'recipient_roles' => json_encode($roles),
+            'recipient_role' => implode(', ', $roles),
             'message' => $message,
-            'created_at' => now(),
+            'recipient_count' => $recipientCount,
         ]);
 
         return response()->json([
             'status' => 'sent',
             'message' => 'Message sent to ' . count($roles) . ' role(s)',
             'recipient_roles' => $roles,
+            'recipient_count' => $recipientCount,
             'sent_at' => now()->toISOString()
         ]);
     }
 
     /**
-     * Get sent messages history (for sales coordinator)
+     * Get sent messages history for sales coordinator
      * GET /api/sales/messages/history
      */
     public function getSentMessagesHistory(Request $request)
     {
-        $messages = DB::table('sent_messages')
-            ->where('sender_id', auth()->id())
+        $messages = SentMessage::where('sender_id', auth()->id())
             ->orderBy('created_at', 'desc')
             ->take(50)
             ->get()
             ->map(function ($msg) {
                 return [
                     'id' => $msg->id,
-                    'recipient_roles' => json_decode($msg->recipient_roles),
+                    'recipient_role' => $msg->recipient_role,
                     'message' => $msg->message,
+                    'recipient_count' => $msg->recipient_count,
                     'sent_at' => $msg->created_at,
-                    'date' => date('Y-m-d', strtotime($msg->created_at)),
-                    'time' => date('h:i A', strtotime($msg->created_at)),
+                    'date' => $msg->created_at->toDateString(),
+                    'time' => $msg->created_at->format('h:i A'),
                 ];
             });
 
@@ -485,15 +477,16 @@ class SalesController extends Controller
         ]);
     }
 
+    // ============================================
+    // STOCK METHODS
+    // ============================================
+
     /**
-     * Get net available stock for shop manager (physical - requested)
+     * Get net available stock for shop manager
      * GET /api/sales/available-stock
      */
     public function getAvailableStock(Request $request)
     {
-        $myLocation = $this->myLocation(); // You need to add this helper or get from auth
-        
-        // Alternative: get location from request or user role
         $location = $request->query('location');
         if (!$location) {
             $userRole = auth()->user()->role->name;
@@ -501,6 +494,8 @@ class SalesController extends Controller
                 $location = 'kabuga';
             } elseif ($userRole === 'shop_manager_masaka') {
                 $location = 'masaka';
+            } else {
+                $location = 'kabuga';
             }
         }
         
@@ -508,26 +503,23 @@ class SalesController extends Controller
             return response()->json(['error' => 'Invalid location'], 400);
         }
         
-        // Get physical stock for this branch
         $physicalStock = Stock::with('product')
             ->where('location', $location)
             ->get();
         
-        // Get pending requests for this branch (not yet delivered)
         $pendingRequests = Order::with('items')
             ->where('location', $location)
             ->where('status', 'pending')
             ->get();
         
-        // Calculate available stock
         $availableStock = [];
         
         foreach ($physicalStock as $stock) {
             $productId = $stock->product_id;
             $requestedQty = 0;
             
-            foreach ($pendingRequests as $request) {
-                foreach ($request->items as $item) {
+            foreach ($pendingRequests as $pendingRequest) {
+                foreach ($pendingRequest->items as $item) {
                     if ($item->product_id === $productId) {
                         $requestedQty += $item->quantity;
                     }
@@ -555,30 +547,27 @@ class SalesController extends Controller
     }
 
     /**
-     * Get factory available stock (physical - pending requests from all shops)
+     * Get factory available stock
      * GET /api/sales/factory-available-stock
      */
     public function getFactoryAvailableStock(Request $request)
     {
-        // Get physical factory stock
         $factoryStock = Stock::with('product')
             ->where('location', 'factory')
             ->get();
         
-        // Get ALL pending requests from ALL branches (Kabuga + Masaka)
         $pendingRequests = Order::with('items')
             ->where('status', 'pending')
             ->get();
         
-        // Calculate available stock
         $availableStock = [];
         
         foreach ($factoryStock as $stock) {
             $productId = $stock->product_id;
             $requestedQty = 0;
             
-            foreach ($pendingRequests as $request) {
-                foreach ($request->items as $item) {
+            foreach ($pendingRequests as $pendingRequest) {
+                foreach ($pendingRequest->items as $item) {
                     if ($item->product_id === $productId) {
                         $requestedQty += $item->quantity;
                     }

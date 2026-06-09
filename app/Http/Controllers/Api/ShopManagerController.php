@@ -779,6 +779,39 @@ class ShopManagerController extends Controller
     // ============================================
 
     /**
+     * Get stock for shop manager's branch by location (for dashboard)
+     * GET /api/shop/stock/{location}
+     */
+    public function getShopStock($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka'])) {
+            return response()->json(['error' => 'Invalid location'], 400);
+        }
+
+        // Check if location matches manager's role
+        if ($this->myLocation() !== $location) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $stock = Stock::with('product')
+            ->where('location', $location)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'product_id' => $item->product_id,
+                    'product_name' => $item->product->name,
+                    'product_price' => $item->product->price,
+                    'quantity' => $item->quantity,
+                    'unit' => $item->unit ?? 'pcs',
+                    'location' => $item->location,
+                ];
+            });
+
+        return response()->json($stock);
+    }
+
+    /**
      * Get current stock for a branch (for closing day)
      * GET /api/shop/current-stock/{location}
      */
@@ -1080,4 +1113,6 @@ class ShopManagerController extends Controller
         
         return response()->json($productions);
     }
+
+    
 }

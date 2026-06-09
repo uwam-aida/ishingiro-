@@ -9,37 +9,38 @@ use Illuminate\Http\Request;
 class NotificationController extends Controller
 {
     // GET /api/notifications
-    // Returns all notifications for the authenticated user's role
     public function index(Request $request)
     {
-        $role = auth()->user()->role->name;
-
-        return Notification::where('role', $role)
+        $userId = auth()->id();
+        
+        return Notification::where('user_id', $userId)
+            ->orWhereNull('user_id')  // For backward compatibility
             ->latest()
             ->get();
     }
 
     // GET /api/notifications/unread-count
-    // Returns the count of unread notifications (for the badge)
     public function unreadCount()
     {
-        $role = auth()->user()->role->name;
-
+        $userId = auth()->id();
+        
         return response()->json([
-            'count' => Notification::where('role', $role)
+            'count' => Notification::where('user_id', $userId)
                 ->where('is_read', false)
                 ->count(),
         ]);
     }
 
     // PUT /api/notifications/{id}/read
-    // Mark a single notification as read
     public function markRead($id)
     {
-        $role = auth()->user()->role->name;
-
+        $userId = auth()->id();
+        
         $notification = Notification::where('id', $id)
-            ->where('role', $role)
+            ->where(function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->orWhereNull('user_id');
+            })
             ->firstOrFail();
 
         $notification->update(['is_read' => true]);
@@ -48,12 +49,11 @@ class NotificationController extends Controller
     }
 
     // PUT /api/notifications/read-all
-    // Mark all notifications for this role as read
     public function markAllRead()
     {
-        $role = auth()->user()->role->name;
-
-        Notification::where('role', $role)
+        $userId = auth()->id();
+        
+        Notification::where('user_id', $userId)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 

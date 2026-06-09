@@ -26,39 +26,48 @@ class NotificationService
      */
     public function sendToRole(string $roleName, string $message): void
     {
-        // 1. Save to our own DB so the app can fetch it later
-        Notification::create([
-            'role'    => $roleName,
-            'message' => $message,
-        ]);
-
-        // 2. Get player IDs based on role
-        $playerIds = $this->getPlayerIdsByRole($roleName);
-
-        if (empty($playerIds)) {
-            return;
+        // 1. Save to database for ALL users with matching role
+        $users = $this->getUsersByRole($roleName);
+        
+        foreach ($users as $user) {
+            Notification::create([
+                'user_id' => $user->id,  // ← IMPORTANT: Link to specific user
+                'role'    => $roleName,
+                'message' => $message,
+            ]);
         }
 
-        // 3. Push to OneSignal for real-time device notification
-        $this->sendViaOneSignal($playerIds, $message);
+        // 2. Get player IDs for push notifications
+        $playerIds = $this->getPlayerIdsByRole($roleName);
+
+        if (!empty($playerIds)) {
+            $this->sendViaOneSignal($playerIds, $message);
+        }
+    }
+
+    /**
+     * Get users by role name
+     */
+    private function getUsersByRole(string $roleName): \Illuminate\Support\Collection
+    {
+        if ($roleName === 'all' || $roleName === 'everyone') {
+            return User::all();
+        }
+        
+        return User::whereHas('role', fn($q) => $q->where('name', $roleName))->get();
     }
 
     /**
      * Get player IDs by role name
-     * 
-     * @param string $roleName - Role name or "all"
-     * @return array Player IDs
      */
     private function getPlayerIdsByRole(string $roleName): array
     {
-        // Handle "all" role - get all users with player_id
         if ($roleName === 'all' || $roleName === 'everyone') {
             return User::whereNotNull('player_id')
                 ->pluck('player_id')
                 ->toArray();
         }
 
-        // Handle specific role
         return User::whereHas('role', fn($q) => $q->where('name', $roleName))
             ->whereNotNull('player_id')
             ->pluck('player_id')
@@ -67,12 +76,14 @@ class NotificationService
 
     /**
      * Send via OneSignal push service
-     * 
-     * @param array $playerIds - Player IDs to send to
-     * @param string $message - Message content
      */
     private function sendViaOneSignal(array $playerIds, string $message): void
     {
+        if (empty($this->appId) || empty($this->apiKey)) {
+            Log::warning('OneSignal credentials not configured');
+            return;
+        }
+
         try {
             Http::withHeaders([
                 'Authorization' => 'Basic ' . $this->apiKey,
