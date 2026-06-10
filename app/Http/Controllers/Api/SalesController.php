@@ -287,25 +287,25 @@ class SalesController extends Controller
     // Get single order with full details
     public function getRequestDetails($id)
     {
-      
         $order = Order::with('items.product', 'user')->findOrFail($id);
+
         
         return response()->json([
-            'id' => $order->id,
-            'status' => $order->status,
-            'location' => $order->location,
-            'created_at' => $order->created_at,
-            'updated_at' => $order->updated_at,
+            'id'           => $order->id,
+            'status'       => $order->status,
+            'location'     => $order->location,
+            'created_at'   => $order->created_at,
+            'updated_at'   => $order->updated_at,
             'requested_by' => optional($order->user)->name,
-            'items' => $order->items->map(function ($item) {
+            'items'        => $order->items->map(function ($item) {
                 return [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'product_name' => optional($item->product)->name,
+                    'id'            => $item->id,
+                    'product_id'    => $item->product_id,
+                    'product_name'  => optional($item->product)->name,
                     'product_price' => optional($item->product)->price,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->price,
-                    'total' => $item->quantity * $item->price,
+                    'quantity'      => $item->quantity,
+                    'unit_price'    => $item->price,
+                    'total'         => $item->quantity * $item->price,
                 ];
             })->toArray(),
             'total_amount' => $order->items->sum(function ($item) {
@@ -318,142 +318,122 @@ class SalesController extends Controller
     public function getCakeOrderDetails($id)
     {
         $cakeOrder = CakeOrder::findOrFail($id);
-        
+
         if ($cakeOrder->inspo_image_path) {
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
         }
-        
+
         $paymentSummary = [
-            'total_price' => (float) $cakeOrder->price,
-            'advance_payment' => (float) $cakeOrder->advance_payment,
-            'total_paid' => (float) $cakeOrder->total_paid,
+            'total_price'       => (float) $cakeOrder->price,
+            'advance_payment'   => (float) $cakeOrder->advance_payment,
+            'total_paid'        => (float) $cakeOrder->total_paid,
             'remaining_payment' => (float) $cakeOrder->remaining_payment,
-            'payment_status' => $cakeOrder->getPaymentStatusAttribute(),
-            'payment_method' => $cakeOrder->payment_method,
-            'payer_name' => $cakeOrder->payer_name,
+            'payment_status'    => $cakeOrder->getPaymentStatusAttribute(),
+            'payment_method'    => $cakeOrder->payment_method,
+            'payer_name'        => $cakeOrder->payer_name,
         ];
-        
+
         $paymentHistory = Revenue::where(function ($query) use ($cakeOrder) {
-                $query->where('source', 'cake_order_advance')
-                      ->orWhere('source', 'cake_order_payment');
-            })
+            $query->where('source', 'cake_order_advance')
+                  ->orWhere('source', 'cake_order_payment');
+        })
             ->where('location', $cakeOrder->location)
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($revenue) {
                 return [
                     'amount' => (float) $revenue->amount,
-                    'type' => $revenue->source === 'cake_order_advance' ? 'Advance Payment' : 'Additional Payment',
-                    'date' => $revenue->created_at->toDateString(),
-                    'time' => $revenue->created_at->format('h:i A'),
+                    'type'   => $revenue->source === 'cake_order_advance' ? 'Advance Payment' : 'Additional Payment',
+                    'date'   => $revenue->created_at->toDateString(),
+                    'time'   => $revenue->created_at->format('h:i A'),
                 ];
             });
-        
+
         return response()->json([
-            'id' => $cakeOrder->id,
-            'customer_name' => $cakeOrder->customer_name,
-            'phone' => $cakeOrder->phone,
-            'cake_type' => $cakeOrder->cake_type,
-            'quantity' => $cakeOrder->quantity,
-            'location' => $cakeOrder->location,
-            'delivery_date' => $cakeOrder->delivery_date,
-            'status' => $cakeOrder->status,
-            'cake_message' => $cakeOrder->cake_message,
-            'cake_size' => $cakeOrder->cake_size,
-            'frosting_cream' => $cakeOrder->frosting_cream,
-            'frosting_color' => $cakeOrder->frosting_color,
+            'id'                   => $cakeOrder->id,
+            'customer_name'        => $cakeOrder->customer_name,
+            'phone'                => $cakeOrder->phone,
+            'cake_type'            => $cakeOrder->cake_type,
+            'quantity'             => $cakeOrder->quantity,
+            'location'             => $cakeOrder->location,
+            'delivery_date'        => $cakeOrder->delivery_date,
+            'status'               => $cakeOrder->status,
+            'cake_message'         => $cakeOrder->cake_message,
+            'cake_size'            => $cakeOrder->cake_size,
+            'frosting_cream'       => $cakeOrder->frosting_cream,
+            'frosting_color'       => $cakeOrder->frosting_color,
             'special_instructions' => $cakeOrder->special_instructions,
-            'reception_location' => $cakeOrder->reception_location,
-            'needs_sample' => $cakeOrder->needs_sample,
-            'inspo_image_url' => $cakeOrder->inspo_image_url,
-            'created_at' => $cakeOrder->created_at,
-            'updated_at' => $cakeOrder->updated_at,
-            'payment' => $paymentSummary,
-            'payment_history' => $paymentHistory,
+            'reception_location'   => $cakeOrder->reception_location,
+            'needs_sample'         => $cakeOrder->needs_sample,
+            'inspo_image_url'      => $cakeOrder->inspo_image_url ?? null,
+            'created_at'           => $cakeOrder->created_at,
+            'updated_at'           => $cakeOrder->updated_at,
+            'payment'              => $paymentSummary,
+            'payment_history'      => $paymentHistory,
         ]);
     }
 
     // ============================================
-    // MESSAGE SENDING WITH TRACKING (SINGLE METHOD)
+    // MESSAGE SENDING
     // ============================================
 
-    /**
-     * Send message to selected roles (with tracking)
-     * POST /api/sales/messages
-     */
     public function sendMessage(Request $request)
     {
         $request->validate([
-            'recipient_roles' => 'sometimes|array',
+            'recipient_roles'   => 'sometimes|array',
             'recipient_roles.*' => 'string|in:shop_manager_kabuga,shop_manager_masaka,store_keeper,baker_assistant,production_manager,sales_coordinator,cicm',
-            'recipient_role' => 'sometimes|string|in:shop_manager_kabuga,shop_manager_masaka,store_keeper,baker_assistant,production_manager,sales_coordinator,cicm,all',
-            'message' => 'required|string|min:1|max:1000',
+            'recipient_role'    => 'sometimes|string|in:shop_manager_kabuga,shop_manager_masaka,store_keeper,baker_assistant,production_manager,sales_coordinator,cicm,all',
+            'message'           => 'required|string|min:1|max:1000',
         ]);
 
         $message = $request->message;
-        
-        $roles = [];
-        $recipientCount = 0;
-        
+        $roles   = [];
+
         if ($request->has('recipient_roles')) {
             $roles = $request->recipient_roles;
         } elseif ($request->has('recipient_role')) {
             if ($request->recipient_role === 'all') {
                 $roles = [
-                    'shop_manager_kabuga',
-                    'shop_manager_masaka',
-                    'store_keeper',
-                    'baker_assistant',
-                    'production_manager',
-                    'sales_coordinator',
-                    'cicm'
+                    'shop_manager_kabuga', 'shop_manager_masaka', 'store_keeper',
+                    'baker_assistant', 'production_manager', 'sales_coordinator', 'cicm',
                 ];
             } else {
                 $roles = [$request->recipient_role];
             }
         } else {
-            return response()->json([
-                'error' => 'Please provide recipient_role or recipient_roles'
-            ], 422);
+            return response()->json(['error' => 'Please provide recipient_role or recipient_roles'], 422);
         }
 
         $forbiddenRoles = ['marketing_manager', 'finance_chief'];
-        $roles = array_diff($roles, $forbiddenRoles);
+        $roles          = array_diff($roles, $forbiddenRoles);
 
         if (empty($roles)) {
-            return response()->json([
-                'error' => 'No valid recipient roles selected'
-            ], 422);
+            return response()->json(['error' => 'No valid recipient roles selected'], 422);
         }
 
-        // Send notification to each role and count recipients
+        $recipientCount = 0;
         foreach ($roles as $role) {
             $count = User::whereHas('role', fn($q) => $q->where('name', $role))->count();
             $recipientCount += $count;
             SendNotificationJob::dispatch($role, $message);
         }
 
-        // Save sent message record
         SentMessage::create([
-            'sender_id' => auth()->id(),
-            'recipient_role' => implode(', ', $roles),
-            'message' => $message,
+            'sender_id'       => auth()->id(),
+            'recipient_role'  => implode(', ', $roles),
+            'message'         => $message,
             'recipient_count' => $recipientCount,
         ]);
 
         return response()->json([
-            'status' => 'sent',
-            'message' => 'Message sent to ' . count($roles) . ' role(s)',
-            'recipient_roles' => $roles,
-            'recipient_count' => $recipientCount,
-            'sent_at' => now()->toISOString()
+            'status'           => 'sent',
+            'message'          => 'Message sent to ' . count($roles) . ' role(s)',
+            'recipient_roles'  => $roles,
+            'recipient_count'  => $recipientCount,
+            'sent_at'          => now()->toISOString(),
         ]);
     }
 
-    /**
-     * Get sent messages history for sales coordinator
-     * GET /api/sales/messages/history
-     */
     public function getSentMessagesHistory(Request $request)
     {
         $messages = SentMessage::where('sender_id', auth()->id())
@@ -462,19 +442,19 @@ class SalesController extends Controller
             ->get()
             ->map(function ($msg) {
                 return [
-                    'id' => $msg->id,
-                    'recipient_role' => $msg->recipient_role,
-                    'message' => $msg->message,
+                    'id'              => $msg->id,
+                    'recipient_role'  => $msg->recipient_role,
+                    'message'         => $msg->message,
                     'recipient_count' => $msg->recipient_count,
-                    'sent_at' => $msg->created_at,
-                    'date' => $msg->created_at->toDateString(),
-                    'time' => $msg->created_at->format('h:i A'),
+                    'sent_at'         => $msg->created_at,
+                    'date'            => $msg->created_at->toDateString(),
+                    'time'            => $msg->created_at->format('h:i A'),
                 ];
             });
 
         return response()->json([
             'total' => $messages->count(),
-            'data' => $messages
+            'data'  => $messages,
         ]);
     }
 
@@ -483,12 +463,14 @@ class SalesController extends Controller
     // ============================================
 
     /**
-     * Get net available stock for shop manager
+     * Get net available stock for a shop manager's own branch.
+     * Subtracts only that branch's own pending orders from shop stock.
      * GET /api/sales/available-stock
      */
     public function getAvailableStock(Request $request)
     {
         $location = $request->query('location');
+
         if (!$location) {
             $userRole = auth()->user()->role->name;
             if ($userRole === 'shop_manager_kabuga') {
@@ -499,26 +481,27 @@ class SalesController extends Controller
                 $location = 'kabuga';
             }
         }
-        
+
         if (!in_array($location, ['kabuga', 'masaka'])) {
             return response()->json(['error' => 'Invalid location'], 400);
         }
-        
+
         $physicalStock = Stock::with('product')
             ->where('location', $location)
             ->get();
-        
+
+        // Only subtract pending orders for THIS branch's own shop stock
         $pendingRequests = Order::with('items')
             ->where('location', $location)
             ->where('status', 'pending')
             ->get();
-        
+
         $availableStock = [];
-        
+
         foreach ($physicalStock as $stock) {
-            $productId = $stock->product_id;
+            $productId    = $stock->product_id;
             $requestedQty = 0;
-            
+
             foreach ($pendingRequests as $pendingRequest) {
                 foreach ($pendingRequest->items as $item) {
                     if ($item->product_id === $productId) {
@@ -526,29 +509,39 @@ class SalesController extends Controller
                     }
                 }
             }
-            
+
             $availableStock[] = [
-                'id' => $stock->id,
-                'product_id' => $productId,
-                'product_name' => $stock->product->name,
-                'product_price' => $stock->product->price,
-                'physical_quantity' => $stock->quantity,
+                'id'                 => $stock->id,
+                'product_id'         => $productId,
+                'product_name'       => $stock->product->name,
+                'product_price'      => $stock->product->price,
+                'physical_quantity'  => $stock->quantity,
                 'requested_quantity' => $requestedQty,
                 'available_quantity' => max(0, $stock->quantity - $requestedQty),
-                'location' => $stock->location,
-                'unit' => $stock->unit ?? 'pcs',
+                'location'           => $stock->location,
+                'unit'               => $stock->unit ?? 'pcs',
             ];
         }
-        
+
         return response()->json([
-            'location' => $location,
+            'location'        => $location,
             'total_available' => collect($availableStock)->sum('available_quantity'),
-            'data' => $availableStock
+            'data'            => $availableStock,
         ]);
     }
 
     /**
-     * Get factory available stock
+     * Get net available stock at the factory.
+     *
+     * This subtracts ALL pending orders from ALL branches so every shop manager
+     * (and the sales coordinator) sees the same accurate factory stock number.
+     *
+     * Example:
+     *   Factory physical stock: Bread = 50
+     *   Kabuga pending order:   Bread = 30
+     *   Masaka pending order:   Bread = 10
+     *   → available_quantity:   Bread = 10  (for everyone)
+     *
      * GET /api/sales/factory-available-stock
      */
     public function getFactoryAvailableStock(Request $request)
@@ -556,43 +549,47 @@ class SalesController extends Controller
         $factoryStock = Stock::with('product')
             ->where('location', 'factory')
             ->get();
-        
-        $pendingRequests = Order::with('items')
+
+        // ✅ KEY FIX: Fetch ALL pending orders regardless of branch
+        $allPendingOrders = Order::with('items')
             ->where('status', 'pending')
             ->get();
-        
-        $availableStock = [];
-        
-        foreach ($factoryStock as $stock) {
-            $productId = $stock->product_id;
-            $requestedQty = 0;
-            
-            foreach ($pendingRequests as $pendingRequest) {
-                foreach ($pendingRequest->items as $item) {
-                    if ($item->product_id === $productId) {
-                        $requestedQty += $item->quantity;
-                    }
-                }
+
+        // Build a lookup: product_id → total qty requested across all branches
+        $requestedByProduct = [];
+
+        foreach ($allPendingOrders as $order) {
+            foreach ($order->items as $item) {
+                $requestedByProduct[$item->product_id] =
+                    ($requestedByProduct[$item->product_id] ?? 0) + $item->quantity;
             }
-            
+        }
+
+        $availableStock = [];
+
+        foreach ($factoryStock as $stock) {
+            $productId    = $stock->product_id;
+            $requestedQty = $requestedByProduct[$productId] ?? 0;
+            $available    = max(0, $stock->quantity - $requestedQty);
+
             $availableStock[] = [
-                'id' => $stock->id,
-                'product_id' => $productId,
-                'product_name' => $stock->product->name,
-                'product_price' => $stock->product->price,
-                'physical_quantity' => $stock->quantity,
+                'id'                 => $stock->id,
+                'product_id'         => $productId,
+                'product_name'       => $stock->product->name,
+                'product_price'      => $stock->product->price,
+                'physical_quantity'  => $stock->quantity,
                 'requested_quantity' => $requestedQty,
-                'available_quantity' => max(0, $stock->quantity - $requestedQty),
-                'location' => $stock->location,
-                'unit' => $stock->unit ?? 'pcs',
-                'status' => ($stock->quantity - $requestedQty) < 10 ? 'Low Stock' : 'Available',
+                'available_quantity' => $available,
+                'location'           => $stock->location,
+                'unit'               => $stock->unit ?? 'pcs',
+                'status'             => $available < 10 ? 'Low Stock' : 'Available',
             ];
         }
-        
+
         return response()->json([
-            'location' => 'factory',
+            'location'        => 'factory',
             'total_available' => collect($availableStock)->sum('available_quantity'),
-            'data' => $availableStock
+            'data'            => $availableStock,
         ]);
     }
 }
