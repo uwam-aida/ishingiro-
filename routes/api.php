@@ -241,10 +241,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/damaged', [SalesController::class, 'damaged']);
         Route::get('/history', [SalesController::class, 'history']);
 
-        // ✅ FIX: was GET /api/sales/cake-order (singular) — now correctly /cake-orders (plural)
-        // The frontend was hitting /api/sales/cake-order which didn't match any route → 403
+    
         Route::get('/cake-orders', [SalesController::class, 'cakeOrders']);
-        Route::post('/cake-order', [SalesController::class, 'storeCakeOrder']);
+        Route::post('/cake-orders', [SalesController::class, 'storeCakeOrder']);
         Route::post('/cake-order/{id}/payment', [SalesController::class, 'addCakeOrderPayment']);
 
         Route::post('/messages', [SalesController::class, 'sendMessage']);
