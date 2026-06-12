@@ -289,7 +289,6 @@ class SalesController extends Controller
     {
         $order = Order::with('items.product', 'user')->findOrFail($id);
 
-        
         return response()->json([
             'id'           => $order->id,
             'status'       => $order->status,
