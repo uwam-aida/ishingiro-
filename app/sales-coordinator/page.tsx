@@ -15,7 +15,8 @@ import {
   ClipboardList,
   History,
   Cake,
-  Target
+  Target,
+  X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -50,6 +51,10 @@ export default function SalesCoordinatorDashboard() {
 
   // --- BRANCH FILTER STATE (used for Requests, Cake Orders, Stock, Damaged) ---
   const [branchFilter, setBranchFilter] = useState<'all' | 'kabuga' | 'masaka'>('all');
+
+  // --- ZOOM IMAGE MODAL STATE ---
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [showZoomModal, setShowZoomModal] = useState(false);
 
   // --- FETCH DATA ON LOAD ---
   useEffect(() => {
@@ -98,12 +103,10 @@ export default function SalesCoordinatorDashboard() {
 
         const requestsData = requestsRes.ok ? await requestsRes.json() : [];
         let cakeData = [];
-if (cakeRes.ok) {
-    const rawData = await cakeRes.json();
-    // This handles both cases: if API returns [{}, {}] OR { data: [{}, {}] }
-    cakeData = Array.isArray(rawData) ? rawData : (rawData.data || []);
-}
-console.log("DEBUG CAKE DATA:", cakeData);
+        if (cakeRes.ok) {
+          const rawData = await cakeRes.json();
+          cakeData = Array.isArray(rawData) ? rawData : (rawData.data || []);
+        }
         const bakedData = bakedRes.ok ? await bakedRes.json() : [];
         const deliveredData = deliveredRes.ok ? await deliveredRes.json() : [];
         const stockData = stockRes.ok ? await stockRes.json() : [];
@@ -133,7 +136,11 @@ console.log("DEBUG CAKE DATA:", cakeData);
             stock: `Customer: ${c.customer_name}`,
             location: c.location,
             time: c.delivery_date || 'N/A',
-            status: c.status || 'pending'
+            status: c.status || 'pending',
+            // NEW FIELDS for image and pickup details
+            imageUrl: c.inspo_image_url || null,
+            payerName: c.payer_name || c.customer_name || '—',
+            pickupPerson: c.pickup_person || c.customer_name || '—'
           })),
           Baked: bakedData.map((b: any) => ({
             id: b.id,
@@ -274,11 +281,11 @@ console.log("DEBUG CAKE DATA:", cakeData);
         return detailedLists.Requests.filter(
           req => branchFilter === 'all' || req.location === branchFilter
         );
-     case 'Cake Orders':
-  return detailedLists.CakeOrders.filter(
-    cake => branchFilter === 'all' || 
-            (cake.location && cake.location.toLowerCase() === branchFilter.toLowerCase())
-  );
+      case 'Cake Orders':
+        return detailedLists.CakeOrders.filter(
+          cake => branchFilter === 'all' || 
+                  (cake.location && cake.location.toLowerCase() === branchFilter.toLowerCase())
+        );
       case 'Baked':
         return detailedLists.Baked;
       case 'Delivered':
@@ -331,6 +338,19 @@ console.log("DEBUG CAKE DATA:", cakeData);
           { label: 'Date/Time', key: 'time', align: 'text-center' },
           { label: 'Status', key: 'status', align: 'text-right' },
         ];
+      case 'Cake Orders':
+        // NEW: Custom columns for Cake Orders including image, payer, pickup
+        return [
+          { label: 'Item Name', key: 'item', align: 'text-left' },
+          { label: 'Quantity', key: 'qty', align: 'text-center' },
+          { label: 'Customer', key: 'stock', align: 'text-left' },
+          { label: 'Image', key: 'image', align: 'text-center' },
+          { label: 'Payer Name', key: 'payerName', align: 'text-left' },
+          { label: 'Pickup By', key: 'pickupPerson', align: 'text-left' },
+          { label: 'Pickup Location', key: 'location', align: 'text-left' },
+          { label: 'Delivery Date', key: 'time', align: 'text-center' },
+          { label: 'Status', key: 'status', align: 'text-right' },
+        ];
       default:
         return [
           ...baseColumns,
@@ -343,6 +363,28 @@ console.log("DEBUG CAKE DATA:", cakeData);
 
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
+      {/* --- IMAGE ZOOM MODAL --- */}
+      {showZoomModal && zoomImageUrl && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-4 no-print"
+          onClick={() => setShowZoomModal(false)}
+        >
+          <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
+            <button 
+              onClick={() => setShowZoomModal(false)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <X size={32} />
+            </button>
+            <img 
+              src={zoomImageUrl} 
+              alt="Zoomed cake" 
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+
       {currentView === 'Dashboard' && (
         <>
           <div>
@@ -445,39 +487,64 @@ console.log("DEBUG CAKE DATA:", cakeData);
                 <tbody className="divide-y divide-gray-50">
                   {getDataForView(currentView).map((row) => (
                     <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
-                      {getTableColumns(currentView).map((col) => (
-                        <td
-                          key={col.key}
-                          className={`px-8 py-5 ${
-                            col.key === 'item' ? 'font-bold text-[#5D4037] text-sm' :
-                            col.key === 'qty' ? 'text-center font-black text-gray-800 text-base' :
-                            col.key === 'stock' || col.key === 'reason' ? 'text-sm text-gray-500 font-medium' :
-                            'text-sm text-gray-500 font-medium'
-                          } ${
-                            col.align === 'text-center' ? 'text-center' : col.align === 'text-right' ? 'text-right' : ''
-                          }`}
-                        >
-                          {col.key === 'stock' ? (
-                            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide">
-                              <MapPin size={10} /> {row[col.key]}
-                            </span>
-                          ) : col.key === 'status' ? (
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              row[col.key] === 'Ready' || row[col.key] === 'Approved' || row[col.key] === 'Selling' || row[col.key] === 'In Stock' || row[col.key] === 'Completed' ? 'bg-green-100 text-green-700' :
-                              row[col.key] === 'Delivered' || row[col.key] === 'Archived' || row[col.key] === 'pending' ? 'bg-blue-100 text-blue-700' :
-                              row[col.key] === 'Disposed' || row[col.key] === 'Returned' || row[col.key] === 'Waste' ? 'bg-red-100 text-red-700' :
-                              'bg-orange-100 text-orange-700'
-                            }`}>
-                              {row[col.key]}
-                            </span>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              {col.key === 'time' && <Clock size={14} className="text-[#A67C37]" />}
-                              {row[col.key]}
-                            </div>
-                          )}
-                        </td>
-                      ))}
+                      {getTableColumns(currentView).map((col) => {
+                        // Special rendering for 'image' column in Cake Orders
+                        if (currentView === 'Cake Orders' && col.key === 'image') {
+                          return (
+                            <td key={col.key} className="px-8 py-5 text-center">
+                              {row.imageUrl ? (
+                                <img 
+                                  src={row.imageUrl} 
+                                  alt="cake" 
+                                  className="w-12 h-12 object-cover rounded-lg cursor-zoom-in hover:opacity-80 transition-opacity mx-auto"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomImageUrl(row.imageUrl);
+                                    setShowZoomModal(true);
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto" />
+                              )}
+                            </td>
+                          );
+                        }
+                        
+                        // Default cell rendering
+                        return (
+                          <td
+                            key={col.key}
+                            className={`px-8 py-5 ${
+                              col.key === 'item' ? 'font-bold text-[#5D4037] text-sm' :
+                              col.key === 'qty' ? 'text-center font-black text-gray-800 text-base' :
+                              col.key === 'stock' || col.key === 'reason' || col.key === 'payerName' || col.key === 'pickupPerson' ? 'text-sm text-gray-500 font-medium' :
+                              'text-sm text-gray-500 font-medium'
+                            } ${
+                              col.align === 'text-center' ? 'text-center' : col.align === 'text-right' ? 'text-right' : ''
+                            }`}
+                          >
+                            {col.key === 'stock' && currentView !== 'Cake Orders' ? (
+                              <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide">
+                                <MapPin size={10} /> {row[col.key]}
+                              </span>
+                            ) : col.key === 'status' ? (
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                row[col.key] === 'Ready' || row[col.key] === 'Approved' || row[col.key] === 'Selling' || row[col.key] === 'In Stock' || row[col.key] === 'Completed' ? 'bg-green-100 text-green-700' :
+                                row[col.key] === 'Delivered' || row[col.key] === 'Archived' || row[col.key] === 'pending' ? 'bg-blue-100 text-blue-700' :
+                                row[col.key] === 'Disposed' || row[col.key] === 'Returned' || row[col.key] === 'Waste' ? 'bg-red-100 text-red-700' :
+                                'bg-orange-100 text-orange-700'
+                              }`}>
+                                {row[col.key]}
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                {col.key === 'time' && <Clock size={14} className="text-[#A67C37]" />}
+                                {row[col.key]}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

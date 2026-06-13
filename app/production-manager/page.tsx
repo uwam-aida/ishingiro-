@@ -17,14 +17,18 @@ interface DashboardItem {
   qty: string;
   time: string;
   status: string;
-  target?: string; // The '?' makes this optional, fixing the TS error!
+  target?: string;
+  location?: string;
 }
 
 export default function ProductionManagerDashboard() {
   const router = useRouter();
   const [currentView, setCurrentView] = useState('Dashboard');
   
-  // --- STATE TO MANAGE ALL DATA (Now strongly typed!) ---
+  // --- BRANCH FILTER STATE (for Orders and Delivered only) ---
+  const [branchFilter, setBranchFilter] = useState<'all' | 'kabuga' | 'masaka'>('all');
+  
+  // --- STATE TO MANAGE ALL DATA ---
   const [allData, setAllData] = useState<Record<string, DashboardItem[]>>({
     Measured: [],
     Delivered: [],
@@ -59,7 +63,6 @@ export default function ProductionManagerDashboard() {
         if (response.ok) {
           const data = await response.json();
           
-          // Map backend data into the UI structure with real timestamps and product names
           setAllData({
             Measured: (data.measured || []).map((m: any) => ({
               id: m.id,
@@ -88,21 +91,26 @@ export default function ProductionManagerDashboard() {
               item: d.product?.name || 'Unknown Product',
               qty: `${d.quantity} pcs`,
               time: formatDateTime(d.created_at),
-              status: 'Delivered'
+              status: 'Delivered',
+              location: d.to_location || 'unknown'
             })),
-            Orders: (data.orders || []).map((o: any) => ({
-              id: o.id,
-              item: `${o.location || 'Branch'} Order`,
-              qty: '-',
-              time: formatDateTime(o.created_at),
-              status: o.status || 'Pending'
-            })),
+            Orders: (data.orders || []).flatMap((order: any) =>
+              (order.items || []).map((item: any) => ({
+                id: item.id,
+                item: item.product?.name || item.product_name || 'Unknown Product',
+                qty: `${item.quantity} pcs`,
+                time: formatDateTime(order.created_at),
+                status: '',
+                location: order.location || 'unknown'
+              }))
+            ),
             Damaged: (data.damaged || []).map((d: any) => ({
               id: d.id,
               item: d.product?.name || 'Unknown Product',
               qty: `${d.quantity} pcs`,
               time: formatDateTime(d.created_at),
-              status: 'Reported'
+              status: 'Reported',
+              location: d.reported_by || d.location || 'Not specified'
             }))
           });
         }
@@ -244,10 +252,17 @@ export default function ProductionManagerDashboard() {
       Damaged: 'Reported waste and damaged goods.'
     };
 
+    let data = allData[view] || [];
+    
+    // ✅ Apply branch filter ONLY for Orders and Delivered (not for Damaged)
+    if ((view === 'Orders' || view === 'Delivered') && branchFilter !== 'all') {
+      data = data.filter(item => item.location?.toLowerCase() === branchFilter);
+    }
+
     return {
       desc: descriptions[view] || '',
       editable: true,
-      data: allData[view] || []
+      data: data
     };
   };
 
@@ -299,6 +314,26 @@ export default function ProductionManagerDashboard() {
               <h2 className="text-xl font-bold text-[#5D4037] flex items-center">
                 {currentView} Items <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full ml-2 uppercase font-black tracking-widest">Editable</span>
               </h2>
+              
+              {/* ✅ Branch filter now shown only for Orders and Delivered (not for Damaged) */}
+              {(currentView === 'Orders' || currentView === 'Delivered') && (
+                <div className="flex gap-2">
+                  {(['all', 'kabuga', 'masaka'] as const).map(branch => (
+                    <button
+                      key={branch}
+                      onClick={() => setBranchFilter(branch)}
+                      className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-colors ${
+                        branchFilter === branch
+                          ? 'bg-[#5D4037] text-white'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {branch}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input type="text" placeholder="Search..." className="bg-gray-50 border border-gray-200 text-sm rounded-xl pl-10 pr-4 py-2 w-full md:w-64 focus:outline-none focus:ring-2 focus:ring-[#5D4037]/20" />
@@ -313,7 +348,12 @@ export default function ProductionManagerDashboard() {
                     {currentView === 'Distribution' && <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Target</th>}
                     <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-center">Quantity</th>
                     <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Time</th>
-                    <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                    {/* For Orders, Delivered, and Damaged, show Location column */}
+                    {(currentView === 'Orders' || currentView === 'Delivered' || currentView === 'Damaged') ? (
+                      <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Location</th>
+                    ) : (
+                      <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase">Status</th>
+                    )}
                     <th className="px-8 py-4 text-xs font-bold text-gray-500 uppercase text-right">Actions</th>
                   </tr>
                 </thead>
@@ -335,11 +375,20 @@ export default function ProductionManagerDashboard() {
                       )}
                       <td className="px-8 py-5 text-center font-black text-gray-800 text-base">{row.qty}</td>
                       <td className="px-8 py-5 text-sm text-gray-500 font-medium">{row.time}</td>
-                      <td className="px-8 py-5">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-100 text-green-700">
-                          {row.status}
-                        </span>
-                      </td>
+                      {/* Location column for Orders, Delivered, Damaged */}
+                      {(currentView === 'Orders' || currentView === 'Delivered' || currentView === 'Damaged') ? (
+                        <td className="px-8 py-5">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-700">
+                            {row.location}
+                          </span>
+                        </td>
+                      ) : (
+                        <td className="px-8 py-5">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-green-100 text-green-700">
+                            {row.status}
+                          </span>
+                        </td>
+                      )}
                       <td className="px-8 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={() => handleEdit(currentView, row.id)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Edit2 size={16} /></button>

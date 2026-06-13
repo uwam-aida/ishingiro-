@@ -116,6 +116,9 @@ export default function StoreKeeperDashboard() {
   // --- NEW: Cake order detail modal states ---
   const [selectedCakeOrderDetail, setSelectedCakeOrderDetail] = useState<any>(null);
   const [showCakeDetailModal, setShowCakeDetailModal] = useState(false);
+  // --- Image zoom modal state ---
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [showZoomModal, setShowZoomModal] = useState(false);
 
   // --- DERIVED: Available Stock = Physical - Sum of all requested quantities (fallback) ---
   const availableStock = useMemo(() => {
@@ -320,7 +323,9 @@ export default function StoreKeeperDashboard() {
              totalPrice: c.price,
              paid: c.total_paid,
              remaining: c.remaining_payment,
-             imageUrl: c.inspo_image_url
+             imageUrl: c.inspo_image_url,
+             payerName: c.payer_name || c.customer_name,    // adjust if backend uses different key
+             pickupPerson: c.pickup_contact_name || '—'
           }));
           mappedCakes.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setCakeOrders(mappedCakes);
@@ -359,32 +364,7 @@ export default function StoreKeeperDashboard() {
 
         // Fetch 8: Delivery Notes - GET /storekeeper/delivery-notes
         await fetchAllDeliveryNotes();
-           // Immediately refresh the shop‑requests list so fulfilled orders disappear
-const refreshedReqRes = await fetch(`${baseUrl}/storekeeper/all-orders`, {
-  headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
-});
-if (refreshedReqRes.ok) {
-  const result = await refreshedReqRes.json();
-  const orders = result.data || [];
-  const freshRequests: any[] = [];
-  orders.forEach((order: any) => {
-    order.items?.forEach((item: any) => {
-      freshRequests.push({
-        id: order.id,
-        request_item_id: item.id,
-        product_id: item.product_id,
-        item: item.product?.name || item.product_name || 'Unknown',
-        quantity: item.quantity,
-        unit: 'pcs',
-        time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
-        branch: order.location,
-        isEdited: false,
-        type: 'request'
-      });
-    });
-  });
-  setShopRequests(freshRequests);
-}
+
       } catch (err) {
         console.error("Failed to fetch storekeeper data", err);
       }
@@ -1294,59 +1274,86 @@ const handleSubmitDamage = async () => {
         )}
 
         {/* CAKE ORDERS WITH PAYMENT API LOGIC (NOW WITH CLICKABLE ROWS FOR DETAIL) */}
-        {activeFilter === 'cake_orders' && (
-          <div className="overflow-x-auto">
-            <div className="flex justify-between items-center p-4 border-b border-gray-200">
-              <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Cake Orders</h3>
-              <input
-                type="text"
-                placeholder="Search cake orders..."
-                value={cakeOrderSearch}
-                onChange={(e) => setCakeOrderSearch(e.target.value)}
-                className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
-              />
-            </div>
-            <table className="w-full text-left font-bold">
-              <thead><tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200"><th className="px-8 py-4">Customer / Item</th><th className="px-8 py-4 text-center">Payment Status</th><th className="px-8 py-4 text-right">Pickup Location & Date</th><th className="px-8 py-4 text-right">Action</th></tr></thead>
-              <tbody className="divide-y divide-gray-100 font-bold">
-                {cakeOrders
-                  .filter(order => order.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || order.details.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
-                  .map((order) => (
-                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => fetchCakeOrderDetail(order.id)}>
-                      <td className="px-8 py-6">
-                        <div className="flex flex-col">
-                          <span className="font-black text-[#F57C00] uppercase text-sm">{order.customer}</span>
-                          <span className="text-[10px] text-gray-400">{order.details}</span>
-                        </div>
-                      </td>
-                      <td className="px-8 py-6 text-center">
-                         <div className="flex flex-col items-center">
-                           <span className={`px-3 py-1 rounded-full text-[9px] uppercase font-black ${
-                             order.remaining === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                           }`}>
-                             {order.remaining === 0 ? 'Fully Paid' : `Debt: ${order.remaining?.toLocaleString() || 0} RWF`}
-                           </span>
-                         </div>
-                       </td>
-                       <td className="px-8 py-6 text-right text-xs font-black text-gray-400">
-                                            {order.pickupLocation} – {order.pickupDate?.split('T')[0]}
-                        </td>
-                       <td className="px-8 py-6 text-right" onClick={(e) => e.stopPropagation()}>
-                         {order.remaining > 0 && (
-                            <button onClick={() => handleRecordCakePayment(order.id, order.remaining)} className="text-[9px] bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors uppercase font-black shadow-md active:scale-95">
-                              Record Pay
-                            </button>
-                         )}
-                       </td>
-                     </tr>
-                  ))}
-                {cakeOrders.filter(o => o.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || o.details.toLowerCase().includes(cakeOrderSearch.toLowerCase())).length === 0 && (
-                  <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td></tr>
+{activeFilter === 'cake_orders' && (
+  <div className="overflow-x-auto">
+    <div className="flex justify-between items-center p-4 border-b border-gray-200">
+      <h3 className="text-sm font-black text-gray-800 uppercase tracking-widest">Cake Orders</h3>
+      <input
+        type="text"
+        placeholder="Search cake orders..."
+        value={cakeOrderSearch}
+        onChange={(e) => setCakeOrderSearch(e.target.value)}
+        className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
+      />
+    </div>
+    <table className="w-full text-left font-bold">
+      <thead>
+        <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
+          <th className="px-8 py-4">Customer / Item</th>
+          <th className="px-8 py-4 text-center">Payment Status</th>
+          <th className="px-8 py-4 text-right">Pickup Location & Date</th>
+          <th className="px-8 py-4">Image</th>
+          <th className="px-8 py-4 text-right">Action</th>
+         </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100 font-bold">
+        {cakeOrders
+          .filter(order => order.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || order.details.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
+          .map((order) => (
+            <tr key={order.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => fetchCakeOrderDetail(order.id)}>
+              <td className="px-8 py-6">
+                <div className="flex flex-col">
+                  <span className="font-black text-[#F57C00] uppercase text-sm">{order.customer}</span>
+                  <span className="text-[10px] text-gray-400">{order.details}</span>
+                </div>
+               </td>
+              <td className="px-8 py-6 text-center">
+                <div className="flex flex-col items-center">
+                  <span className={`px-3 py-1 rounded-full text-[9px] uppercase font-black ${
+                    order.remaining === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {order.remaining === 0 ? 'Fully Paid' : `Debt: ${order.remaining?.toLocaleString() || 0} RWF`}
+                  </span>
+                </div>
+               </td>
+              <td className="px-8 py-6 text-right text-xs font-black text-gray-400">
+                {order.pickupLocation} – {order.pickupDate?.split('T')[0]}
+               </td>
+              {/* Image column */}
+              <td className="px-8 py-6" onClick={(e) => e.stopPropagation()}>
+  {order.imageUrl ? (
+    <img 
+      src={order.imageUrl} 
+      alt="cake" 
+      className="w-12 h-12 object-cover rounded-lg cursor-zoom-in hover:opacity-80 transition-opacity"
+      onClick={() => {
+        setZoomImageUrl(order.imageUrl);
+        setShowZoomModal(true);
+      }}
+    />
+  ) : (
+    <div className="w-12 h-12 bg-gray-100 rounded-lg" />
+  )}
+</td>
+              
+              <td className="px-8 py-6 text-right" onClick={(e) => e.stopPropagation()}>
+                {order.remaining > 0 && (
+                  <button onClick={() => handleRecordCakePayment(order.id, order.remaining)} className="text-[9px] bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors uppercase font-black shadow-md active:scale-95">
+                    Record Pay
+                  </button>
                 )}
-              </tbody>
-            </table>
-          </div>
+               </td>
+            </tr>
+          ))}
+        {cakeOrders.filter(o => o.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || o.details.toLowerCase().includes(cakeOrderSearch.toLowerCase())).length === 0 && (
+          <tr>
+            <td colSpan={7} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
+          </tr>
         )}
+      </tbody>
+    </table>
+  </div>
+)}
 
         {/* FULL HISTORY SECTION (unchanged) */}
         {activeFilter === 'full_history' && (
