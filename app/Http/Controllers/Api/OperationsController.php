@@ -28,15 +28,30 @@ class OperationsController extends Controller
     }
 
     // DASHBOARD DETAILS
+    // - damaged array now includes reported_by (the name of the user who recorded it)
     public function details()
     {
+        $damages = Damage::with(['product', 'user'])->latest()->get()->map(function ($d) {
+            return [
+                'id'          => $d->id,
+                'product_id'  => $d->product_id,
+                'product'     => optional($d->product)->name,
+                'quantity'    => $d->quantity,
+                'reason'      => $d->reason,
+                'location'    => $d->location,
+                'reported_by' => optional($d->user)->name ?? 'Unknown',
+                'created_at'  => $d->created_at,
+                'updated_at'  => $d->updated_at,
+            ];
+        });
+
         return [
             'measured'     => Ingredient::all(),
             'baked'        => Production::with('product')->latest()->get(),
             'distribution' => Distribution::with('product')->latest()->get(),
             'delivered'    => Delivery::with('product')->latest()->get(),
             'orders'       => Order::with('items.product')->latest()->get(),
-            'damaged'      => Damage::with('product')->latest()->get(),
+            'damaged'      => $damages,
         ];
     }
 
@@ -87,7 +102,7 @@ class OperationsController extends Controller
     public function updateDistribution(Request $request, $id)
     {
         $distribution = Distribution::findOrFail($id);
-        $distribution->update($request->only(['quantity', 'category', 'location', 'notes']));
+        $distribution->update($request->only(['quantity','category', 'location', 'notes']));
 
         return $distribution;
     }

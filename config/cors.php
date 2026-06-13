@@ -6,7 +6,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    // FIX: 'allowed_origins' must NOT mix '*' with specific origins.
+    // ✅ FIX: 'allowed_origins' must NOT mix '*' with specific origins.
     // When using wildcard '*', all origins are allowed already.
     // Keeping specific origins here for clarity and security.
     'allowed_origins' => [

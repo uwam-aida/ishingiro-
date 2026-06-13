@@ -8,6 +8,12 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // FIX: Table already created by 2026_05_24 migration.
+        // Skip silently if it exists — avoids duplicate table error.
+        if (Schema::hasTable('sent_messages')) {
+            return;
+        }
+
         Schema::create('sent_messages', function (Blueprint $table) {
             $table->id();
             $table->foreignId('sender_id')->constrained('users')->cascadeOnDelete();

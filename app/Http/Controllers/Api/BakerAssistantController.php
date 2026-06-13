@@ -38,10 +38,6 @@ class BakerAssistantController extends Controller
     }
 
     // RECORD PRODUCTION BATCH
-    // - Creates Production record
-    // - Adds to factory Stock (location = factory)
-    // - Logs StockMovement (type = in)
-    // - Notifies both shop managers
     public function storeProduction(Request $request)
     {
         $validated = $request->validate([
@@ -52,14 +48,12 @@ class BakerAssistantController extends Controller
 
         $production = Production::create($validated);
 
-        // Add baked goods to factory stock so StoreKeeper can dispatch them
         $stock = Stock::firstOrCreate([
             'product_id' => $validated['product_id'],
             'location'   => 'factory',
         ]);
         $stock->increment('quantity', $validated['quantity']);
 
-        // Log the movement
         StockMovement::create([
             'product_id' => $validated['product_id'],
             'type'       => 'in',
@@ -82,9 +76,6 @@ class BakerAssistantController extends Controller
     }
 
     // RECORD DAMAGE
-    // - Creates Damage record
-    // - Decrements factory stock (baked goods lost before dispatch)
-    // - Logs StockMovement (type = out)
     public function storeDamage(Request $request)
     {
         $request->validate([
@@ -94,9 +85,15 @@ class BakerAssistantController extends Controller
             'location'   => 'nullable|string',
         ]);
 
-        $damage = Damage::create($request->all());
+        // Always save user_id so reported_by works
+        $damage = Damage::create([
+            'product_id' => $request->product_id,
+            'quantity'   => $request->quantity,
+            'reason'     => $request->reason,
+            'location'   => $request->location ?? 'factory',
+            'user_id'    => auth()->id(),
+        ]);
 
-        // Decrement stock at the location where damage occurred
         $location = $request->location ?? 'factory';
         $stock = Stock::where('product_id', $request->product_id)
             ->where('location', $location)
@@ -114,7 +111,6 @@ class BakerAssistantController extends Controller
             ]);
         }
 
-        // Alert on high damage
         if ($damage->quantity > 20) {
             SendNotificationJob::dispatch('operations_manager', 'High damage reported by baker');
             SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert from production');

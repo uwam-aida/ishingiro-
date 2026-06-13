@@ -8,15 +8,23 @@ use Illuminate\Database\Eloquent\Model;
 class Damage extends Model
 {
     use HasFactory;
+
     protected $fillable = [
-    'product_id',
-    'quantity',
-    'reason',
-    'location'
+        'product_id',
+        'quantity',
+        'reason',
+        'location',
+        'user_id',
     ];
 
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    // Added user relationship so reported_by works in OperationsController
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }
