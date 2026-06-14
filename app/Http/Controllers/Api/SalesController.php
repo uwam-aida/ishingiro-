@@ -116,7 +116,7 @@ class SalesController extends Controller
             'special_instructions' => 'nullable|string',
             'reception_location'   => 'nullable|string',
             'needs_sample'         => 'nullable|boolean',
-            'payment_method'       => 'nullable|string|in:cash,card,mobile_money,bank_transfer',
+            'payment_method'       => 'nullable|string|in:cash,Cash,card,mobile_money,bank_transfer,momo,Momo,MoMo',
             'payer_name'           => 'nullable|string',
             'inspo_image'          => 'nullable|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
@@ -181,7 +181,7 @@ class SalesController extends Controller
     {
         $request->validate([
             'payment_amount' => 'required|numeric|min:1',
-            'payment_method' => 'required|string|in:cash,card,mobile_money,bank_transfer',
+            'payment_method' => 'required|string|in:cash,Cash,card,mobile_money,bank_transfer,momo,Momo,MoMo',
             'payer_name'     => 'nullable|string',
         ]);
 
