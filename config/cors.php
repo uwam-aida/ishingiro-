@@ -6,9 +6,8 @@ return [
 
     'allowed_methods' => ['*'],
 
-    // ✅ FIX: 'allowed_origins' must NOT mix '*' with specific origins.
-    // When using wildcard '*', all origins are allowed already.
-    // Keeping specific origins here for clarity and security.
+    // Allow all origins during development, specify in production
+    // For production, replace with your actual frontend URLs
     'allowed_origins' => [
         'http://localhost:3000',
         'http://localhost:3001',
@@ -24,8 +23,7 @@ return [
 
     'max_age' => 0,
 
-    // Keep false unless you are using cookie-based Sanctum SPA auth.
-    // Token-based (Bearer) auth does NOT need credentials.
+    // Set to false for token-based auth
     'supports_credentials' => false,
 
 ];

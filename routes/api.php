@@ -273,6 +273,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/masaka', [ReportController::class, 'byLocation'])->defaults('location', 'masaka');
             Route::get('/detailed', [ReportController::class, 'detailed']);
             Route::get('/revenue', [ReportController::class, 'revenue']);
+            // NEW: Close day report endpoint
+            Route::get('/close-day', [ReportController::class, 'closeDayReport']);
         });
 
         Route::prefix('cicm')->group(function () {
@@ -319,6 +321,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/profit-margins', [FinanceController::class, 'profitMargins']);
         Route::get('/branch-performance', [FinanceController::class, 'branchPerformance']);
         Route::get('/cash-flow', [FinanceController::class, 'cashFlow']);
+
+        // NEW: Close day report endpoint for finance chief
+        Route::get('/reports/close-day', [ReportController::class, 'closeDayReport']);
     });
 
 });

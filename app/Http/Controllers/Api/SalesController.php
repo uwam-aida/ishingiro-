@@ -16,9 +16,11 @@ use App\Models\SentMessage;
 use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class SalesController extends Controller
 {
@@ -495,6 +497,13 @@ class SalesController extends Controller
             ->where('status', 'pending')
             ->get();
 
+        // Debug logging
+        Log::info('Available Stock Calculation', [
+            'location' => $location,
+            'physical_stock_count' => $physicalStock->count(),
+            'pending_orders_count' => $pendingRequests->count(),
+        ]);
+
         $availableStock = [];
 
         foreach ($physicalStock as $stock) {
@@ -520,6 +529,36 @@ class SalesController extends Controller
                 'location'           => $stock->location,
                 'unit'               => $stock->unit ?? 'pcs',
             ];
+        }
+
+        // Also include products that have pending orders but no stock yet
+        $productIdsWithRequests = [];
+        foreach ($pendingRequests as $pendingRequest) {
+            foreach ($pendingRequest->items as $item) {
+                $productIdsWithRequests[$item->product_id] = ($productIdsWithRequests[$item->product_id] ?? 0) + $item->quantity;
+            }
+        }
+
+        $existingProductIds = collect($availableStock)->pluck('product_id')->toArray();
+        $missingProductIds = array_diff(array_keys($productIdsWithRequests), $existingProductIds);
+
+        foreach ($missingProductIds as $productId) {
+            /** @var Product|null $product */
+            $product = Product::find($productId);
+            $requestedQty = $productIdsWithRequests[$productId];
+            if ($product instanceof Product) {
+                $availableStock[] = [
+                    'id'                 => null,
+                    'product_id'         => $productId,
+                    'product_name'       => $product->name,
+                    'product_price'      => $product->price,
+                    'physical_quantity'  => 0,
+                    'requested_quantity' => $requestedQty,
+                    'available_quantity' => 0,
+                    'location'           => $location,
+                    'unit'               => $product->type === 'unbaked' ? 'kg' : 'pcs',
+                ];
+            }
         }
 
         return response()->json([
@@ -564,6 +603,13 @@ class SalesController extends Controller
             }
         }
 
+        // Debug logging to verify
+        Log::info('Factory Available Stock Calculation', [
+            'pending_orders_count' => $allPendingOrders->count(),
+            'requested_by_product' => $requestedByProduct,
+            'factory_stock_count' => $factoryStock->count(),
+        ]);
+
         $availableStock = [];
 
         foreach ($factoryStock as $stock) {
@@ -583,6 +629,30 @@ class SalesController extends Controller
                 'unit'               => $stock->unit ?? 'pcs',
                 'status'             => $available < 10 ? 'Low Stock' : 'Available',
             ];
+        }
+
+        // Also include products that have pending orders but no factory stock yet
+        $productIdsWithRequests = array_keys($requestedByProduct);
+        $existingProductIds = collect($availableStock)->pluck('product_id')->toArray();
+        $missingProductIds = array_diff($productIdsWithRequests, $existingProductIds);
+
+        foreach ($missingProductIds as $productId) {
+            /** @var Product|null $product */
+            $product = Product::find($productId);
+            if ($product instanceof Product) {
+                $availableStock[] = [
+                    'id'                 => null,
+                    'product_id'         => $productId,
+                    'product_name'       => $product->name,
+                    'product_price'      => $product->price,
+                    'physical_quantity'  => 0,
+                    'requested_quantity' => $requestedByProduct[$productId],
+                    'available_quantity' => 0,
+                    'location'           => 'factory',
+                    'unit'               => $product->type === 'unbaked' ? 'kg' : 'pcs',
+                    'status'             => 'Out of Stock',
+                ];
+            }
         }
 
         return response()->json([

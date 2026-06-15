@@ -10,7 +10,9 @@ use App\Models\Distribution;
 use App\Models\Order;
 use App\Models\Production;
 use App\Models\Revenue;
+use App\Models\ShopClosingRecord;
 use App\Models\Stock;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class ReportController extends Controller
@@ -157,5 +159,146 @@ class ReportController extends Controller
             'grand_total' => $grandTotal,
             'categories'  => $categories,
         ];
+    }
+
+    /**
+     * Get close day report for inventory-based revenue calculation
+     * GET /api/reports/close-day?date=YYYY-MM-DD&branch=kabuga|masaka
+     * 
+     * Returns for each product: delivered_qty, remaining_qty, damaged_qty, 
+     * expired_qty, distributed_qty, unit_price, sold_qty, revenue
+     */
+    public function closeDayReport(Request $request)
+    {
+        $date = $request->query('date');
+        $branch = $request->query('branch');
+
+        // Validate required parameters
+        if (!$date || !$branch) {
+            return response()->json([
+                'error' => 'Missing required parameters: date and branch are required'
+            ], 422);
+        }
+
+        if (!in_array($branch, ['kabuga', 'masaka'])) {
+            return response()->json([
+                'error' => 'Invalid branch. Must be kabuga or masaka'
+            ], 422);
+        }
+
+        $startOfDay = date('Y-m-d 00:00:00', strtotime($date));
+        $endOfDay = date('Y-m-d 23:59:59', strtotime($date));
+
+        // Get all products that are baked (or all products as needed)
+        $products = Product::where('type', 'baked')->get();
+
+        // Get deliveries to this branch on the specified date
+        $deliveries = Delivery::with('product')
+            ->where('to_location', $branch)
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->get();
+
+        // Get closing record for this branch on this date (if exists)
+        $closingRecord = ShopClosingRecord::where('location', $branch)
+            ->where('closing_date', $date)
+            ->first();
+
+        // Get damages recorded on this date at this branch
+        $damages = Damage::with('product')
+            ->where('location', $branch)
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->get();
+
+        // Get distributions on this date from this branch
+        $distributions = Distribution::with('product')
+            ->where('location', $branch)
+            ->whereBetween('created_at', [$startOfDay, $endOfDay])
+            ->get();
+
+        // Build lookup arrays for quick access
+        $deliveredByProduct = [];
+        foreach ($deliveries as $delivery) {
+            $productId = $delivery->product_id;
+            $deliveredByProduct[$productId] = ($deliveredByProduct[$productId] ?? 0) + $delivery->quantity;
+        }
+
+        $damagedByProduct = [];
+        foreach ($damages as $damage) {
+            $productId = $damage->product_id;
+            $damagedByProduct[$productId] = ($damagedByProduct[$productId] ?? 0) + $damage->quantity;
+        }
+
+        $distributedByProduct = [];
+        foreach ($distributions as $distribution) {
+            $productId = $distribution->product_id;
+            $distributedByProduct[$productId] = ($distributedByProduct[$productId] ?? 0) + $distribution->quantity;
+        }
+
+        // Get remaining from closing record
+        $remainingByProduct = [];
+        $expiredByProduct = [];
+        if ($closingRecord && $closingRecord->products) {
+            foreach ($closingRecord->products as $productData) {
+                $productId = $productData['product_id'];
+                $remainingByProduct[$productId] = $productData['remaining'] ?? 0;
+                $expiredByProduct[$productId] = ($productData['expired'] ?? 0);
+            }
+        }
+
+        // Build response
+        $result = [];
+        $grandTotal = 0;
+
+        foreach ($products as $product) {
+            $productId = $product->id;
+            
+            $deliveredQty = $deliveredByProduct[$productId] ?? 0;
+            $remainingQty = $remainingByProduct[$productId] ?? 0;
+            $damagedQty = $damagedByProduct[$productId] ?? 0;
+            $expiredQty = $expiredByProduct[$productId] ?? 0;
+            $distributedQty = $distributedByProduct[$productId] ?? 0;
+            $unitPrice = $product->price;
+
+            // Formula: sold_qty = delivered_qty - (remaining_qty + damaged_qty + expired_qty + distributed_qty)
+            $soldQty = $deliveredQty - ($remainingQty + $damagedQty + $expiredQty + $distributedQty);
+            
+            // Ensure sold_qty is not negative (can happen if data is inconsistent)
+            $soldQty = max(0, $soldQty);
+            
+            $revenue = $soldQty * $unitPrice;
+            $grandTotal += $revenue;
+
+            $result[] = [
+                'product_name'    => $product->name,
+                'product_id'      => $productId,
+                'delivered_qty'   => $deliveredQty,
+                'remaining_qty'   => $remainingQty,
+                'damaged_qty'     => $damagedQty,
+                'expired_qty'     => $expiredQty,
+                'distributed_qty' => $distributedQty,
+                'unit_price'      => $unitPrice,
+                'sold_qty'        => $soldQty,
+                'revenue'         => $revenue,
+            ];
+        }
+
+        // Filter out products with all zeros (optional)
+        $result = array_filter($result, function($item) {
+            return $item['delivered_qty'] > 0 || 
+                   $item['remaining_qty'] > 0 || 
+                   $item['damaged_qty'] > 0 || 
+                   $item['distributed_qty'] > 0 ||
+                   $item['sold_qty'] > 0;
+        });
+
+        // Re-index array
+        $result = array_values($result);
+
+        return response()->json([
+            'date' => $date,
+            'branch' => $branch,
+            'grand_total' => $grandTotal,
+            'products' => $result,
+        ]);
     }
 }
