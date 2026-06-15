@@ -6,11 +6,8 @@ return [
 
     'allowed_methods' => ['*'],
 
-    // Allow all origins during development, specify in production
-    // For production, replace with your actual frontend URLs
+    // PRODUCTION: Only your actual frontend domains
     'allowed_origins' => [
-        'http://localhost:3000',
-        'http://localhost:3001',
         'https://ishingiro-m4th.onrender.com',
         'https://ishingiro-shop.vercel.app',
     ],
@@ -23,7 +20,7 @@ return [
 
     'max_age' => 0,
 
-    // Set to false for token-based auth
+    // Keep false for token-based authentication
     'supports_credentials' => false,
 
 ];
