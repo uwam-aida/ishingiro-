@@ -661,4 +661,95 @@ class SalesController extends Controller
             'data'            => $availableStock,
         ]);
     }
+
+    /**
+     * Get global available stock for any location
+     * Subtracts ALL pending orders from ALL branches so everyone sees the same number
+     * GET /api/sales/global-available-stock/{location}
+     */
+    public function getGlobalAvailableStock($location)
+    {
+        if (!in_array($location, ['kabuga', 'masaka', 'factory'])) {
+            return response()->json([
+                'error' => 'Invalid location. Must be kabuga, masaka, or factory'
+            ], 400);
+        }
+
+        $physicalStock = Stock::with('product')
+            ->where('location', $location)
+            ->get();
+
+        // Get ALL pending orders from ALL branches
+        $allPendingOrders = Order::with('items')
+            ->where('status', 'pending')
+            ->get();
+
+        // Build total requested quantity per product across ALL branches
+        $requestedByProduct = [];
+        foreach ($allPendingOrders as $order) {
+            foreach ($order->items as $item) {
+                $requestedByProduct[$item->product_id] = 
+                    ($requestedByProduct[$item->product_id] ?? 0) + $item->quantity;
+            }
+        }
+
+        // Debug logging
+        Log::info('Global Available Stock Calculation', [
+            'location' => $location,
+            'pending_orders_count' => $allPendingOrders->count(),
+            'requested_by_product' => $requestedByProduct,
+            'physical_stock_count' => $physicalStock->count(),
+        ]);
+
+        $availableStock = [];
+
+        foreach ($physicalStock as $stock) {
+            $productId = $stock->product_id;
+            $requestedQty = $requestedByProduct[$productId] ?? 0;
+            $available = max(0, $stock->quantity - $requestedQty);
+
+            $availableStock[] = [
+                'id'                 => $stock->id,
+                'product_id'         => $productId,
+                'product_name'       => $stock->product->name,
+                'product_price'      => $stock->product->price,
+                'physical_quantity'  => $stock->quantity,
+                'requested_quantity' => $requestedQty,
+                'available_quantity' => $available,
+                'location'           => $stock->location,
+                'unit'               => $stock->unit ?? 'pcs',
+                'status'             => $available < 10 ? 'Low Stock' : 'Available',
+            ];
+        }
+
+        // Also include products that have pending orders but no stock yet
+        $productIdsWithRequests = array_keys($requestedByProduct);
+        $existingProductIds = collect($availableStock)->pluck('product_id')->toArray();
+        $missingProductIds = array_diff($productIdsWithRequests, $existingProductIds);
+
+        foreach ($missingProductIds as $productId) {
+            /** @var Product|null $product */
+            $product = Product::find($productId);
+            if ($product instanceof Product) {
+                $availableStock[] = [
+                    'id'                 => null,
+                    'product_id'         => $productId,
+                    'product_name'       => $product->name,
+                    'product_price'      => $product->price,
+                    'physical_quantity'  => 0,
+                    'requested_quantity' => $requestedByProduct[$productId],
+                    'available_quantity' => 0,
+                    'location'           => $location,
+                    'unit'               => $product->type === 'unbaked' ? 'kg' : 'pcs',
+                    'status'             => 'Out of Stock',
+                ];
+            }
+        }
+
+        return response()->json([
+            'location'        => $location,
+            'total_available' => collect($availableStock)->sum('available_quantity'),
+            'data'            => $availableStock,
+        ]);
+    }
 }
