@@ -112,8 +112,9 @@ Route::middleware('auth:sanctum')->group(function () {
     */
     Route::middleware('role:sales_coordinator,shop_manager_kabuga,shop_manager_masaka')->group(function () {
         Route::get('/sales/available-stock', [SalesController::class, 'getAvailableStock']);
-        // ✅ FIX: factory-available-stock is accessible by sales coordinator AND shop managers
         Route::get('/sales/factory-available-stock', [SalesController::class, 'getFactoryAvailableStock']);
+        // NEW: Global available stock for any location - same for everyone
+        Route::get('/sales/global-available-stock/{location}', [SalesController::class, 'getGlobalAvailableStock']);
     });
 
     /*
