@@ -75,6 +75,8 @@ export const salesCoordinatorMenu: MenuItem[] = [
 export const cicmMenu: MenuItem[] = [
   { name: 'Dashboard', icon: LayoutDashboard, href: '/cicm' },
   { name: 'Report', icon: FileText, href: '/cicm/report' },
+  { name: 'Notification', icon: Bell, href: `/cicm/notifications` },
+
 ];
 
 export const cheifFinanceMenu: MenuItem[] = [

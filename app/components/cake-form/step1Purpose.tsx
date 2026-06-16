@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, AlertCircle, Truck, Layers, Banknote } from 'lucide-react';
 
 export default function Step1Purpose({ formData, setFormData, handleNext, handlePrev }: any) {
@@ -54,6 +54,11 @@ export default function Step1Purpose({ formData, setFormData, handleNext, handle
 
     return total;
   }, [formData]);
+     useEffect(() => {
+    if (totalAmount > 0 && String(totalAmount) !== formData.totalAmount) {
+      setFormData((prev: any) => ({ ...prev, totalAmount: String(totalAmount) }));
+    }
+  }, [totalAmount]);
 
   // Helper to handle multiple checkbox selections
   const handleStageToggle = (value: string) => {

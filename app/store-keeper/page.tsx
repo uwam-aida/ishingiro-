@@ -122,21 +122,23 @@ export default function StoreKeeperDashboard() {
 
   // --- DERIVED: Available Stock = Physical - Sum of all requested quantities (fallback) ---
   const availableStock = useMemo(() => {
-    const requestedMap = new Map<number, number>();
-    shopRequests.forEach(req => {
-      const prev = requestedMap.get(req.product_id) || 0;
-      requestedMap.set(req.product_id, prev + req.quantity);
-    });
+  // Build a map of requested quantities by product name (case‑insensitive, trimmed)
+  const requestedByName = new Map<string, number>();
+  shopRequests.forEach(req => {
+    const name = (req.item || '').toLowerCase().trim();
+    const prev = requestedByName.get(name) || 0;
+    requestedByName.set(name, prev + req.quantity);
+  });
 
-    return myStock.map(item => {
-      const requestedQty = requestedMap.get(item.product_id) || 0;
-      return {
-        ...item,
-        requested: requestedQty,
-        available: item.quantity - requestedQty,
-      };
-    });
-  }, [myStock, shopRequests]);
+  return myStock.map(item => {
+    const requestedQty = requestedByName.get((item.item || '').toLowerCase().trim()) || 0;
+    return {
+      ...item,
+      requested: requestedQty,
+      available: item.quantity - requestedQty,
+    };
+  });
+}, [myStock, shopRequests]);
 
   // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS (unchanged) ---
   const fetchAllDeliveryNotes = async () => {
@@ -1337,11 +1339,7 @@ const handleSubmitDamage = async () => {
 </td>
               
               <td className="px-8 py-6 text-right" onClick={(e) => e.stopPropagation()}>
-                {order.remaining > 0 && (
-                  <button onClick={() => handleRecordCakePayment(order.id, order.remaining)} className="text-[9px] bg-green-500 text-white px-3 py-2 rounded-lg hover:bg-green-600 transition-colors uppercase font-black shadow-md active:scale-95">
-                    Record Pay
-                  </button>
-                )}
+                
                </td>
             </tr>
           ))}

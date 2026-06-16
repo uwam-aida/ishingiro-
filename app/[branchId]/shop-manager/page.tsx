@@ -136,7 +136,7 @@ export default function DynamicShopDashboard() {
     try {
         const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
 
-        // 1. Baked products log
+        // 1. Baked products log (unchanged)
         const productionRes = await fetch(`${baseUrl}/shop/baked-items`, { headers });
         if (productionRes.ok) {
             const prodData = await productionRes.json();
@@ -162,13 +162,13 @@ export default function DynamicShopDashboard() {
                     id: s.id,
                     product_id: s.product_id,
                     item: s.product_name,
-                    quantity: s.physical_quantity,   // actual amount in the branch
+                    quantity: s.physical_quantity,   // actual stock in the branch
                     unit: s.unit || 'Pieces'
                 })));
             }
         }
 
-        // 3. Factory available stock (for ordering) – only one call
+        // 3. Factory available stock (NOW WORKS GLOBALLY) – for ordering
         const factoryRes = await fetch(`${baseUrl}/sales/factory-available-stock`, { headers });
         if (factoryRes.ok) {
             const factoryData = await factoryRes.json();
@@ -184,7 +184,7 @@ export default function DynamicShopDashboard() {
                         if (liveStock) {
                             return {
                                 ...product,
-                                quantity: parseInt(liveStock.available_quantity) || 0,
+                                quantity: parseInt(liveStock.available_quantity) || 0,   // <-- uses the global available_quantity
                                 unit: liveStock.unit || product.unit,
                             };
                         }
@@ -194,14 +194,13 @@ export default function DynamicShopDashboard() {
             }
         }
 
-        // 4. Orders / received
+        // 4. Orders / received (unchanged)
         const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
         if (ordRes.ok) {
             const ordData = await ordRes.json();
             if (ordData.length > 0) {
                 const pendingOrders: any[] = [];
                 const dispatchedOrders: any[] = [];
-
                 ordData.forEach((o: any) => {
                     o.items?.forEach((i: any) => {
                         const mappedItem = {
@@ -220,14 +219,13 @@ export default function DynamicShopDashboard() {
                         }
                     });
                 });
-
                 pendingOrders.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
                 setMyRequests(pendingOrders);
                 setReceivedStock(dispatchedOrders);
             }
         }
 
-        // 5. Cake orders
+        // 5. Cake orders (unchanged)
         const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
         if (cakeRes.ok) {
             const cakeData = await cakeRes.json();

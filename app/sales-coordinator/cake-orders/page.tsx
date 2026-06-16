@@ -94,7 +94,7 @@ export default function CakeOrderForm() {
         submitData.append('inspo_image', formData.cakeFile);
       }
 
-      const response = await fetch(`${baseUrl}/sales/cake-order`, {
+      const response = await fetch(`/api/sales/cake-order`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}` 
@@ -147,7 +147,7 @@ export default function CakeOrderForm() {
         </button>
 
         <div className="w-48 h-24 relative mb-4">
-            <img src="/cake-top.png" alt="Cake" className="w-full h-full object-contain" />
+            <img src="/cake-top .png" alt="Cake" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-2xl font-black text-[#5D4037] uppercase tracking-tight text-center px-4">
           ISHINGIRO Bakery Online Cake Order Form
