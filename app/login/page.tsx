@@ -54,7 +54,7 @@ export default function LoginPage() {
     setStatusMessage('Connecting to server...');
 
     try {
-      const response = await fetch(`${baseUrl}/login`, {
+      const response = await fetch('/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

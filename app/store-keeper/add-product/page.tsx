@@ -128,15 +128,14 @@ export default function StoreKeeperAddProduct() {
         description: "Stock addition via dashboard"
       };
 
-      const response = await fetch(`${baseUrl}/storekeeper/stock`, {
-        method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify(payload)
-      });
-
+      const response = await fetch('/api/storekeeper/stock', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(payload),
+});
       if (response.ok || response.status === 201) {
         setProductName('');
         setQuantity('');
