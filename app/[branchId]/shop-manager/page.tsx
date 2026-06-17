@@ -5,6 +5,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Package, Clock, ShoppingBag, AlertCircle, Search, Archive, ArrowLeft, Store, Plus, MapPin, Bell, X, ShieldAlert, CheckCircle2, Trash2, Edit2, Check, History, Cake, ClipboardCheck } from 'lucide-react';
 
+type FetchWithRetryOptions = RequestInit & { retries?: number; timeout?: number };
+
+const fetchWithRetry = async (input: RequestInfo, init: FetchWithRetryOptions = {}) => {
+  const { retries = 0, timeout = 10000, ...fetchOptions } = init;
+  let attempt = 0;
+
+  while (true) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(input, { ...fetchOptions, signal: controller.signal });
+      clearTimeout(timer);
+
+      if (!response.ok && attempt < retries) {
+        attempt += 1;
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      clearTimeout(timer);
+      if (attempt >= retries) throw error;
+      attempt += 1;
+    }
+  }
+};
+
 // --- OFFICIAL PRODUCT LIST (unchanged) ---
 const MARKETING_PRODUCTS = [
      // BREAD (Baked)
@@ -269,14 +297,13 @@ export default function DynamicShopDashboard() {
     const dbProductId = realDbProduct ? realDbProduct.id : 1;
 
     try {
-      const response = await fetch(`${baseUrl}/orders`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          location: branchIdString, 
-          items: [{ product_id: dbProductId, quantity: parseInt(requestQty) }]
-        })
-      });
+      const response = await fetchWithRetry('/api/orders', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({ location: branchIdString, items: [{ product_id: dbProductId, quantity: parseInt(requestQty) }] }),
+  retries: 2,
+  timeout: 10000
+});
       if (response.ok) {
         setShowRequestSuccess(true);
         setTimeout(() => setShowRequestSuccess(false), 3000);

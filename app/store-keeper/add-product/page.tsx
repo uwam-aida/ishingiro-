@@ -12,6 +12,44 @@ import {
   Loader2
 } from 'lucide-react';
 
+const fetchWithRetry = async (
+  url: string,
+  options: RequestInit & { retries?: number; timeout?: number } = {}
+): Promise<Response> => {
+  const { retries = 1, timeout = 0, ...fetchOptions } = options;
+
+  const attemptFetch = async (attemptsLeft: number): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = timeout
+      ? window.setTimeout(() => controller.abort(), timeout)
+      : undefined;
+
+    try {
+      const response = await fetch(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+      });
+
+      if (!response.ok && attemptsLeft > 1) {
+        return attemptFetch(attemptsLeft - 1);
+      }
+
+      return response;
+    } catch (error) {
+      if (attemptsLeft > 1) {
+        return attemptFetch(attemptsLeft - 1);
+      }
+      throw error;
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
+    }
+  };
+
+  return attemptFetch(retries);
+};
+
 // The hardcoded list acts as a fallback if the API is unreachable
 const STORE_PRODUCTS = [
   // BREAD (Baked)
@@ -84,8 +122,10 @@ export default function StoreKeeperAddProduct() {
     const fetchProducts = async () => {
       const token = localStorage.getItem('token');
       try {
-        const response = await fetch(`${baseUrl}/products`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        const response = await fetchWithRetry('/api/products', {
+          headers: { 'Authorization': `Bearer ${token}` },
+          retries: 3,
+          timeout: 15000,
         });
         if (response.ok) {
           const data = await response.json();

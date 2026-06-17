@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { fetchWithRetry } from '../lib/api';
 
-export default function LoginPage() {
+export default function LoginPage () {
   const router = useRouter();
   
   // Login States
@@ -34,13 +35,15 @@ export default function LoginPage() {
     }
     
     if (playerId) {
-      await fetch(`${baseUrl}/save-player-id`, {
+      await fetchWithRetry('/api/save-player-id', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ player_id: playerId }),
+        retries: 1,
+        timeout: 8000
       });
       localStorage.removeItem('pending_player_id');
     }
@@ -54,7 +57,7 @@ export default function LoginPage() {
     setStatusMessage('Connecting to server...');
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetchWithRetry(`${baseUrl}/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -62,8 +65,10 @@ export default function LoginPage() {
         },
         body: JSON.stringify({
           name: userName,
-          password: userPassword
+          password: userPassword,
         }),
+        retries: 2,
+        timeout: 10000,
       });
 
       const data = await response.json();
@@ -153,17 +158,19 @@ export default function LoginPage() {
     setStatusMessage('Resetting password...');
 
     try {
-      const response = await fetch(`${baseUrl}/reset-password`, {
+      const response = await fetchWithRetry(`${baseUrl}/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: JSON.stringify({
-          user_id: parseInt(resetUserId),
+          user_id: parseInt(resetUserId, 10),
           code: resetCode,
-          new_password: newPassword
+          new_password: newPassword,
         }),
+        retries: 2,
+        timeout: 10000,
       });
 
       const data = await response.json();

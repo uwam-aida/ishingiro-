@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { fetchWithRetry } from '../lib/api';
 
 export default function SalesCoordinatorDashboard() {
   const router = useRouter();
@@ -71,7 +72,7 @@ export default function SalesCoordinatorDashboard() {
         const headers = { 'Authorization': `Bearer ${token}` };
 
         // 1. Fetch Dashboard Summary
-        const summaryResponse = await fetch(`${baseUrl}/sales/dashboard`, { headers });
+const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, retries: 3, timeout: 15000 });
         if (summaryResponse.ok) {
           const summary = await summaryResponse.json();
           setApiData(prev => ({
@@ -87,19 +88,16 @@ export default function SalesCoordinatorDashboard() {
         }
 
         // 2. Fetch all detailed data from the correct endpoints
-        const [
-          requestsRes, cakeRes, bakedRes, deliveredRes,
-          stockRes, damagedRes, historyRes, targetsRes
-        ] = await Promise.all([
-          fetch(`${baseUrl}/sales/requests`, { headers }),
-          fetch(`${baseUrl}/sales/cake-orders`, { headers }),
-          fetch(`${baseUrl}/sales/baked`, { headers }),
-          fetch(`${baseUrl}/sales/delivered`, { headers }),
-          fetch(`${baseUrl}/sales/stock`, { headers }),
-          fetch(`${baseUrl}/sales/damaged`, { headers }),
-          fetch(`${baseUrl}/sales/history`, { headers }),
-          fetch(`${baseUrl}/sales/targets`, { headers })
-        ]);
+        const [requestsRes, cakeRes, bakedRes, deliveredRes, stockRes, damagedRes, historyRes, targetsRes] = await Promise.all([
+  fetchWithRetry('/api/sales/requests', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/cake-orders', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/baked', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/delivered', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/stock', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/damaged', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/history', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/api/sales/targets', { headers, retries: 3, timeout: 15000 })
+]);
 
         const requestsData = requestsRes.ok ? await requestsRes.json() : [];
         let cakeData = [];

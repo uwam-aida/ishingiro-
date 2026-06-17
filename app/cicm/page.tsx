@@ -265,14 +265,47 @@ export default function CICMDashboard() {
             }));
             setDetailsList(stockList);
           } 
-          else if (currentView === 'Rest Products') {
-            setDetailsList(data.distributions?.map((d: any) => ({
-              id: d.id,
-              item: d.product?.name || `Product #${d.product_id}`,
-              qty: `${d.quantity} pcs`,
-              secondaryInfo: d.category || 'General',
-              status: 'Sent'
-            })) || []);
+      else if (currentView === 'Rest Products') {
+  const branches = selectedBranch === 'all' ? ['kabuga', 'masaka'] : [selectedBranch];
+  let allRows: any[] = [];
+
+  for (const branch of branches) {
+const url = `/api/sales/global-available-stock/${branch}`;
+ const stockRes = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (stockRes.ok) {
+      const data = await stockRes.json();
+      const rows = (data.data || []).map((item: any) => ({
+        id: item.product_id,
+        item: item.product_name,
+        physical: item.physical_quantity || 0,
+        requested: item.requested_quantity || 0,
+        available: item.available_quantity || 0,
+        unit: item.unit || 'pcs',
+        branch: branch // optional, for display
+      }));
+      allRows = allRows.concat(rows);
+    }
+  }
+
+  // If "all", merge products by summing quantities (same product in both branches)
+  if (selectedBranch === 'all') {
+    const merged = new Map();
+    allRows.forEach(row => {
+      if (merged.has(row.id)) {
+        const existing = merged.get(row.id);
+        existing.physical += row.physical;
+        existing.requested += row.requested;
+        existing.available += row.available;
+        // keep unit from first occurrence
+      } else {
+        merged.set(row.id, { ...row });
+      }
+    });
+    allRows = Array.from(merged.values());
+  }
+
+  setDetailsList(allRows);
+
           } 
           else if (currentView === 'Live Cake Orders') {
             const cakeRes = await fetch(`${baseUrl}/sales/cake-orders`, { 
@@ -361,18 +394,6 @@ export default function CICMDashboard() {
           
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
              <h1 className="text-3xl font-bold text-gray-900">{currentView}</h1>
-             
-             {/* Date picker for Revenue view */}
-             {currentView === 'Revenue' && (
-               <div className="flex items-center gap-2">
-                 <input
-                   type="date"
-                   value={selectedDate}
-                   onChange={(e) => setSelectedDate(e.target.value)}
-                   className="border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#5D4037]/20"
-                 />
-               </div>
-             )}
              
              {/* Branch Switcher – only shown for views that need it */}
              {showBranchFilterInDetails() && (
