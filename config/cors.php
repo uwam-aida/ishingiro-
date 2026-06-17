@@ -6,11 +6,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    // PRODUCTION: Only your actual frontend domains
-    'allowed_origins' => [
-        'https://ishingiro-m4th.onrender.com',
-        'https://ishingiro-shop.vercel.app',
-    ],
+    'allowed_origins' => explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000')),
 
     'allowed_origins_patterns' => [],
 
@@ -20,7 +16,6 @@ return [
 
     'max_age' => 0,
 
-    // Keep false for token-based authentication
     'supports_credentials' => false,
 
 ];
