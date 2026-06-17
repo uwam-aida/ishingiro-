@@ -32,7 +32,6 @@ class ReportController extends Controller
     }
 
     // ── COMBINED SYSTEM-WIDE SUMMARY ──────────────────────────────────────────
-    // Supports: ?start_date=  ?end_date=
     public function combined(Request $request)
     {
         $baked     = $this->applyDateFilters(Production::query(), $request)->sum('quantity');
@@ -51,7 +50,6 @@ class ReportController extends Controller
     }
 
     // ── BRANCH-LEVEL SUMMARY ──────────────────────────────────────────────────
-    // Supports: ?start_date=  ?end_date=
     public function byLocation(Request $request, $location)
     {
         $baked     = $this->applyDateFilters(Production::where('location', $location), $request)->sum('quantity');
@@ -71,14 +69,13 @@ class ReportController extends Controller
     }
 
     // ── DETAILED RAW REPORT ───────────────────────────────────────────────────
-    // Supports: ?start_date=  ?end_date=  ?branch=
-    // Includes product names via eager loading, plus shop_stock & rest_products arrays
+    // Damages now include reported_by (the user who recorded the damage)
     public function detailed(Request $request)
     {
         $branch = $request->query('branch');
 
         $productionsQ = Production::with('product');
-        $damagesQ     = Damage::with('product');
+        $damagesQ     = Damage::with('product', 'user');  // load user for reported_by
         $deliveriesQ  = Delivery::with('product');
         $ordersQ      = Order::with('items.product');
 
@@ -98,7 +95,6 @@ class ReportController extends Controller
         $damages     = $damagesQ->get();
         $delivered   = $deliveriesQ->get();
 
-        // rest_products per item: baked - damaged - delivered
         $bakedQty     = $productions->sum('quantity');
         $damagedQty   = $damages->sum('quantity');
         $deliveredQty = $delivered->sum('quantity');
@@ -109,9 +105,22 @@ class ReportController extends Controller
         }
         $shopStock = $shopStockQ->get();
 
+        // Map damages to include reported_by
+        $damagesMapped = $damages->map(fn($d) => [
+            'id'          => $d->id,
+            'product_id'  => $d->product_id,
+            'product'     => optional($d->product)->name,
+            'quantity'    => $d->quantity,
+            'reason'      => $d->reason,
+            'location'    => $d->location,
+            'reported_by' => optional($d->user)->name ?? 'Unknown',
+            'created_at'  => $d->created_at,
+            'updated_at'  => $d->updated_at,
+        ]);
+
         return [
             'productions'   => $productions,
-            'damages'       => $damages,
+            'damages'       => $damagesMapped,
             'deliveries'    => $delivered,
             'orders'        => $ordersQ->get(),
             'shop_stock'    => $shopStock,
@@ -125,7 +134,6 @@ class ReportController extends Controller
     }
 
     // ── GROUPED REVENUE REPORT ────────────────────────────────────────────────
-    // Supports: ?date=  ?branch=  ?start_date=  ?end_date=
     public function revenue(Request $request)
     {
         $date   = $request->query('date');
@@ -162,115 +170,110 @@ class ReportController extends Controller
     }
 
     /**
-     * Get close day report for inventory-based revenue calculation
      * GET /api/reports/close-day?date=YYYY-MM-DD&branch=kabuga|masaka
-     * 
-     * Returns for each product: delivered_qty, remaining_qty, damaged_qty, 
-     * expired_qty, distributed_qty, unit_price, sold_qty, revenue
+     *
+     * Returns for each product: delivered_qty, remaining_qty, damaged_qty,
+     * expired_qty, distributed_qty, unit_price, sold_qty, revenue.
+     * Damages include reported_by.
      */
     public function closeDayReport(Request $request)
     {
-        $date = $request->query('date');
+        $date   = $request->query('date');
         $branch = $request->query('branch');
 
-        // Validate required parameters
         if (!$date || !$branch) {
             return response()->json([
-                'error' => 'Missing required parameters: date and branch are required'
+                'error' => 'Missing required parameters: date and branch are required',
             ], 422);
         }
 
         if (!in_array($branch, ['kabuga', 'masaka'])) {
             return response()->json([
-                'error' => 'Invalid branch. Must be kabuga or masaka'
+                'error' => 'Invalid branch. Must be kabuga or masaka',
             ], 422);
         }
 
         $startOfDay = date('Y-m-d 00:00:00', strtotime($date));
-        $endOfDay = date('Y-m-d 23:59:59', strtotime($date));
+        $endOfDay   = date('Y-m-d 23:59:59', strtotime($date));
 
-        // Get all products that are baked (or all products as needed)
         $products = Product::where('type', 'baked')->get();
 
-        // Get deliveries to this branch on the specified date
         $deliveries = Delivery::with('product')
             ->where('to_location', $branch)
             ->whereBetween('created_at', [$startOfDay, $endOfDay])
             ->get();
 
-        // Get closing record for this branch on this date (if exists)
         $closingRecord = ShopClosingRecord::where('location', $branch)
             ->where('closing_date', $date)
             ->first();
 
-        // Get damages recorded on this date at this branch
-        $damages = Damage::with('product')
+        // Load user on damages so we can include reported_by
+        $damages = Damage::with('product', 'user')
             ->where('location', $branch)
             ->whereBetween('created_at', [$startOfDay, $endOfDay])
             ->get();
 
-        // Get distributions on this date from this branch
         $distributions = Distribution::with('product')
             ->where('location', $branch)
             ->whereBetween('created_at', [$startOfDay, $endOfDay])
             ->get();
 
-        // Build lookup arrays for quick access
+        // Build lookup arrays
         $deliveredByProduct = [];
         foreach ($deliveries as $delivery) {
-            $productId = $delivery->product_id;
-            $deliveredByProduct[$productId] = ($deliveredByProduct[$productId] ?? 0) + $delivery->quantity;
+            $pid = $delivery->product_id;
+            $deliveredByProduct[$pid] = ($deliveredByProduct[$pid] ?? 0) + $delivery->quantity;
         }
 
-        $damagedByProduct = [];
+        $damagedByProduct    = [];
+        $damageDetailsByProduct = [];
         foreach ($damages as $damage) {
-            $productId = $damage->product_id;
-            $damagedByProduct[$productId] = ($damagedByProduct[$productId] ?? 0) + $damage->quantity;
+            $pid = $damage->product_id;
+            $damagedByProduct[$pid] = ($damagedByProduct[$pid] ?? 0) + $damage->quantity;
+            // Collect individual damage entries with reporter
+            $damageDetailsByProduct[$pid][] = [
+                'quantity'    => $damage->quantity,
+                'reason'      => $damage->reason,
+                'reported_by' => optional($damage->user)->name ?? 'Unknown',
+                'created_at'  => $damage->created_at,
+            ];
         }
 
         $distributedByProduct = [];
         foreach ($distributions as $distribution) {
-            $productId = $distribution->product_id;
-            $distributedByProduct[$productId] = ($distributedByProduct[$productId] ?? 0) + $distribution->quantity;
+            $pid = $distribution->product_id;
+            $distributedByProduct[$pid] = ($distributedByProduct[$pid] ?? 0) + $distribution->quantity;
         }
 
-        // Get remaining from closing record
         $remainingByProduct = [];
-        $expiredByProduct = [];
+        $expiredByProduct   = [];
         if ($closingRecord && $closingRecord->products) {
             foreach ($closingRecord->products as $productData) {
-                $productId = $productData['product_id'];
-                $remainingByProduct[$productId] = $productData['remaining'] ?? 0;
-                $expiredByProduct[$productId] = ($productData['expired'] ?? 0);
+                $pid = $productData['product_id'];
+                $remainingByProduct[$pid] = $productData['remaining'] ?? 0;
+                $expiredByProduct[$pid]   = $productData['expired'] ?? 0;
             }
         }
 
-        // Build response
-        $result = [];
+        $result     = [];
         $grandTotal = 0;
 
         foreach ($products as $product) {
-            $productId = $product->id;
-            
-            $deliveredQty = $deliveredByProduct[$productId] ?? 0;
-            $remainingQty = $remainingByProduct[$productId] ?? 0;
-            $damagedQty = $damagedByProduct[$productId] ?? 0;
-            $expiredQty = $expiredByProduct[$productId] ?? 0;
-            $distributedQty = $distributedByProduct[$productId] ?? 0;
-            $unitPrice = $product->price;
+            $pid              = $product->id;
+            $deliveredQty     = $deliveredByProduct[$pid] ?? 0;
+            $remainingQty     = $remainingByProduct[$pid] ?? 0;
+            $damagedQty       = $damagedByProduct[$pid] ?? 0;
+            $expiredQty       = $expiredByProduct[$pid] ?? 0;
+            $distributedQty   = $distributedByProduct[$pid] ?? 0;
+            $unitPrice        = $product->price;
 
-            // Formula: sold_qty = delivered_qty - (remaining_qty + damaged_qty + expired_qty + distributed_qty)
-            $soldQty = $deliveredQty - ($remainingQty + $damagedQty + $expiredQty + $distributedQty);
-            
-            // Ensure sold_qty is not negative (can happen if data is inconsistent)
-            $soldQty = max(0, $soldQty);
-            
+            $soldQty = max(0, $deliveredQty - ($remainingQty + $damagedQty + $expiredQty + $distributedQty));
             $revenue = $soldQty * $unitPrice;
             $grandTotal += $revenue;
 
             $result[] = [
                 'product_name'    => $product->name,
-                'product_id'      => $productId,
+                'product_id'      => $pid,
                 'delivered_qty'   => $deliveredQty,
                 'remaining_qty'   => $remainingQty,
                 'damaged_qty'     => $damagedQty,
@@ -279,26 +282,25 @@ class ReportController extends Controller
                 'unit_price'      => $unitPrice,
                 'sold_qty'        => $soldQty,
                 'revenue'         => $revenue,
+                // Damage breakdown with reported_by per entry
+                'damage_details'  => $damageDetailsByProduct[$pid] ?? [],
             ];
         }
 
-        // Filter out products with all zeros (optional)
-        $result = array_filter($result, function($item) {
-            return $item['delivered_qty'] > 0 || 
-                   $item['remaining_qty'] > 0 || 
-                   $item['damaged_qty'] > 0 || 
-                   $item['distributed_qty'] > 0 ||
-                   $item['sold_qty'] > 0;
-        });
-
-        // Re-index array
-        $result = array_values($result);
+        // Filter out products with all zeros
+        $result = array_values(array_filter($result, function ($item) {
+            return $item['delivered_qty'] > 0
+                || $item['remaining_qty'] > 0
+                || $item['damaged_qty'] > 0
+                || $item['distributed_qty'] > 0
+                || $item['sold_qty'] > 0;
+        }));
 
         return response()->json([
-            'date' => $date,
-            'branch' => $branch,
+            'date'        => $date,
+            'branch'      => $branch,
             'grand_total' => $grandTotal,
-            'products' => $result,
+            'products'    => $result,
         ]);
     }
 }

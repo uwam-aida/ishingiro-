@@ -103,18 +103,18 @@ class StoreKeeperController extends Controller
             ->where('status', 'pending')
             ->latest()
             ->get();
-        
+
         return $orders->map(function ($order) {
             return [
-                'id' => $order->id,
-                'user_id' => $order->user_id,
-                'location' => $order->location,
-                'status' => $order->status,
+                'id'         => $order->id,
+                'user_id'    => $order->user_id,
+                'location'   => $order->location,
+                'status'     => $order->status,
                 'created_at' => $order->created_at,
                 'updated_at' => $order->updated_at,
-                'items' => $order->items,
-                'time' => $order->created_at->format('h:i A'),
-                'date' => $order->created_at->toDateString(),
+                'items'      => $order->items,
+                'time'       => $order->created_at->format('h:i A'),
+                'date'       => $order->created_at->toDateString(),
             ];
         });
     }
@@ -169,172 +169,183 @@ class StoreKeeperController extends Controller
             ], 422);
         }
 
-        $orders     = collect();
-        $cakeOrders = collect();
+        $orders       = collect();
+        $cakeOrders   = collect();
         $deliveryNote = null;
 
-        DB::transaction(function () use ($request, &$orders, &$cakeOrders, &$deliveryNote) {
-            // ── Regular orders ────────────────────────────────────────────
-            if (!empty($request->order_ids)) {
-                $orders = Order::with('items.product')
-                    ->whereIn('id', $request->order_ids)
-                    ->get();
+        // ── Run the entire delivery inside a transaction ──────────────────
+        // If anything fails (e.g. insufficient stock), everything rolls back
+        // and NO delivery note or PDF is produced.
+        try {
+            DB::transaction(function () use ($request, &$orders, &$cakeOrders, &$deliveryNote) {
 
-                foreach ($orders as $order) {
-                    if ($order->status === 'delivered') {
-                        continue;
-                    }
+                // ── Regular orders ────────────────────────────────────────
+                if (!empty($request->order_ids)) {
+                    $orders = Order::with('items.product')
+                        ->whereIn('id', $request->order_ids)
+                        ->get();
 
-                    $orderTotal = 0;
-
-                    foreach ($order->items as $item) {
-                        $product = $item->product;
-                        $itemTotal = $item->quantity * $item->price;
-                        $orderTotal += $itemTotal;
-
-                        Delivery::create([
-                            'product_id'    => $item->product_id,
-                            'quantity'      => $item->quantity,
-                            'from_location' => 'factory',
-                            'to_location'   => $order->location,
-                        ]);
-
-                        $factoryStock = Stock::firstOrCreate(
-                            ['product_id' => $item->product_id, 'location' => 'factory'],
-                            [
-                                'quantity' => 0,
-                                'unit' => $product && $product->type === 'unbaked' ? 'kg' : 'pcs',
-                                'description' => 'Auto-created during delivery'
-                            ]
-                        );
-
-                        if ($factoryStock->quantity < $item->quantity) {
-                            throw new \Exception(
-                                "Insufficient stock for product: " . ($product->name ?? 'Unknown') . ". " .
-                                "Available: {$factoryStock->quantity}, Requested: {$item->quantity}"
-                            );
+                    foreach ($orders as $order) {
+                        if ($order->status === 'delivered') {
+                            continue;
                         }
 
-                        $factoryStock->decrement('quantity', $item->quantity);
+                        $orderTotal = 0;
 
-                        StockMovement::create([
-                            'product_id' => $item->product_id,
-                            'type'       => 'out',
-                            'quantity'   => $item->quantity,
-                            'location'   => 'factory',
-                            'user_id'    => auth()->id(),
-                            'note'       => "Dispatched to {$order->location}",
-                        ]);
+                        foreach ($order->items as $item) {
+                            $product   = $item->product;
+                            $itemTotal = $item->quantity * $item->price;
+                            $orderTotal += $itemTotal;
 
-                        $shopStock = Stock::firstOrCreate([
-                            'product_id' => $item->product_id,
-                            'location'   => $order->location,
-                        ]);
-                        $shopStock->increment('quantity', $item->quantity);
+                            Delivery::create([
+                                'product_id'    => $item->product_id,
+                                'quantity'      => $item->quantity,
+                                'from_location' => 'factory',
+                                'to_location'   => $order->location,
+                            ]);
 
-                        StockMovement::create([
-                            'product_id' => $item->product_id,
-                            'type'       => 'in',
-                            'quantity'   => $item->quantity,
-                            'location'   => $order->location,
-                            'user_id'    => auth()->id(),
-                            'note'       => "Received from factory",
-                        ]);
+                            $factoryStock = Stock::firstOrCreate(
+                                ['product_id' => $item->product_id, 'location' => 'factory'],
+                                [
+                                    'quantity'    => 0,
+                                    'unit'        => $product && $product->type === 'unbaked' ? 'kg' : 'pcs',
+                                    'description' => 'Auto-created during delivery',
+                                ]
+                            );
+
+                            if ($factoryStock->quantity < $item->quantity) {
+                                throw new \Exception(
+                                    "Insufficient stock for product: " . ($product->name ?? 'Unknown') . ". " .
+                                    "Available: {$factoryStock->quantity}, Requested: {$item->quantity}"
+                                );
+                            }
+
+                            $factoryStock->decrement('quantity', $item->quantity);
+
+                            StockMovement::create([
+                                'product_id' => $item->product_id,
+                                'type'       => 'out',
+                                'quantity'   => $item->quantity,
+                                'location'   => 'factory',
+                                'user_id'    => auth()->id(),
+                                'note'       => "Dispatched to {$order->location}",
+                            ]);
+
+                            $shopStock = Stock::firstOrCreate([
+                                'product_id' => $item->product_id,
+                                'location'   => $order->location,
+                            ]);
+                            $shopStock->increment('quantity', $item->quantity);
+
+                            StockMovement::create([
+                                'product_id' => $item->product_id,
+                                'type'       => 'in',
+                                'quantity'   => $item->quantity,
+                                'location'   => $order->location,
+                                'user_id'    => auth()->id(),
+                                'note'       => "Received from factory",
+                            ]);
+                        }
+
+                        // ✅ Mark delivered — this is what removes it from requests()
+                        $order->update(['status' => 'delivered']);
+
+                        if ($request->input('payment_received', true)) {
+                            Revenue::create([
+                                'amount'   => $orderTotal,
+                                'source'   => 'order_' . $order->id,
+                                'location' => $order->location,
+                            ]);
+                        }
+
+                        SendNotificationJob::dispatch(
+                            'shop_manager_' . $order->location,
+                            'Order #' . $order->id . ' delivered — ' . number_format($orderTotal) . ' RWF'
+                        );
                     }
-
-                    $order->update(['status' => 'delivered']);
-
-                    if ($request->input('payment_received', true)) {
-                        Revenue::create([
-                            'amount'   => $orderTotal,
-                            'source'   => 'order_' . $order->id,
-                            'location' => $order->location,
-                        ]);
-                    }
-
-                    SendNotificationJob::dispatch(
-                        'shop_manager_' . $order->location,
-                        'Order #' . $order->id . ' delivered — ' . number_format($orderTotal) . ' RWF'
-                    );
                 }
-            }
 
-            // ── Cake orders ───────────────────────────────────────────────
-            if (!empty($request->cake_order_ids)) {
-                $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
+                // ── Cake orders ───────────────────────────────────────────
+                if (!empty($request->cake_order_ids)) {
+                    $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
+
+                    foreach ($cakeOrders as $cake) {
+                        if ($cake->status === 'delivered') {
+                            continue;
+                        }
+
+                        $cake->update(['status' => 'delivered']);
+
+                        $outstanding = $cake->price - ($cake->total_paid ?? 0);
+                        if ($request->input('payment_received', true) && $outstanding > 0) {
+                            Revenue::create([
+                                'amount'   => $outstanding,
+                                'source'   => 'cake_order_' . $cake->id,
+                                'location' => $cake->location,
+                            ]);
+
+                            $cake->update([
+                                'total_paid'        => $cake->price,
+                                'remaining_payment' => 0,
+                            ]);
+                        }
+
+                        SendNotificationJob::dispatch(
+                            'shop_manager_' . $cake->location,
+                            'Cake for ' . $cake->customer_name . ' delivered'
+                        );
+                    }
+                }
+
+                // ── Save delivery note ────────────────────────────────────
+                $allItems = collect();
+
+                foreach ($orders as $order) {
+                    foreach ($order->items as $item) {
+                        $productName = optional($item->product)->name ?? 'Unknown Product';
+                        $allItems->push([
+                            'name'         => $productName,
+                            'product_name' => $productName,
+                            'item_name'    => $productName,
+                            'qty'          => $item->quantity,
+                            'quantity'     => $item->quantity,
+                            'unit_price'   => $item->price,
+                            'price'        => $item->price,
+                            'total'        => $item->quantity * $item->price,
+                        ]);
+                    }
+                }
 
                 foreach ($cakeOrders as $cake) {
-                    if ($cake->status === 'delivered') {
-                        continue;
-                    }
-
-                    $cake->update(['status' => 'delivered']);
-
-                    $outstanding = $cake->price - ($cake->total_paid ?? 0);
-                    if ($request->input('payment_received', true) && $outstanding > 0) {
-                        Revenue::create([
-                            'amount'   => $outstanding,
-                            'source'   => 'cake_order_' . $cake->id,
-                            'location' => $cake->location,
-                        ]);
-
-                        $cake->update([
-                            'total_paid'        => $cake->price,
-                            'remaining_payment' => 0,
-                        ]);
-                    }
-
-                    SendNotificationJob::dispatch(
-                        'shop_manager_' . $cake->location,
-                        'Cake for ' . $cake->customer_name . ' delivered'
-                    );
-                }
-            }
-
-            // ── Save delivery note with ALL possible keys ─────────────────
-            $allItems = collect();
-
-            foreach ($orders as $order) {
-                foreach ($order->items as $item) {
-                    $productName = optional($item->product)->name ?? 'Unknown Product';
+                    $cakeName = $cake->cake_type;
                     $allItems->push([
-                        'name' => $productName,
-                        'product_name' => $productName,
-                        'item_name' => $productName,
-                        'qty' => $item->quantity,
-                        'quantity' => $item->quantity,
-                        'unit_price' => $item->price,
-                        'price' => $item->price,
-                        'total' => $item->quantity * $item->price,
+                        'name'         => $cakeName,
+                        'product_name' => $cakeName,
+                        'item_name'    => $cakeName,
+                        'qty'          => $cake->quantity,
+                        'quantity'     => $cake->quantity,
+                        'unit_price'   => $cake->price,
+                        'price'        => $cake->price,
+                        'total'        => $cake->quantity * $cake->price,
                     ]);
                 }
-            }
 
-            foreach ($cakeOrders as $cake) {
-                $cakeName = $cake->cake_type;
-                $allItems->push([
-                    'name' => $cakeName,
-                    'product_name' => $cakeName,
-                    'item_name' => $cakeName,
-                    'qty' => $cake->quantity,
-                    'quantity' => $cake->quantity,
-                    'unit_price' => $cake->price,
-                    'price' => $cake->price,
-                    'total' => $cake->quantity * $cake->price,
-                ]);
-            }
+                if ($allItems->count() > 0) {
+                    $deliveryNote = DeliveryNote::create([
+                        'user_id'        => auth()->id(),
+                        'recipient_name' => $request->input('recipient_name', 'Shop'),
+                        'location'       => $orders->first()?->location ?? $cakeOrders->first()?->location ?? 'unknown',
+                        'items'          => $allItems->toArray(),
+                        'total_amount'   => $allItems->sum('total'),
+                    ]);
+                }
+            });
+        } catch (\Exception $e) {
+            // Transaction rolled back — orders are still 'pending', no stock changed
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
 
-            if ($allItems->count() > 0) {
-                $deliveryNote = DeliveryNote::create([
-                    'user_id'        => auth()->id(),
-                    'recipient_name' => $request->input('recipient_name', 'Shop'),
-                    'location'       => $orders->first()?->location ?? $cakeOrders->first()?->location ?? 'unknown',
-                    'items'          => $allItems->toArray(),
-                    'total_amount'   => $allItems->sum('total'),
-                ]);
-            }
-        });
-
+        // Only reached if transaction succeeded — orders are now 'delivered'
         $pdf = app(DeliveryNoteService::class)->generate(
             orders:      $orders,
             cakeOrders:  $cakeOrders,
@@ -392,11 +403,11 @@ class StoreKeeperController extends Controller
 
                 StockMovement::create([
                     'product_id' => $request->product_id,
-                        'type'       => 'in',
-                        'quantity'   => $request->quantity,
-                        'location'   => $request->to_location,
-                        'user_id'    => auth()->id(),
-                    ]);
+                    'type'       => 'in',
+                    'quantity'   => $request->quantity,
+                    'location'   => $request->to_location,
+                    'user_id'    => auth()->id(),
+                ]);
             }
         });
 
@@ -521,7 +532,7 @@ class StoreKeeperController extends Controller
         $request->validate([
             'payment_amount' => 'required|numeric|min:1',
             'payment_method' => 'required|string|in:cash,card,mobile_money,bank_transfer',
-            'payer_name' => 'nullable|string',
+            'payer_name'     => 'nullable|string',
         ]);
 
         $cakeOrder = CakeOrder::findOrFail($id);
@@ -538,23 +549,23 @@ class StoreKeeperController extends Controller
 
         DB::transaction(function () use ($request, $cakeOrder, $newTotal) {
             $cakeOrder->update([
-                'total_paid' => $newTotal,
+                'total_paid'        => $newTotal,
                 'remaining_payment' => $cakeOrder->price - $newTotal,
-                'payment_method' => $request->payment_method,
-                'payer_name' => $request->payer_name ?? $cakeOrder->payer_name,
+                'payment_method'    => $request->payment_method,
+                'payer_name'        => $request->payer_name ?? $cakeOrder->payer_name,
             ]);
 
             Revenue::create([
-                'amount' => $request->payment_amount,
-                'source' => 'cake_order_payment',
+                'amount'   => $request->payment_amount,
+                'source'   => 'cake_order_payment',
                 'location' => $cakeOrder->location,
             ]);
         });
 
         return response()->json([
-            'message' => 'Payment recorded successfully',
-            'cake_order' => $cakeOrder->fresh(),
-            'total_paid' => $cakeOrder->total_paid,
+            'message'           => 'Payment recorded successfully',
+            'cake_order'        => $cakeOrder->fresh(),
+            'total_paid'        => $cakeOrder->total_paid,
             'remaining_balance' => $cakeOrder->remaining_payment,
         ]);
     }
@@ -594,20 +605,20 @@ class StoreKeeperController extends Controller
     public function getStockItem($id)
     {
         $stock = Stock::with('product')->findOrFail($id);
-        
+
         return response()->json([
-            'id' => $stock->id,
-            'product_id' => $stock->product_id,
-            'product_name' => optional($stock->product)->name,
+            'id'            => $stock->id,
+            'product_id'    => $stock->product_id,
+            'product_name'  => optional($stock->product)->name,
             'product_price' => optional($stock->product)->price,
-            'product_cost' => optional($stock->product)->cost,
-            'product_type' => optional($stock->product)->type,
-            'location' => $stock->location,
-            'quantity' => $stock->quantity,
-            'description' => $stock->description,
-            'unit' => $stock->unit,
-            'created_at' => $stock->created_at,
-            'updated_at' => $stock->updated_at,
+            'product_cost'  => optional($stock->product)->cost,
+            'product_type'  => optional($stock->product)->type,
+            'location'      => $stock->location,
+            'quantity'      => $stock->quantity,
+            'description'   => $stock->description,
+            'unit'          => $stock->unit,
+            'created_at'    => $stock->created_at,
+            'updated_at'    => $stock->updated_at,
         ]);
     }
 
@@ -617,18 +628,18 @@ class StoreKeeperController extends Controller
     public function deleteStockItem($id)
     {
         $stock = Stock::findOrFail($id);
-        
+
         StockMovement::create([
             'product_id' => $stock->product_id,
-            'type' => 'out',
-            'quantity' => $stock->quantity,
-            'location' => $stock->location,
-            'user_id' => auth()->id(),
-            'note' => 'Stock item deleted from inventory'
+            'type'       => 'out',
+            'quantity'   => $stock->quantity,
+            'location'   => $stock->location,
+            'user_id'    => auth()->id(),
+            'note'       => 'Stock item deleted from inventory',
         ]);
-        
+
         $stock->delete();
-        
+
         return response()->json(['message' => 'Stock item deleted successfully'], 200);
     }
 
@@ -638,37 +649,37 @@ class StoreKeeperController extends Controller
     public function getStockMovements(Request $request)
     {
         $query = StockMovement::with('product', 'user')->latest();
-        
+
         if ($request->filled('type')) {
             $query->where('type', $request->type);
         }
-        
+
         if ($request->filled('location')) {
             $query->where('location', $request->location);
         }
-        
+
         if ($request->filled('product_id')) {
             $query->where('product_id', $request->product_id);
         }
-        
+
         $limit = (int) $request->query('limit', 100);
-        
+
         $movements = $query->take($limit)->get();
-        
+
         return response()->json([
             'total' => $movements->count(),
-            'data' => $movements->map(function ($movement) {
+            'data'  => $movements->map(function ($movement) {
                 return [
-                    'id' => $movement->id,
-                    'product_id' => $movement->product_id,
-                    'product_name' => optional($movement->product)->name,
-                    'type' => $movement->type === 'in' ? 'Added' : 'Removed',
-                    'type_code' => $movement->type,
-                    'quantity' => $movement->quantity,
-                    'location' => $movement->location,
-                    'performed_by' => optional($movement->user)->name ?? 'System',
-                    'date' => $movement->created_at->toDateString(),
-                    'time' => $movement->created_at->format('h:i A'),
+                    'id'             => $movement->id,
+                    'product_id'     => $movement->product_id,
+                    'product_name'   => optional($movement->product)->name,
+                    'type'           => $movement->type === 'in' ? 'Added' : 'Removed',
+                    'type_code'      => $movement->type,
+                    'quantity'       => $movement->quantity,
+                    'location'       => $movement->location,
+                    'performed_by'   => optional($movement->user)->name ?? 'System',
+                    'date'           => $movement->created_at->toDateString(),
+                    'time'           => $movement->created_at->format('h:i A'),
                     'full_timestamp' => $movement->created_at->toISOString(),
                 ];
             }),
@@ -682,28 +693,28 @@ class StoreKeeperController extends Controller
     public function getDeliveryNotes(Request $request)
     {
         $query = DeliveryNote::with('user')->latest();
-        
+
         if ($request->filled('location')) {
             $query->where('location', $request->location);
         }
-        
+
         $limit = (int) $request->query('limit', 100);
         $notes = $query->take($limit)->get();
-        
+
         return response()->json([
             'total' => $notes->count(),
-            'data' => $notes->map(function ($note) {
+            'data'  => $notes->map(function ($note) {
                 return [
-                    'id' => $note->id,
-                    'note_number' => $note->note_number,
+                    'id'             => $note->id,
+                    'note_number'    => $note->note_number,
                     'recipient_name' => $note->recipient_name,
-                    'location' => $note->location,
-                    'items_count' => count($note->items),
-                    'total_amount' => $note->total_amount,
-                    'created_by' => optional($note->user)->name,
-                    'date' => $note->created_at->toDateString(),
-                    'time' => $note->created_at->format('h:i A'),
-                    'created_at' => $note->created_at,
+                    'location'       => $note->location,
+                    'items_count'    => count($note->items),
+                    'total_amount'   => $note->total_amount,
+                    'created_by'     => optional($note->user)->name,
+                    'date'           => $note->created_at->toDateString(),
+                    'time'           => $note->created_at->format('h:i A'),
+                    'created_at'     => $note->created_at,
                 ];
             }),
         ]);
@@ -712,65 +723,63 @@ class StoreKeeperController extends Controller
     public function getDeliveryNote($id)
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
-        
+
         $transformedItems = collect($note->items)->map(function ($item) {
-            // Try all possible keys for product name
-            $productName = $item['name'] 
-                ?? $item['product_name'] 
-                ?? $item['item_name'] 
-                ?? $item['item'] 
+            $productName = $item['name']
+                ?? $item['product_name']
+                ?? $item['item_name']
+                ?? $item['item']
                 ?? 'Unknown Product';
-            
+
             return [
-                'name' => $productName,
-                'qty' => $item['qty'] ?? $item['quantity'] ?? 0,
+                'name'       => $productName,
+                'qty'        => $item['qty'] ?? $item['quantity'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
-                'total' => $item['total'] ?? 0,
+                'total'      => $item['total'] ?? 0,
             ];
         });
-        
+
         return response()->json([
-            'id' => $note->id,
-            'note_number' => $note->note_number,
+            'id'             => $note->id,
+            'note_number'    => $note->note_number,
             'recipient_name' => $note->recipient_name,
-            'location' => $note->location,
-            'items' => $transformedItems,
-            'total_amount' => $note->total_amount,
-            'created_by' => optional($note->user)->name,
-            'created_at' => $note->created_at,
-            'date' => $note->created_at->toDateString(),
-            'time' => $note->created_at->format('h:i A'),
+            'location'       => $note->location,
+            'items'          => $transformedItems,
+            'total_amount'   => $note->total_amount,
+            'created_by'     => optional($note->user)->name,
+            'created_at'     => $note->created_at,
+            'date'           => $note->created_at->toDateString(),
+            'time'           => $note->created_at->format('h:i A'),
         ]);
     }
 
     public function regenerateDeliveryNotePdf($id)
     {
         $note = DeliveryNote::with('user')->findOrFail($id);
-        
+
         $items = collect($note->items)->map(function ($item) {
-            // Try all possible keys for product name
-            $productName = $item['name'] 
-                ?? $item['product_name'] 
-                ?? $item['item_name'] 
-                ?? $item['item'] 
+            $productName = $item['name']
+                ?? $item['product_name']
+                ?? $item['item_name']
+                ?? $item['item']
                 ?? 'Unknown Product';
-            
+
             return [
-                'name' => $productName,
-                'qty' => $item['qty'] ?? $item['quantity'] ?? 0,
+                'name'       => $productName,
+                'qty'        => $item['qty'] ?? $item['quantity'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
-                'total' => $item['total'] ?? 0,
+                'total'      => $item['total'] ?? 0,
             ];
         });
-        
+
         $pdf = app(DeliveryNoteService::class)->generateFromArray(
-            items: $items,
-            recipient: $note->recipient_name,
+            items:       $items,
+            recipient:   $note->recipient_name,
             deliveredAt: $note->created_at,
         );
-        
+
         return response($pdf, 200, [
-            'Content-Type' => 'application/pdf',
+            'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="delivery-note-' . $note->note_number . '.pdf"',
         ]);
     }
@@ -780,58 +789,58 @@ class StoreKeeperController extends Controller
         if (!in_array($location, ['kabuga', 'masaka'])) {
             return response()->json(['error' => 'Invalid location'], 400);
         }
-        
+
         $orders = Order::with('items.product')
             ->where('location', $location)
             ->latest()
             ->get()
             ->map(function ($order) {
                 return [
-                    'id' => $order->id,
-                    'user_id' => $order->user_id,
-                    'location' => $order->location,
-                    'status' => $order->status,
+                    'id'         => $order->id,
+                    'user_id'    => $order->user_id,
+                    'location'   => $order->location,
+                    'status'     => $order->status,
                     'created_at' => $order->created_at,
                     'updated_at' => $order->updated_at,
-                    'items' => $order->items,
-                    'time' => $order->created_at->format('h:i A'),
-                    'date' => $order->created_at->toDateString(),
+                    'items'      => $order->items,
+                    'time'       => $order->created_at->format('h:i A'),
+                    'date'       => $order->created_at->toDateString(),
                 ];
             });
-        
+
         return response()->json($orders);
     }
 
     public function getAllOrders(Request $request)
     {
         $query = Order::with('items.product')->latest();
-        
+
         if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
-        
+
         if ($request->filled('location')) {
             $query->where('location', $request->location);
         }
-        
-        $limit = (int) $request->query('limit', 100);
+
+        $limit  = (int) $request->query('limit', 100);
         $orders = $query->take($limit)->get();
-        
+
         return response()->json([
             'total' => $orders->count(),
-            'data' => $orders->map(function ($order) {
+            'data'  => $orders->map(function ($order) {
                 return [
-                    'id' => $order->id,
-                    'status' => $order->status,
-                    'location' => $order->location,
-                    'created_at' => $order->created_at,
-                    'items' => $order->items->map(function ($item) {
+                    'id'           => $order->id,
+                    'status'       => $order->status,
+                    'location'     => $order->location,
+                    'created_at'   => $order->created_at,
+                    'items'        => $order->items->map(function ($item) {
                         return [
-                            'id' => $item->id,
+                            'id'           => $item->id,
                             'product_name' => optional($item->product)->name,
-                            'quantity' => $item->quantity,
-                            'price' => $item->price,
-                            'total' => $item->quantity * $item->price,
+                            'quantity'     => $item->quantity,
+                            'price'        => $item->price,
+                            'total'        => $item->quantity * $item->price,
                         ];
                     }),
                     'total_amount' => $order->items->sum(function ($item) {
@@ -847,23 +856,23 @@ class StoreKeeperController extends Controller
         if (!in_array($location, ['kabuga', 'masaka', 'factory'])) {
             return response()->json(['error' => 'Invalid location'], 400);
         }
-        
+
         $stock = Stock::with('product')
             ->where('location', $location)
             ->get()
             ->map(function ($item) {
                 return [
-                    'id' => $item->id,
-                    'product_id' => $item->product_id,
-                    'product_name' => optional($item->product)->name,
+                    'id'            => $item->id,
+                    'product_id'    => $item->product_id,
+                    'product_name'  => optional($item->product)->name,
                     'product_price' => optional($item->product)->price,
-                    'quantity' => $item->quantity,
-                    'unit' => $item->unit ?? 'pcs',
-                    'location' => $item->location,
-                    'last_updated' => $item->updated_at->toDateTimeString(),
+                    'quantity'      => $item->quantity,
+                    'unit'          => $item->unit ?? 'pcs',
+                    'location'      => $item->location,
+                    'last_updated'  => $item->updated_at->toDateTimeString(),
                 ];
             });
-        
+
         return response()->json($stock);
     }
 
@@ -874,48 +883,48 @@ class StoreKeeperController extends Controller
     public function getAvailableStock(Request $request)
     {
         $location = $request->query('location', 'all');
-        
+
         $stockQuery = Stock::with('product');
         if ($location !== 'all') {
             $stockQuery->where('location', $location);
         }
         $physicalStock = $stockQuery->get();
-        
+
         $pendingRequests = Order::with('items')
             ->where('status', 'pending')
             ->get();
-        
+
         $availableStock = [];
-        
+
         foreach ($physicalStock as $stock) {
-            $productId = $stock->product_id;
+            $productId    = $stock->product_id;
             $requestedQty = 0;
-            
-            foreach ($pendingRequests as $request) {
-                foreach ($request->items as $item) {
+
+            foreach ($pendingRequests as $pendingRequest) {
+                foreach ($pendingRequest->items as $item) {
                     if ($item->product_id === $productId) {
                         $requestedQty += $item->quantity;
                     }
                 }
             }
-            
+
             $availableStock[] = [
-                'id' => $stock->id,
-                'product_id' => $productId,
-                'product_name' => $stock->product->name,
-                'product_price' => $stock->product->price,
-                'physical_quantity' => $stock->quantity,
+                'id'                 => $stock->id,
+                'product_id'         => $productId,
+                'product_name'       => $stock->product->name,
+                'product_price'      => $stock->product->price,
+                'physical_quantity'  => $stock->quantity,
                 'requested_quantity' => $requestedQty,
                 'available_quantity' => max(0, $stock->quantity - $requestedQty),
-                'location' => $stock->location,
-                'unit' => $stock->unit ?? 'pcs',
-                'status' => ($stock->quantity - $requestedQty) < 10 ? 'Low Stock' : 'Available',
+                'location'           => $stock->location,
+                'unit'               => $stock->unit ?? 'pcs',
+                'status'             => ($stock->quantity - $requestedQty) < 10 ? 'Low Stock' : 'Available',
             ];
         }
-        
+
         return response()->json([
             'total_available' => collect($availableStock)->sum('available_quantity'),
-            'data' => $availableStock
+            'data'            => $availableStock,
         ]);
     }
 
@@ -926,14 +935,14 @@ class StoreKeeperController extends Controller
     public function getCakeOrder($id)
     {
         $cakeOrder = CakeOrder::findOrFail($id);
-        
+
         if ($cakeOrder->inspo_image_path) {
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
         }
-        
+
         $cakeOrder->time = $cakeOrder->created_at->format('h:i A');
         $cakeOrder->date = $cakeOrder->created_at->toDateString();
-        
+
         return response()->json($cakeOrder);
     }
 }

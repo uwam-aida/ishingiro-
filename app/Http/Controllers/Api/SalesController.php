@@ -7,6 +7,7 @@ use App\Jobs\SendNotificationJob;
 use App\Models\CakeOrder;
 use App\Models\Damage;
 use App\Models\Delivery;
+use App\Models\Distribution;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Production;
@@ -88,15 +89,23 @@ class SalesController extends Controller
         return StockMovement::with('product')->latest()->get();
     }
 
-    // ALL CAKE ORDERS
+    // ALL CAKE ORDERS — includes reported_by (used by CICM and Sales Coordinator)
     public function cakeOrders()
     {
-        return CakeOrder::latest()->get()->map(function ($order) {
-            if ($order->inspo_image_path) {
-                $order->inspo_image_url = asset('storage/' . $order->inspo_image_path);
-            }
-            return $order;
-        });
+        return CakeOrder::with('user')
+            ->latest()
+            ->get()
+            ->map(function ($order) {
+                $data = $order->toArray();
+
+                if ($order->inspo_image_path) {
+                    $data['inspo_image_url'] = asset('storage/' . $order->inspo_image_path);
+                }
+
+                $data['reported_by'] = optional($order->user)->name ?? 'Unknown';
+
+                return $data;
+            });
     }
 
     // CREATE CAKE ORDER
@@ -153,6 +162,7 @@ class SalesController extends Controller
                 'inspo_image_path'     => $inspoImagePath,
                 'payment_method'       => $request->payment_method,
                 'payer_name'           => $request->payer_name,
+                'user_id'              => auth()->id(),  // track who created it
             ]);
 
             if ($advance > 0) {
@@ -315,10 +325,10 @@ class SalesController extends Controller
         ]);
     }
 
-    // Get single cake order with full details
+    // Get single cake order with full details — includes reported_by
     public function getCakeOrderDetails($id)
     {
-        $cakeOrder = CakeOrder::findOrFail($id);
+        $cakeOrder = CakeOrder::with('user')->findOrFail($id);
 
         if ($cakeOrder->inspo_image_path) {
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
@@ -367,6 +377,7 @@ class SalesController extends Controller
             'reception_location'   => $cakeOrder->reception_location,
             'needs_sample'         => $cakeOrder->needs_sample,
             'inspo_image_url'      => $cakeOrder->inspo_image_url ?? null,
+            'reported_by'          => optional($cakeOrder->user)->name ?? 'Unknown',  // who created it
             'created_at'           => $cakeOrder->created_at,
             'updated_at'           => $cakeOrder->updated_at,
             'payment'              => $paymentSummary,
@@ -427,11 +438,11 @@ class SalesController extends Controller
         ]);
 
         return response()->json([
-            'status'           => 'sent',
-            'message'          => 'Message sent to ' . count($roles) . ' role(s)',
-            'recipient_roles'  => $roles,
-            'recipient_count'  => $recipientCount,
-            'sent_at'          => now()->toISOString(),
+            'status'          => 'sent',
+            'message'         => 'Message sent to ' . count($roles) . ' role(s)',
+            'recipient_roles' => $roles,
+            'recipient_count' => $recipientCount,
+            'sent_at'         => now()->toISOString(),
         ]);
     }
 
@@ -463,11 +474,6 @@ class SalesController extends Controller
     // STOCK METHODS
     // ============================================
 
-    /**
-     * Get net available stock for a shop manager's own branch.
-     * Subtracts only that branch's own pending orders from shop stock.
-     * GET /api/sales/available-stock
-     */
     public function getAvailableStock(Request $request)
     {
         $location = $request->query('location');
@@ -491,17 +497,15 @@ class SalesController extends Controller
             ->where('location', $location)
             ->get();
 
-        // Only subtract pending orders for THIS branch's own shop stock
         $pendingRequests = Order::with('items')
             ->where('location', $location)
             ->where('status', 'pending')
             ->get();
 
-        // Debug logging
         Log::info('Available Stock Calculation', [
-            'location' => $location,
-            'physical_stock_count' => $physicalStock->count(),
-            'pending_orders_count' => $pendingRequests->count(),
+            'location'              => $location,
+            'physical_stock_count'  => $physicalStock->count(),
+            'pending_orders_count'  => $pendingRequests->count(),
         ]);
 
         $availableStock = [];
@@ -531,7 +535,6 @@ class SalesController extends Controller
             ];
         }
 
-        // Also include products that have pending orders but no stock yet
         $productIdsWithRequests = [];
         foreach ($pendingRequests as $pendingRequest) {
             foreach ($pendingRequest->items as $item) {
@@ -540,11 +543,11 @@ class SalesController extends Controller
         }
 
         $existingProductIds = collect($availableStock)->pluck('product_id')->toArray();
-        $missingProductIds = array_diff(array_keys($productIdsWithRequests), $existingProductIds);
+        $missingProductIds  = array_diff(array_keys($productIdsWithRequests), $existingProductIds);
 
         foreach ($missingProductIds as $productId) {
             /** @var Product|null $product */
-            $product = Product::find($productId);
+            $product      = Product::find($productId);
             $requestedQty = $productIdsWithRequests[$productId];
             if ($product instanceof Product) {
                 $availableStock[] = [
@@ -568,32 +571,16 @@ class SalesController extends Controller
         ]);
     }
 
-    /**
-     * Get net available stock at the factory.
-     *
-     * This subtracts ALL pending orders from ALL branches so every shop manager
-     * (and the sales coordinator) sees the same accurate factory stock number.
-     *
-     * Example:
-     *   Factory physical stock: Bread = 50
-     *   Kabuga pending order:   Bread = 30
-     *   Masaka pending order:   Bread = 10
-     *   → available_quantity:   Bread = 10  (for everyone)
-     *
-     * GET /api/sales/factory-available-stock
-     */
     public function getFactoryAvailableStock(Request $request)
     {
         $factoryStock = Stock::with('product')
             ->where('location', 'factory')
             ->get();
 
-        // ✅ KEY FIX: Fetch ALL pending orders regardless of branch
         $allPendingOrders = Order::with('items')
             ->where('status', 'pending')
             ->get();
 
-        // Build a lookup: product_id → total qty requested across all branches
         $requestedByProduct = [];
 
         foreach ($allPendingOrders as $order) {
@@ -603,11 +590,10 @@ class SalesController extends Controller
             }
         }
 
-        // Debug logging to verify
         Log::info('Factory Available Stock Calculation', [
-            'pending_orders_count' => $allPendingOrders->count(),
-            'requested_by_product' => $requestedByProduct,
-            'factory_stock_count' => $factoryStock->count(),
+            'pending_orders_count'  => $allPendingOrders->count(),
+            'requested_by_product'  => $requestedByProduct,
+            'factory_stock_count'   => $factoryStock->count(),
         ]);
 
         $availableStock = [];
@@ -631,10 +617,9 @@ class SalesController extends Controller
             ];
         }
 
-        // Also include products that have pending orders but no factory stock yet
         $productIdsWithRequests = array_keys($requestedByProduct);
-        $existingProductIds = collect($availableStock)->pluck('product_id')->toArray();
-        $missingProductIds = array_diff($productIdsWithRequests, $existingProductIds);
+        $existingProductIds     = collect($availableStock)->pluck('product_id')->toArray();
+        $missingProductIds      = array_diff($productIdsWithRequests, $existingProductIds);
 
         foreach ($missingProductIds as $productId) {
             /** @var Product|null $product */
@@ -662,16 +647,11 @@ class SalesController extends Controller
         ]);
     }
 
-    /**
-     * Get global available stock for any location
-     * Subtracts ALL pending orders from ALL branches so everyone sees the same number
-     * GET /api/sales/global-available-stock/{location}
-     */
     public function getGlobalAvailableStock($location)
     {
         if (!in_array($location, ['kabuga', 'masaka', 'factory'])) {
             return response()->json([
-                'error' => 'Invalid location. Must be kabuga, masaka, or factory'
+                'error' => 'Invalid location. Must be kabuga, masaka, or factory',
             ], 400);
         }
 
@@ -679,23 +659,20 @@ class SalesController extends Controller
             ->where('location', $location)
             ->get();
 
-        // Get ALL pending orders from ALL branches
         $allPendingOrders = Order::with('items')
             ->where('status', 'pending')
             ->get();
 
-        // Build total requested quantity per product across ALL branches
         $requestedByProduct = [];
         foreach ($allPendingOrders as $order) {
             foreach ($order->items as $item) {
-                $requestedByProduct[$item->product_id] = 
+                $requestedByProduct[$item->product_id] =
                     ($requestedByProduct[$item->product_id] ?? 0) + $item->quantity;
             }
         }
 
-        // Debug logging
         Log::info('Global Available Stock Calculation', [
-            'location' => $location,
+            'location'             => $location,
             'pending_orders_count' => $allPendingOrders->count(),
             'requested_by_product' => $requestedByProduct,
             'physical_stock_count' => $physicalStock->count(),
@@ -704,9 +681,9 @@ class SalesController extends Controller
         $availableStock = [];
 
         foreach ($physicalStock as $stock) {
-            $productId = $stock->product_id;
+            $productId    = $stock->product_id;
             $requestedQty = $requestedByProduct[$productId] ?? 0;
-            $available = max(0, $stock->quantity - $requestedQty);
+            $available    = max(0, $stock->quantity - $requestedQty);
 
             $availableStock[] = [
                 'id'                 => $stock->id,
@@ -722,10 +699,9 @@ class SalesController extends Controller
             ];
         }
 
-        // Also include products that have pending orders but no stock yet
         $productIdsWithRequests = array_keys($requestedByProduct);
-        $existingProductIds = collect($availableStock)->pluck('product_id')->toArray();
-        $missingProductIds = array_diff($productIdsWithRequests, $existingProductIds);
+        $existingProductIds     = collect($availableStock)->pluck('product_id')->toArray();
+        $missingProductIds      = array_diff($productIdsWithRequests, $existingProductIds);
 
         foreach ($missingProductIds as $productId) {
             /** @var Product|null $product */
