@@ -33,6 +33,8 @@ class CakeOrder extends Model
         'inspo_image_path',
         'payment_method',
         'payer_name',
+        'user_id',  
+        'type',
     ];
 
     protected $casts = [
@@ -46,6 +48,14 @@ class CakeOrder extends Model
     ];
 
     protected $appends = ['inspo_image_url'];
+
+    /**
+     * Relationship to the user who created the cake order
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /**
      * Automatically calculate remaining payment when saving

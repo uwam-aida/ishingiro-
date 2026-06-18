@@ -7,7 +7,6 @@ use App\Jobs\SendNotificationJob;
 use App\Models\CakeOrder;
 use App\Models\Damage;
 use App\Models\Delivery;
-use App\Models\Distribution;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Production;
@@ -108,7 +107,7 @@ class SalesController extends Controller
             });
     }
 
-    // CREATE CAKE ORDER
+    // CREATE CAKE ORDER - with user_id
     public function storeCakeOrder(Request $request)
     {
         $request->validate([
@@ -162,7 +161,7 @@ class SalesController extends Controller
                 'inspo_image_path'     => $inspoImagePath,
                 'payment_method'       => $request->payment_method,
                 'payer_name'           => $request->payer_name,
-                'user_id'              => auth()->id(),  // track who created it
+                'user_id'              => auth()->id(), // ✅ track who created it
             ]);
 
             if ($advance > 0) {

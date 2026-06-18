@@ -114,7 +114,7 @@ class ShopManagerController extends Controller
         return $order->fresh()->load('items.product');
     }
 
-    // CREATE CAKE ORDER (type = 'order')
+    // CREATE CAKE ORDER (type = 'order') - with user_id
     public function storeCakeOrder(Request $request)
     {
         $request->validate([
@@ -195,7 +195,7 @@ class ShopManagerController extends Controller
         return response()->json($cakeOrder, 201);
     }
 
-    // CREATE CAKE REQUEST (type = 'request')
+    // CREATE CAKE REQUEST (type = 'request') - with user_id
     public function storeCakeRequest(Request $request)
     {
         $request->validate([
@@ -674,7 +674,7 @@ class ShopManagerController extends Controller
 
     /**
      * Get all cake orders with filtering options (type = 'order')
-     * GET /api/shop/cake-orders (with query params)
+     * GET /api/shop/cake-orders (with query params) - with reported_by
      */
     public function getAllCakeOrders(Request $request)
     {

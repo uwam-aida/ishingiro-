@@ -99,7 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/cake-order/{id}/payment', [StoreKeeperController::class, 'recordCakePayment']);
         Route::get('/cake-orders/{id}', [StoreKeeperController::class, 'getCakeOrder']);
 
-        // ✅ NOTE: More specific routes MUST come before wildcard {id} routes
+        // NOTE: More specific routes MUST come before wildcard {id} routes
         Route::get('/stock/by-location/{location}', [StoreKeeperController::class, 'getStockByLocation']);
         Route::delete('/stock/{id}', [StoreKeeperController::class, 'deleteStockItem']);
         Route::get('/stock/{id}', [StoreKeeperController::class, 'getStockItem']);
@@ -151,7 +151,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/shop/stock/{location}', [ShopManagerController::class, 'getShopStock']);
         Route::get('/factory/stock', [StockController::class, 'factoryStock']);
 
-        // ✅ Numeric ID routes must come AFTER named-segment routes to avoid conflicts
+        // Numeric ID routes must come AFTER named-segment routes to avoid conflicts
         Route::get('/shop/stock/{id}', [ShopManagerController::class, 'getStockItem'])->where('id', '[0-9]+');
         Route::put('/shop/stock/{id}', [ShopManagerController::class, 'updateStockItem'])->where('id', '[0-9]+');
 

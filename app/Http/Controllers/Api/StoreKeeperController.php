@@ -954,7 +954,7 @@ class StoreKeeperController extends Controller
     }
 
     /**
-     * Get single cake order by ID for store keeper
+     * Get single cake order by ID for store keeper - with reported_by
      * GET /api/storekeeper/cake-orders/{id}
      */
     public function getCakeOrder($id)
