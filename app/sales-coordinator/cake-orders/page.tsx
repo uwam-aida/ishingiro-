@@ -3,6 +3,31 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation'; 
 import { Cake, Check, X, ArrowLeft } from 'lucide-react';
+// Simple local fallback for fetchWithRetry in case the central lib is unavailable.
+type FetchWithRetryInit = RequestInit & {
+  retries?: number;
+  timeout?: number;
+};
+
+async function fetchWithRetry(input: RequestInfo, init?: FetchWithRetryInit) {
+  const { retries = 3, timeout = 300, ...fetchInit } = init || {};
+  const controller = new AbortController();
+  const timer = timeout ? window.setTimeout(() => controller.abort(), timeout) : undefined;
+
+  try {
+    const res = await fetch(input, { ...fetchInit, signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    return res;
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise((r) => setTimeout(r, timeout));
+      return fetchWithRetry(input, { ...fetchInit, retries: retries - 1, timeout });
+    }
+    throw err;
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
 
 // Import the step components from your components folder
 import Step1Purpose from '../../components/cake-form/step1Purpose';
@@ -53,67 +78,45 @@ export default function CakeOrderForm() {
   };
 
  const handleSubmit = async () => {
-    // 1. Check validation before starting
-    if (!formData.paymentMethod || !formData.paidAmount || !formData.payerName) {
-        setShowError(true); 
-        return;
-    }
+    const token = typeof window !== 'undefined' ? (localStorage.getItem('token') ?? '') : '';
 
-   try {
-      const token = localStorage.getItem('token');
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-
-      // Declare submitData ONLY ONCE
-      const submitData = new FormData();
-      
-      // Core Contact & Order Info
-      submitData.append('customer_name', formData.customerFullName || "Guest");
-      submitData.append('phone', formData.customerPhoneNumber || "N/A");
-      submitData.append('cake_type', `${formData.purpose} (${formData.flavor})`);
-      submitData.append('quantity', '1');
-      submitData.append('price', formData.totalAmount);
-      submitData.append('location', formData.orderLocation || "kabuga");
-      submitData.append('delivery_date', formData.pickupDate || new Date().toISOString().split('T')[0]);
-      
-      // Financials (Mapping correctly to backend keys)
-      submitData.append('payment_method', formData.paymentMethod);
-      submitData.append('advance_payment', formData.paidAmount); 
-      submitData.append('payer_name', formData.payerName);
-
-      // Detailed Specs (These were missing before)
-      submitData.append('cake_size', formData.size);
-      submitData.append('frosting_cream', formData.frostingCream);
-      submitData.append('frosting_color', formData.frostingColor);
-      submitData.append('cake_message', formData.cakeMessage);
-      submitData.append('special_instructions', formData.specialInstructions);
-      submitData.append('reception_location', formData.receptionLocation || "N/A");
-      submitData.append('needs_sample', formData.needsSample === 'yes' ? 'true' : 'false');
-
-      // Image (Mapping to backend key "inspo_image")
-      if (formData.cakeFile) {
-        submitData.append('inspo_image', formData.cakeFile);
-      }
-
-      const response = await fetch(`/api/sales/cake-order`, {
+    try {
+      const response = await fetch('/api/sales/cake-order', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}` 
-          // Note: Do NOT set Content-Type header; FormData handles it
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
-        body: submitData
+        body: JSON.stringify({
+          customer_name: formData.customerFullName || 'Guest',
+          phone: formData.customerPhoneNumber || 'N/A',
+          cake_type: `${formData.purpose} (${formData.flavor})`,
+          quantity: 1,
+          price: Number(formData.totalAmount),
+          location: formData.orderLocation || 'kabuga',
+          delivery_date: formData.pickupDate || new Date().toISOString().split('T')[0],
+          payment_method: formData.paymentMethod,
+          advance_payment: Number(formData.paidAmount),
+          payer_name: formData.payerName,
+          cake_size: formData.size,
+          frosting_cream: formData.frostingCream,
+          frosting_color: formData.frostingColor,
+          cake_message: formData.cakeMessage,
+          special_instructions: formData.specialInstructions,
+          reception_location: formData.receptionLocation || 'N/A',
+          needs_sample: formData.needsSample === 'yes',
+        }),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        setGeneratedCode(result.id ? `KS-${result.id}` : `KS-${Math.floor(Math.random() * 100)}`);
-        setStep(6); 
-      } else {
-        alert("Failed to submit order. Please check permissions.");
-        setShowError(true);
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
       }
+
+      const data = await response.json();
+      setGeneratedCode(data?.cake_code || `ISH-${Date.now()}`);
+      setStep(6);
     } catch (error) {
-      console.error("Failed to submit cake order:", error);
-      alert("Network error.");
+      setShowError(true);
     }
   };
   const handlePrev = () => {

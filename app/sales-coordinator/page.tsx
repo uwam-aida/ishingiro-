@@ -56,6 +56,8 @@ export default function SalesCoordinatorDashboard() {
   // --- ZOOM IMAGE MODAL STATE ---
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
+  const [selectedCakeOrderDetail, setSelectedCakeOrderDetail] = useState<any>(null);
+  const [showCakeDetailModal, setShowCakeDetailModal] = useState(false);
 
   // --- FETCH DATA ON LOAD ---
   useEffect(() => {
@@ -359,30 +361,95 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
     }
   };
 
+  // --- FETCH SINGLE CAKE ORDER DETAIL ---
+  const fetchCakeOrderDetail = async (id: number | string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const res = await fetchWithRetry(`/api/sales/cake-orders/${id}`, { headers, retries: 3, timeout: 15000 });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedCakeOrderDetail(data);
+        setShowCakeDetailModal(true);
+      } else {
+        // fallback: try to locate in loaded list
+        const found = detailedLists.CakeOrders.find(c => String(c.id) === String(id));
+        if (found) {
+          setSelectedCakeOrderDetail(found);
+          setShowCakeDetailModal(true);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch cake order detail', err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#FDFDFD] p-4 md:p-8 space-y-8 pb-10">
-      {/* --- IMAGE ZOOM MODAL --- */}
-      {showZoomModal && zoomImageUrl && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-4 no-print"
-          onClick={() => setShowZoomModal(false)}
-        >
-          <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
-            <button 
-              onClick={() => setShowZoomModal(false)}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
-            >
-              <X size={32} />
-            </button>
-            <img 
-              src={zoomImageUrl} 
-              alt="Zoomed cake" 
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
-            />
+      {/* --- CAKE ORDER DETAIL MODAL (standalone) --- */}
+{showCakeDetailModal && selectedCakeOrderDetail && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4 no-print">
+    <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+      <div className="bg-[#F57C00] text-white p-4 flex justify-between items-center">
+        <h3 className="font-black uppercase text-sm">Cake Order #{selectedCakeOrderDetail.id}</h3>
+        <button onClick={() => setShowCakeDetailModal(false)} className="text-white hover:opacity-80">
+          <X size={20} />
+        </button>
+      </div>
+      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
+        <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
+        <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
+        <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
+        <div><strong>Price:</strong> {selectedCakeOrderDetail.price} RWF</div>
+        <div><strong>Advance Payment:</strong> {selectedCakeOrderDetail.advance_payment} RWF</div>
+        <div><strong>Remaining:</strong> {selectedCakeOrderDetail.remaining_payment} RWF</div>
+        <div><strong>Total Paid:</strong> {selectedCakeOrderDetail.total_paid} RWF</div>
+        <div><strong>Location:</strong> {selectedCakeOrderDetail.location}</div>
+        <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
+        <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
+        <div><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
+        <div><strong>Cake Size:</strong> {selectedCakeOrderDetail.cake_size}</div>
+        <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
+        <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
+        <div><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
+        <div><strong>Reception Location:</strong> {selectedCakeOrderDetail.reception_location}</div>
+        <div><strong>Needs Sample:</strong> {selectedCakeOrderDetail.needs_sample ? 'Yes' : 'No'}</div>
+        {selectedCakeOrderDetail.inspo_image_url && (
+          <div className="col-span-2">
+            <strong>Inspiration Image:</strong><br />
+            <img src={selectedCakeOrderDetail.inspo_image_url} alt="Cake inspo" className="max-h-48 rounded-xl mt-2" />
           </div>
-        </div>
-      )}
-
+        )}
+      </div>
+      <div className="flex justify-end gap-3 p-4">
+        <button onClick={() => setShowCakeDetailModal(false)} className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs">Close</button>
+      </div>
+    </div>
+  </div>
+)}
+       {/* --- IMAGE ZOOM MODAL --- */}
+{showZoomModal && zoomImageUrl && (
+  <div 
+    className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-4 no-print"
+    onClick={() => setShowZoomModal(false)}
+  >
+    <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
+      <button 
+        onClick={() => setShowZoomModal(false)}
+        className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+      >
+        <X size={32} />
+      </button>
+      <img 
+        src={zoomImageUrl} 
+        alt="Zoomed cake" 
+        className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+      />
+    </div>
+  </div>
+)}
       {currentView === 'Dashboard' && (
         <>
           <div>
@@ -484,7 +551,16 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {getDataForView(currentView).map((row) => (
-                    <tr key={row.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr
+  key={row.id}
+  className="hover:bg-gray-50/50 transition-colors"
+  onClick={() => {
+    if (currentView === 'Cake Orders') {
+      fetchCakeOrderDetail(row.id);
+    }
+  }}
+  style={currentView === 'Cake Orders' ? { cursor: 'pointer' } : {}}
+>
                       {getTableColumns(currentView).map((col) => {
                         // Special rendering for 'image' column in Cake Orders
                         if (currentView === 'Cake Orders' && col.key === 'image') {
