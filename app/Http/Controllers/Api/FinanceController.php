@@ -50,36 +50,26 @@ class FinanceController extends Controller
     // DAMAGE AUDIT LOG
     public function ledger()
     {
-        return Damage::with('product')
+        return Damage::with('product', 'user')
             ->latest()
             ->get()
             ->map(fn($d) => [
-                'id'         => $d->id,
-                'product'    => optional($d->product)->name,
-                'quantity'   => $d->quantity,
-                'reason'     => $d->reason,
-                'location'   => $d->location,
-                'date'       => $d->created_at->toDateString(),
-                'created_at' => $d->created_at->toISOString(),
+                'id'          => $d->id,
+                'product'     => optional($d->product)->name,
+                'quantity'    => $d->quantity,
+                'reason'      => $d->reason,
+                'location'    => $d->location,
+                'reported_by' => optional($d->user)->name ?? 'Unknown',
+                'date'        => $d->created_at->toDateString(),
+                'created_at'  => $d->created_at->toISOString(),
             ]);
     }
 
     // SALES VS DAMAGE PER PRODUCT
-    /**
- * Get ingredient usage for baked products
- * GET /api/finance/ingredient-usage
- */
     public function ingredientUsage()
     {
-        //$startDate = $request->query('start_date', now()->startOfMonth());
-        //$endDate = $request->query('end_date', now());
-        
-        // Get all production batches in date range
         $productions = Production::with('product')
             ->get();
-        
-        // Define ingredient requirements per product (you'd need a recipe table)
-        // This is a simplified example
         
         $usage = [
             'flour' => 0,
@@ -89,8 +79,7 @@ class FinanceController extends Controller
         ];
         
         foreach ($productions as $prod) {
-            // Example: Each bread uses 0.5kg flour, 0.1kg sugar, etc.
-            if ($prod->product->name === 'big milk') {
+            if ($prod->product && $prod->product->name === 'big milk') {
                 $usage['flour'] += $prod->quantity * 0.5;
                 $usage['sugar'] += $prod->quantity * 0.1;
             }
@@ -136,13 +125,37 @@ class FinanceController extends Controller
         ];
     }
 
-    // ANALYTICS — PRODUCT PERFORMANCE + RECOMMENDATIONS
+    /**
+     * ANALYTICS — PRODUCT PERFORMANCE + RECOMMENDATIONS
+     * ✅ FIXED: No N+1 queries - uses eager loading and single query for totals
+     */
     public function analyticsPerformance()
     {
-        return Product::all()->map(function ($product) {
-            $totalSold = OrderItem::where('product_id', $product->id)->sum('quantity');
-            $stock     = Stock::where('product_id', $product->id)->sum('quantity');
-            $damaged   = Damage::where('product_id', $product->id)->sum('quantity');
+        // Get all products
+        $products = Product::all();
+        
+        // Get all order item totals per product in ONE query
+        $orderItemTotals = OrderItem::select('product_id', DB::raw('SUM(quantity) as total_sold'))
+            ->groupBy('product_id')
+            ->pluck('total_sold', 'product_id')
+            ->toArray();
+        
+        // Get all stock totals per product in ONE query
+        $stockTotals = Stock::select('product_id', DB::raw('SUM(quantity) as total_stock'))
+            ->groupBy('product_id')
+            ->pluck('total_stock', 'product_id')
+            ->toArray();
+        
+        // Get all damage totals per product in ONE query
+        $damageTotals = Damage::select('product_id', DB::raw('SUM(quantity) as total_damage'))
+            ->groupBy('product_id')
+            ->pluck('total_damage', 'product_id')
+            ->toArray();
+
+        return $products->map(function ($product) use ($orderItemTotals, $stockTotals, $damageTotals) {
+            $totalSold = $orderItemTotals[$product->id] ?? 0;
+            $stock     = $stockTotals[$product->id] ?? 0;
+            $damaged   = $damageTotals[$product->id] ?? 0;
 
             $total      = $totalSold + $stock + $damaged;
             $popularity = $total > 0 ? round(($totalSold / $total) * 100) : 0;
@@ -169,11 +182,15 @@ class FinanceController extends Controller
         });
     }
 
-    // ANALYTICS — REAL-TIME ACTIVITY LOG
+    /**
+     * ANALYTICS — REAL-TIME ACTIVITY LOG
+     * ✅ FIXED: Added 'user' relationship to Production model and eager loaded properly
+     */
     public function analyticsActivities(Request $request)
     {
         $limit = (int) $request->query('limit', 100);
 
+        // ✅ FIXED: eager load 'user' relationship (now defined in Production model)
         $productions = Production::with(['product', 'user'])->latest()->take($limit)->get()
             ->map(fn($p) => [
                 'id'       => $p->id,
@@ -381,7 +398,7 @@ class FinanceController extends Controller
             ];
         });
         
-        $damages = Damage::with('product')->latest()->limit($limit)->get()->map(function ($damage) {
+        $damages = Damage::with('product', 'user')->latest()->limit($limit)->get()->map(function ($damage) {
             return [
                 'id' => $damage->id,
                 'amount' => $damage->quantity * ($damage->product->cost ?? 0),
@@ -391,6 +408,7 @@ class FinanceController extends Controller
                 'product' => $damage->product->name ?? 'Unknown',
                 'quantity' => $damage->quantity,
                 'reason' => $damage->reason,
+                'reported_by' => optional($damage->user)->name ?? 'Unknown',
                 'date' => $damage->created_at->toDateString(),
                 'time' => $damage->created_at->format('h:i A'),
                 'created_at' => $damage->created_at,

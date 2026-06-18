@@ -430,7 +430,7 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // RECORD DAMAGE
+    // RECORD DAMAGE - with user_id
     public function storeDamage(Request $request)
     {
         $request->validate([
@@ -443,9 +443,16 @@ class StoreKeeperController extends Controller
         ]);
 
         $damage = DB::transaction(function () use ($request) {
-            $damage = Damage::create($request->only([
-                'product_id', 'quantity', 'location', 'reason', 'description', 'unit',
-            ]));
+            // ✅ Add user_id so reported_by works
+            $damage = Damage::create([
+                'product_id'  => $request->product_id,
+                'quantity'    => $request->quantity,
+                'location'    => $request->location,
+                'reason'      => $request->reason,
+                'description' => $request->description,
+                'unit'        => $request->unit,
+                'user_id'     => auth()->id(),  // ✅ THIS SAVES THE REPORTER
+            ]);
 
             $stock = Stock::where('product_id', $request->product_id)
                 ->where('location', $request->location)
@@ -471,18 +478,28 @@ class StoreKeeperController extends Controller
             SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert');
         }
 
-        return $damage->load('product');
+        return $damage->load(['product', 'user']);  // ✅ return with user
     }
 
-    // GET DAMAGE LOG
+    // GET DAMAGE LOG - with reported_by
     public function damages()
     {
-        return Damage::with('product')
+        return Damage::with(['product', 'user'])  // ✅ eager load user
             ->latest()
             ->get()
-            ->each(function ($d) {
-                $d->time = $d->created_at->format('h:i A');
-                $d->date = $d->created_at->toDateString();
+            ->map(function ($d) {
+                return [
+                    'id'          => $d->id,
+                    'product_id'  => $d->product_id,
+                    'product'     => optional($d->product)->name,
+                    'quantity'    => $d->quantity,
+                    'reason'      => $d->reason,
+                    'location'    => $d->location,
+                    'reported_by' => optional($d->user)->name ?? 'Unknown',  // ✅ add reported_by
+                    'created_at'  => $d->created_at,
+                    'time'        => $d->created_at->format('h:i A'),
+                    'date'        => $d->created_at->toDateString(),
+                ];
             });
     }
 
@@ -501,28 +518,36 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // ALL CAKE ORDERS (all types across all branches)
+    // ALL CAKE ORDERS (all types across all branches) - with reported_by
     public function cakeOrders()
     {
-        return CakeOrder::where('type', 'order')
+        return CakeOrder::with('user')  // ✅ eager load user
+            ->where('type', 'order')
             ->latest()
             ->get()
-            ->each(function ($c) {
-                $c->time = $c->created_at->format('h:i A');
-                $c->date = $c->created_at->toDateString();
+            ->map(function ($c) {
+                $data = $c->toArray();
+                $data['time'] = $c->created_at->format('h:i A');
+                $data['date'] = $c->created_at->toDateString();
+                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';  // ✅ add reported_by
+                return $data;
             });
     }
 
-    // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending')
+    // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending') - with reported_by
     public function cakeRequests()
     {
-        return CakeOrder::where('type', 'request')
+        return CakeOrder::with('user')  // ✅ eager load user
+            ->where('type', 'request')
             ->where('status', 'pending')
             ->latest()
             ->get()
-            ->each(function ($c) {
-                $c->time = $c->created_at->format('h:i A');
-                $c->date = $c->created_at->toDateString();
+            ->map(function ($c) {
+                $data = $c->toArray();
+                $data['time'] = $c->created_at->format('h:i A');
+                $data['date'] = $c->created_at->toDateString();
+                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';  // ✅ add reported_by
+                return $data;
             });
     }
 
@@ -934,7 +959,7 @@ class StoreKeeperController extends Controller
      */
     public function getCakeOrder($id)
     {
-        $cakeOrder = CakeOrder::findOrFail($id);
+        $cakeOrder = CakeOrder::with('user')->findOrFail($id);
 
         if ($cakeOrder->inspo_image_path) {
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
@@ -942,6 +967,7 @@ class StoreKeeperController extends Controller
 
         $cakeOrder->time = $cakeOrder->created_at->format('h:i A');
         $cakeOrder->date = $cakeOrder->created_at->toDateString();
+        $cakeOrder->reported_by = optional($cakeOrder->user)->name ?? 'Unknown';
 
         return response()->json($cakeOrder);
     }

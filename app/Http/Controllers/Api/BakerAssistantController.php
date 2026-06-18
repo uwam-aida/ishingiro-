@@ -69,13 +69,28 @@ class BakerAssistantController extends Controller
         return $production->load('product');
     }
 
-    // DAMAGE HISTORY
+    // DAMAGE HISTORY - with reported_by
     public function damageHistory()
     {
-        return Damage::with('product')->latest()->get();
+        return Damage::with(['product', 'user'])
+            ->latest()
+            ->get()
+            ->map(function ($damage) {
+                return [
+                    'id'          => $damage->id,
+                    'product_id'  => $damage->product_id,
+                    'product'     => optional($damage->product)->name,
+                    'quantity'    => $damage->quantity,
+                    'reason'      => $damage->reason,
+                    'location'    => $damage->location,
+                    'reported_by' => optional($damage->user)->name ?? 'Unknown',
+                    'created_at'  => $damage->created_at,
+                    'updated_at'  => $damage->updated_at,
+                ];
+            });
     }
 
-    // RECORD DAMAGE
+    // RECORD DAMAGE - with user_id
     public function storeDamage(Request $request)
     {
         $request->validate([
@@ -85,13 +100,13 @@ class BakerAssistantController extends Controller
             'location'   => 'nullable|string',
         ]);
 
-        // Always save user_id so reported_by works
+        // ✅ Always save user_id so reported_by works
         $damage = Damage::create([
             'product_id' => $request->product_id,
             'quantity'   => $request->quantity,
             'reason'     => $request->reason,
             'location'   => $request->location ?? 'factory',
-            'user_id'    => auth()->id(),
+            'user_id'    => auth()->id(),  // ✅ THIS SAVES THE REPORTER
         ]);
 
         $location = $request->location ?? 'factory';
@@ -116,6 +131,7 @@ class BakerAssistantController extends Controller
             SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert from production');
         }
 
-        return $damage->load('product');
+        // ✅ Return with reported_by
+        return $damage->load(['product', 'user']);
     }
 }

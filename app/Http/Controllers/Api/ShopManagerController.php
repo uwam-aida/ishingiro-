@@ -169,6 +169,7 @@ class ShopManagerController extends Controller
                 'inspo_image_path'     => $inspoImagePath,
                 'payment_method'       => $request->payment_method,
                 'payer_name'           => $request->payer_name,
+                'user_id'              => auth()->id(), // ✅ track who created it
             ]);
 
             if ($advance > 0) {
@@ -249,6 +250,7 @@ class ShopManagerController extends Controller
                 'inspo_image_path'     => $inspoImagePath,
                 'payment_method'       => $request->payment_method,
                 'payer_name'           => $request->payer_name,
+                'user_id'              => auth()->id(), // ✅ track who created it
             ]);
 
             if ($advance > 0) {
@@ -333,32 +335,35 @@ class ShopManagerController extends Controller
         return response()->json($cakeOrder);
     }
 
-    // GET MANAGER'S CAKE ORDERS (branch-scoped, all types)
+    // GET MANAGER'S CAKE ORDERS (branch-scoped, all types) - with reported_by
     public function cakeOrdersLocation()
     {
-        $orders = CakeOrder::where('location', $this->myLocation())
+        $orders = CakeOrder::with('user')  // ✅ eager load user for reported_by
+            ->where('location', $this->myLocation())
             ->latest()
             ->get();
         
         $result = [];
         foreach ($orders as $c) {
-            $result[] = array_merge($c->toArray(), [
-                'time' => $c->created_at->format('h:i A'),
-                'date' => $c->created_at->toDateString(),
-            ]);
+            $data = $c->toArray();
+            $data['time'] = $c->created_at->format('h:i A');
+            $data['date'] = $c->created_at->toDateString();
+            $data['reported_by'] = optional($c->user)->name ?? 'Unknown';  // ✅ add reported_by
+            $result[] = $data;
         }
         
         return response()->json($result);
     }
 
-    // GET CAKE ORDERS BY LOCATION (only type = 'order')
+    // GET CAKE ORDERS BY LOCATION (only type = 'order') - with reported_by
     public function cakeOrdersByLocation($location)
     {
         if (!in_array($location, ['kabuga', 'masaka'])) {
             return response()->json(['error' => 'Invalid location'], 400);
         }
         
-        $cakeOrders = CakeOrder::where('location', $location)
+        $cakeOrders = CakeOrder::with('user')  // ✅ eager load user
+            ->where('location', $location)
             ->where('type', 'order')
             ->latest()
             ->get();
@@ -369,63 +374,82 @@ class ShopManagerController extends Controller
             if ($cake->inspo_image_path) {
                 $cakeData['inspo_image_url'] = asset('storage/' . $cake->inspo_image_path);
             }
+            $cakeData['reported_by'] = optional($cake->user)->name ?? 'Unknown';  // ✅ add reported_by
             $result[] = $cakeData;
         }
         
         return response()->json($result);
     }
 
-    // GET ALL CAKE REQUESTS FOR CURRENT MANAGER'S BRANCH
+    // GET ALL CAKE REQUESTS FOR CURRENT MANAGER'S BRANCH - with reported_by
     public function getCakeRequests()
     {
         $myLocation = $this->myLocation();
         
-        $cakeRequests = CakeOrder::where('location', $myLocation)
+        $cakeRequests = CakeOrder::with('user')  // ✅ eager load user
+            ->where('location', $myLocation)
             ->where('type', 'request')
             ->latest()
             ->get()
             ->map(function ($cake) {
+                $data = $cake->toArray();
                 if ($cake->inspo_image_path) {
-                    $cake->inspo_image_url = asset('storage/' . $cake->inspo_image_path);
+                    $data['inspo_image_url'] = asset('storage/' . $cake->inspo_image_path);
                 }
-                return $cake;
+                $data['reported_by'] = optional($cake->user)->name ?? 'Unknown';  // ✅ add reported_by
+                return $data;
             });
         
         return response()->json($cakeRequests);
     }
 
-    // GET CAKE REQUESTS BY LOCATION (only type = 'request')
+    // GET CAKE REQUESTS BY LOCATION (only type = 'request') - with reported_by
     public function cakeRequestsByLocation($location)
     {
         if (!in_array($location, ['kabuga', 'masaka'])) {
             return response()->json(['error' => 'Invalid location'], 400);
         }
         
-        $cakeRequests = CakeOrder::where('location', $location)
+        $cakeRequests = CakeOrder::with('user')  // ✅ eager load user
+            ->where('location', $location)
             ->where('type', 'request')
             ->latest()
             ->get()
             ->map(function ($cake) {
+                $data = $cake->toArray();
                 if ($cake->inspo_image_path) {
-                    $cake->inspo_image_url = asset('storage/' . $cake->inspo_image_path);
+                    $data['inspo_image_url'] = asset('storage/' . $cake->inspo_image_path);
                 }
-                return $cake;
+                $data['reported_by'] = optional($cake->user)->name ?? 'Unknown';  // ✅ add reported_by
+                return $data;
             });
         
         return response()->json($cakeRequests);
     }
 
-    // GET DAMAGES BY LOCATION
+    // GET DAMAGES BY LOCATION - with reported_by
     public function damagesByLocation($location)
     {
         if (!in_array($location, ['kabuga', 'masaka'])) {
             return response()->json(['error' => 'Invalid location'], 400);
         }
         
-        $damages = Damage::with('product')
+        $damages = Damage::with(['product', 'user'])  // ✅ eager load user
             ->where('location', $location)
             ->latest()
-            ->get();
+            ->get()
+            ->map(function ($damage) {
+                return [
+                    'id'          => $damage->id,
+                    'product_id'  => $damage->product_id,
+                    'product'     => optional($damage->product)->name,
+                    'quantity'    => $damage->quantity,
+                    'reason'      => $damage->reason,
+                    'location'    => $damage->location,
+                    'reported_by' => optional($damage->user)->name ?? 'Unknown',  // ✅ add reported_by
+                    'created_at'  => $damage->created_at,
+                ];
+            });
         
         return response()->json($damages);
     }
@@ -443,7 +467,7 @@ class ShopManagerController extends Controller
         return Feedback::create($request->all());
     }
 
-    // RECORD DAMAGE
+    // RECORD DAMAGE - with user_id
     public function recordDamage(Request $request)
     {
         $request->validate([
@@ -456,7 +480,14 @@ class ShopManagerController extends Controller
         $damage = null;
 
         DB::transaction(function () use ($request, &$damage) {
-            $damage = Damage::create($request->all());
+            // ✅ Add user_id so reported_by works
+            $damage = Damage::create([
+                'product_id' => $request->product_id,
+                'quantity'   => $request->quantity,
+                'reason'     => $request->reason,
+                'location'   => $request->location ?? $this->myLocation(),
+                'user_id'    => auth()->id(),  // ✅ THIS SAVES THE REPORTER
+            ]);
 
             $location = $request->location ?? $this->myLocation();
             $stock    = Stock::where('product_id', $request->product_id)
@@ -481,7 +512,7 @@ class ShopManagerController extends Controller
             SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert');
         }
 
-        return $damage ? $damage->load('product') : null;
+        return $damage ? $damage->load(['product', 'user']) : null;  // ✅ return with user
     }
 
     // ============================================
@@ -649,7 +680,8 @@ class ShopManagerController extends Controller
     {
         $myLocation = $this->myLocation();
         
-        $query = CakeOrder::where('location', $myLocation)
+        $query = CakeOrder::with('user')  // ✅ eager load user
+            ->where('location', $myLocation)
             ->where('type', 'order')
             ->latest();
         
@@ -674,6 +706,7 @@ class ShopManagerController extends Controller
             if ($order->inspo_image_path) {
                 $orderData['inspo_image_url'] = asset('storage/' . $order->inspo_image_path);
             }
+            $orderData['reported_by'] = optional($order->user)->name ?? 'Unknown';  // ✅ add reported_by
             $result[] = $orderData;
         }
         
@@ -918,13 +951,14 @@ class ShopManagerController extends Controller
                     throw new \Exception("Invalid calculation for {$product->name}: Sold cannot be negative");
                 }
 
-                // Record damage and expired as separate entries
+                // Record damage and expired as separate entries with user_id
                 if ($damaged > 0) {
                     Damage::create([
                         'product_id' => $productId,
                         'quantity' => $damaged,
                         'reason' => 'End of day damage',
                         'location' => $myLocation,
+                        'user_id' => auth()->id(),  // ✅ track who reported
                     ]);
                 }
 
@@ -934,6 +968,7 @@ class ShopManagerController extends Controller
                         'quantity' => $expired,
                         'reason' => 'Expired',
                         'location' => $myLocation,
+                        'user_id' => auth()->id(),  // ✅ track who reported
                     ]);
                 }
 
@@ -1113,6 +1148,4 @@ class ShopManagerController extends Controller
         
         return response()->json($productions);
     }
-
-    
 }
