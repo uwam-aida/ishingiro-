@@ -1,17 +1,17 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation'; 
-import { Save, Plus, Trash2, Search, ChevronDown, ChevronUp, Edit2, X, Check, ArrowDownCircle, AlertTriangle, ArrowLeft } from 'lucide-react'; 
+import { Save, Plus, Trash2, Search, ChevronDown, ChevronUp, Edit2, X, Check, ArrowDownCircle, ArrowLeft } from 'lucide-react'; 
 
-// --- INTERFACE (cost optional, now the main displayed value) ---
+// --- INTERFACE ---
 interface Product {
   id?: number; 
   name: string;
-  price: number;          // kept for backend compatibility, not shown
+  price: number;
   category: string;
   type: string;
-  cost?: number; 
 }
 
 export const defaultProducts: Product[] = [ 
@@ -84,138 +84,79 @@ export const defaultProducts: Product[] = [
 
 export default function FinancePricingPage() {
   const router = useRouter(); 
-
   const categories = ['BREAD', 'CAKES', 'AMANDAZI', 'OTHERS', 'BIG CAKES'];
-  const unbakedItems = ['ikinyuranyo', 'flour', 'cashnewnuts', 'cornfresh'];
 
-  // --- STATE ---
   const [products, setProducts] = useState<Product[]>(defaultProducts);
-  // Add form – cost instead of price
-  const [newItem, setNewItem] = useState({ name: '', cost: '', category: 'BREAD', type: 'baked' });
+  const [newItem, setNewItem] = useState({ name: '', price: '', category: 'BREAD', type: 'baked' });
   const [search, setSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<{ [key: string]: boolean }>({
     'BREAD': true, 'CAKES': true, 'AMANDAZI': true, 'OTHERS': true, 'BIG CAKES': true
   });
 
   const [editingName, setEditingName] = useState<string | null>(null);
-  // Edit form – cost instead of price
-  const [editForm, setEditForm] = useState({ name: '', cost: '', type: 'baked' });
+  const [editForm, setEditForm] = useState({ name: '', price: '', type: 'baked' });
 
-  // --- 1. LOAD DATA FROM API ---
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-        router.push('/login');
-        return;
-    }
+    if (!token) { router.push('/login'); return; }
 
     const fetchProducts = async () => {
       try {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-        const response = await fetch(`${baseUrl}/products`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-
+        const response = await fetch(`${baseUrl}/products`, { headers: { 'Authorization': `Bearer ${token}` } });
         if (response.ok) {
           const data = await response.json();
-          const formattedData = data.map((p: any) => ({
-             ...p,
-             category: p.category ? p.category.toUpperCase() : 'OTHERS'
-          }));
+          const formattedData = data.map((p: any) => ({ ...p, category: p.category ? p.category.toUpperCase() : 'OTHERS' }));
           setProducts(formattedData.length > 0 ? formattedData : defaultProducts);
         }
-      } catch (error) {
-        console.error("Failed to load products", error);
-      }
+      } catch (error) { console.error("Failed to load products", error); }
     };
-
     fetchProducts();
   }, [router]);
 
   const scrollToCategory = (cat: string) => {
     setExpandedCategories(prev => ({ ...prev, [cat]: true }));
-    setTimeout(() => {
-      const element = document.getElementById(`cat-${cat}`);
-      if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 100);
+    setTimeout(() => { const element = document.getElementById(`cat-${cat}`); if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
   };
 
-  const toggleCategory = (cat: string) => {
-    setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
-  };
+  const toggleCategory = (cat: string) => { setExpandedCategories(prev => ({ ...prev, [cat]: !prev[cat] })); };
 
-  // --- VALIDATION ---
-  const validateProductType = (name: string, type: string) => {
-    const isActuallyUnbaked = unbakedItems.some(u => name.toLowerCase().includes(u));
-    if (isActuallyUnbaked && type === 'baked') {
-      alert(`❌ Error: ${name} is an UNBAKED product!`);
-      return false;
-    }
-    return true;
-  };
-
-  // --- 2. CREATE (POST) ---
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newItem.name || !newItem.cost) return;
-    if (!validateProductType(newItem.name, newItem.type)) return;
-    if (products.some(p => p.name.toLowerCase() === newItem.name.toLowerCase())) {
-      alert('Product name already exists!'); return;
-    }
-
+    if (!newItem.name || !newItem.price) return;
+    
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
-    const payload = {
-        name: newItem.name,
-        price: 0,                     // selling price not used, set to 0
-        cost: Number(newItem.cost),   // store the entered cost
-        category: newItem.category.toLowerCase(), 
-        type: newItem.type
-    };
-
     try {
         const response = await fetch(`${baseUrl}/finance/products`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                name: newItem.name,
+                price: Number(newItem.price),
+                category: newItem.category.toLowerCase(), 
+                type: newItem.type
+            })
         });
 
         if (response.ok) {
             const addedProduct = await response.json();
-            addedProduct.category = addedProduct.category ? addedProduct.category.toUpperCase() : newItem.category;
             setProducts([addedProduct, ...products]);
-            setNewItem({ name: '', cost: '', category: 'BREAD', type: 'baked' });
+            setNewItem({ name: '', price: '', category: 'BREAD', type: 'baked' });
             scrollToCategory(newItem.category);
-        } else {
-            alert("Failed to add product to database.");
         }
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const startEdit = (item: any) => {
     setEditingName(item.name);
-    // Populate edit form with current cost (default 0 if missing)
-    setEditForm({ name: item.name, cost: (item.cost || 0).toString(), type: item.type || 'baked' });
+    setEditForm({ name: item.name, price: item.price.toString(), type: item.type || 'baked' });
   };
 
-  // --- 3. UPDATE (PUT) ---
   const saveEdit = async () => {
-    if (!editForm.name || !editForm.cost) return;
-    if (!validateProductType(editForm.name, editForm.type)) return;
-
     const itemToEdit = products.find(p => p.name === editingName);
-    if (!itemToEdit) return;
-
-    // If no ID, update locally
-    if (!itemToEdit.id) {
-        const updated = products.map(p => p.name === editingName ? { ...p, name: editForm.name, cost: Number(editForm.cost), type: editForm.type } : p);
-        setProducts(updated);
-        setEditingName(null);
-        return;
-    }
+    if (!itemToEdit || !itemToEdit.id) return;
 
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
@@ -224,162 +165,108 @@ export default function FinancePricingPage() {
         const response = await fetch(`${baseUrl}/finance/products/${itemToEdit.id}`, {
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            // Update cost only (price unchanged)
-            body: JSON.stringify({ cost: Number(editForm.cost), name: editForm.name, type: editForm.type })
+            body: JSON.stringify({ price: Number(editForm.price), name: editForm.name, type: editForm.type })
         });
 
         if (response.ok) {
-            const updated = products.map(p => p.id === itemToEdit.id ? { ...p, name: editForm.name, cost: Number(editForm.cost), type: editForm.type } : p);
+            const updated = products.map(p => p.id === itemToEdit.id ? { ...p, name: editForm.name, price: Number(editForm.price), type: editForm.type } : p);
             setProducts(updated);
             setEditingName(null);
-        } else {
-            alert("Failed to update product in database.");
         }
-    } catch (e) {
-        console.error(e);
-    }
+    } catch (e) { console.error(e); }
   };
 
-  // --- 4. DELETE ---
   const deleteItem = async (name: string) => {
     if(confirm('Delete this item?')) {
       const itemToDelete = products.find(p => p.name === name);
-      
       if (itemToDelete && itemToDelete.id) {
           const token = localStorage.getItem('token');
           const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-          try {
-              await fetch(`${baseUrl}/finance/products/${itemToDelete.id}`, {
-                  method: 'DELETE',
-                  headers: { 'Authorization': `Bearer ${token}` }
-              });
-          } catch (e) { console.error(e); }
+          await fetch(`${baseUrl}/finance/products/${itemToDelete.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       }
-      
-      const updated = products.filter(p => p.name !== name);
-      setProducts(updated);
+      setProducts(products.filter(p => p.name !== name));
     }
   };
 
   return (
     <div className="space-y-8 pb-10">
-      {/* HEADER */}
-      <div className="flex items-center gap-4 md:gap-6 px-4 md:px-0 pt-6">
-        <button 
-          onClick={() => router.back()}
-          className="flex-shrink-0 flex items-center justify-center p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all text-[#1C1C1C]"
-        >
-          <ArrowLeft size={22} strokeWidth={2} />
-        </button>
-        
-        <h1 className="text-xl md:text-2xl font-black text-[#5D4037] uppercase tracking-tight">
-          Pricing Strategy
-        </h1>
+      <div className="flex items-center gap-4 px-4 pt-6">
+        <button onClick={() => router.back()} className="p-3.5 bg-white border border-gray-200 rounded-2xl shadow-sm"><ArrowLeft size={22} /></button>
+        <h1 className="text-2xl font-black text-[#5D4037] uppercase">Pricing Strategy</h1>
       </div>
 
-      {/* QUICK NAV */}
-      <div className="flex flex-wrap gap-2 sticky top-16 md:top-0 z-30 bg-[#FDFDFD] py-4 border-b border-gray-100">
-          <span className="text-xs font-bold text-gray-400 flex items-center gap-1 mr-2"><ArrowDownCircle size={14} /> Jump to:</span>
-          {categories.map(cat => (
-            <button key={cat} onClick={() => scrollToCategory(cat)} className="px-4 py-2 bg-[#EBE0CC] text-[#5D4037] text-xs font-black rounded-full hover:bg-[#5D4037] hover:text-white transition-all shadow-sm active:scale-95">{cat}</button>
-          ))}
-      </div>
-
-      {/* ADD FORM – Only Cost Input */}
+      {/* ADD PRODUCT FORM */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-        <h3 className="text-sm font-bold text-[#5D4037] uppercase mb-4 flex items-center gap-2"><Plus size={16} /> Add Product</h3>
-        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+        <h3 className="text-sm font-bold text-[#5D4037] uppercase mb-4 flex items-center gap-2">
+            <Plus size={16} /> Add Product
+        </h3>
+        <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div>
-              <label className="text-xs font-bold text-gray-400">Category</label>
-              <select value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm">
-                {categories.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 block">Category</label>
+            <select 
+              value={newItem.category} 
+              onChange={e => setNewItem({...newItem, category: e.target.value})} 
+              className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm focus:border-[#5D4037] outline-none"
+            >
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div>
-              <label className="text-xs font-bold text-gray-400">Product Name</label>
-              <input type="text" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm" />
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 block">Product Name</label>
+            <input 
+              type="text" 
+              placeholder="e.g. Baguette"
+              value={newItem.name} 
+              onChange={e => setNewItem({...newItem, name: e.target.value})} 
+              className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm focus:border-[#5D4037] outline-none" 
+            />
           </div>
           <div>
-              <label className="text-xs font-bold text-gray-400">Type</label>
-              <select value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm">
-                <option value="baked">Baked</option>
-                <option value="unbaked">Unbaked</option>
-              </select>
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1 block">Price (Sell)</label>
+            <input 
+              type="number" 
+              placeholder="0"
+              value={newItem.price} 
+              onChange={e => setNewItem({...newItem, price: e.target.value})} 
+              className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm focus:border-[#5D4037] outline-none" 
+            />
           </div>
-          <div>
-              <label className="text-xs font-bold text-gray-400">Cost</label>
-              <input type="number" value={newItem.cost} onChange={e => setNewItem({...newItem, cost: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl font-bold text-sm" />
-          </div>
-          <button type="submit" className="h-[48px] bg-[#5D4037] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg"><Save size={18}/> Save</button>
+          <button 
+            type="submit" 
+            className="h-[48px] bg-[#5D4037] text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:bg-[#4a332c] transition-all active:scale-[0.98]"
+          >
+            <Save size={18}/> Save Product
+          </button>
         </form>
       </div>
 
-      {/* PRODUCT LIST TABLE – COST COLUMN ONLY */}
       <div className="bg-white rounded-[32px] shadow-lg border border-gray-100 overflow-hidden">
-        <div className="p-4 border-b border-gray-50 bg-white sticky top-0 z-20">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#EBE0CC]/20 pl-12 pr-4 py-3 rounded-xl text-sm font-bold" />
-          </div>
-        </div>
-
+        <div className="p-4 border-b bg-white"><div className="relative"><Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full bg-[#EBE0CC]/20 pl-12 pr-4 py-3 rounded-xl text-sm font-bold" /></div></div>
         <div className="max-h-[600px] overflow-y-auto">
           <table className="w-full text-left">
             <tbody className="divide-y divide-gray-50">
               {categories.map(category => {
                 const categoryProducts = products.filter(p => p.category === category && p.name.toLowerCase().includes(search.toLowerCase()));
-                if (products.filter(p => p.category === category).length === 0) return null;
+                if (categoryProducts.length === 0) return null;
                 const isOpen = expandedCategories[category] || search.length > 0;
-
                 return (
                   <React.Fragment key={category}>
-                    {/* Category header – colspan 4 */}
-                    <tr onClick={() => toggleCategory(category)} className="bg-[#EBE0CC]/40 cursor-pointer hover:bg-[#EBE0CC]/60 transition-colors" id={`cat-${category}`}>
-                      <td colSpan={4} className="px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-[#5D4037] uppercase tracking-widest">{category} ({categoryProducts.length})</span>
-                          {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </div>
-                      </td>
+                    <tr onClick={() => toggleCategory(category)} className="bg-[#EBE0CC]/40 cursor-pointer" id={`cat-${category}`}>
+                      <td colSpan={3} className="px-6 py-4 font-black text-[#5D4037] text-xs uppercase tracking-widest">{category}</td>
                     </tr>
                     {isOpen && categoryProducts.map((item) => (
                       <tr key={item.name} className="hover:bg-gray-50 group">
                         {editingName === item.name ? (
                           <>
-                            {/* Edit row: Name + Type, Cost, spacer, Actions */}
-                            <td className="px-6 py-4">
-                              <div className="flex gap-2">
-                                <input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="flex-1 bg-white border border-[#A67C37] p-2 rounded-lg text-sm font-bold" />
-                                <select value={editForm.type} onChange={e => setEditForm({...editForm, type: e.target.value})} className="bg-white border border-[#A67C37] p-2 rounded-lg text-sm font-bold">
-                                  <option value="baked">Baked</option>
-                                  <option value="unbaked">Unbaked</option>
-                                </select>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <input type="number" placeholder="Cost" value={editForm.cost} onChange={e => setEditForm({...editForm, cost: e.target.value})} className="w-full bg-white border border-[#A67C37] p-2 rounded-lg text-sm font-bold" />
-                            </td>
-                            <td className="px-1"></td>
-                            <td className="px-6 py-4 text-right flex gap-2 justify-end">
-                              <button onClick={saveEdit} className="p-2 bg-green-500 text-white rounded-lg"><Check size={16}/></button>
-                              <button onClick={() => setEditingName(null)} className="p-2 bg-gray-200 rounded-lg"><X size={16}/></button>
-                            </td>
+                            <td className="px-6 py-4"><input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="bg-white border p-2 rounded-lg text-sm font-bold" /></td>
+                            <td className="px-6 py-4"><input type="number" value={editForm.price} onChange={e => setEditForm({...editForm, price: e.target.value})} className="bg-white border p-2 rounded-lg text-sm font-bold" /></td>
+                            <td className="px-6 py-4 text-right"><button onClick={saveEdit} className="p-2 bg-green-500 text-white rounded-lg"><Check size={16}/></button></td>
                           </>
                         ) : (
                           <>
-                            {/* Display row: Name + Type, Cost, spacer, Actions */}
-                            <td className="px-6 py-4 pl-10 w-1/3">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-[#5D4037]">{item.name}</span>
-                                <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${item.type === 'unbaked' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>{item.type}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 font-black text-[#A67C37]">{(item.cost || 0).toLocaleString()} RWF</td>
-                            <td className="px-1"></td>
-                            <td className="px-6 py-4 text-right flex gap-2 justify-end opacity-0 group-hover:opacity-100">
-                              <button onClick={() => startEdit(item)} className="p-2 hover:bg-[#EBE0CC] rounded-lg text-gray-400 hover:text-[#5D4037]"><Edit2 size={16}/></button>
-                              <button onClick={() => deleteItem(item.name)} className="p-2 hover:bg-red-50 rounded-lg text-gray-400 hover:text-red-500"><Trash2 size={16}/></button>
-                            </td>
+                            <td className="px-10 py-6 font-bold text-[#5D4037]">{item.name}</td>
+                            <td className="px-6 py-6 font-black text-[#A67C37]">{item.price.toLocaleString()} RWF</td>
+                            <td className="px-6 py-6 text-right opacity-0 group-hover:opacity-100"><button onClick={() => startEdit(item)} className="p-2 hover:bg-[#EBE0CC] rounded-lg"><Edit2 size={16}/></button><button onClick={() => deleteItem(item.name)} className="p-2 hover:bg-red-50 rounded-lg text-red-500"><Trash2 size={16}/></button></td>
                           </>
                         )}
                       </tr>
@@ -394,3 +281,4 @@ export default function FinancePricingPage() {
     </div>
   );
 }
+

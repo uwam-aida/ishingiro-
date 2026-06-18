@@ -2,7 +2,34 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchWithRetry } from '../lib/api';
+// Local helper since ../lib/api may not export fetchWithRetry
+async function fetchWithRetry(input: string, init: RequestInit & { retries?: number; timeout?: number } = {}) {
+  const { retries = 0, timeout = 0, ...rest } = init as any;
+
+  const performFetch = async () => {
+    const controller = new AbortController();
+    const id = timeout ? setTimeout(() => controller.abort(), timeout) : null;
+    try {
+      const res = await fetch(input.startsWith('/') ? input : input, { signal: controller.signal, ...rest } as RequestInit);
+      if (id) clearTimeout(id);
+      return res;
+    } catch (err) {
+      if (id) clearTimeout(id);
+      throw err;
+    }
+  };
+
+  let attempt = 0;
+  while (true) {
+    try {
+      return await performFetch();
+    } catch (err) {
+      if (attempt >= retries) throw err;
+      attempt++;
+      await new Promise(res => setTimeout(res, 500));
+    }
+  }
+}
 
 export default function LoginPage () {
   const router = useRouter();
