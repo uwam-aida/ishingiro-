@@ -19,8 +19,8 @@ use App\Models\User;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Collection;
 
 class SalesController extends Controller
 {
@@ -298,7 +298,11 @@ class SalesController extends Controller
     // Get single order with full details
     public function getRequestDetails($id)
     {
+        /** @var Order $order */
         $order = Order::with('items.product', 'user')->findOrFail($id);
+
+        /** @var Collection $items */
+        $items = $order->items;
 
         return response()->json([
             'id'           => $order->id,
@@ -307,7 +311,7 @@ class SalesController extends Controller
             'created_at'   => $order->created_at,
             'updated_at'   => $order->updated_at,
             'requested_by' => optional($order->user)->name,
-            'items'        => $order->items->map(function ($item) {
+            'items'        => $items->map(function ($item) {
                 return [
                     'id'            => $item->id,
                     'product_id'    => $item->product_id,
@@ -318,7 +322,7 @@ class SalesController extends Controller
                     'total'         => $item->quantity * $item->price,
                 ];
             })->toArray(),
-            'total_amount' => $order->items->sum(function ($item) {
+            'total_amount' => $items->sum(function ($item) {
                 return $item->quantity * $item->price;
             }),
         ]);
