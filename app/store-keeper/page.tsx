@@ -80,6 +80,9 @@ export default function StoreKeeperDashboard() {
 
   // --- STATE INITIALIZATION ---
   const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'full_history'>('requests');  
+  
+  // 👉 ADDED HERE: Must be inside the function!
+  const [isTyping, setIsTyping] = useState(false);
   const [deliveryNote, setDeliveryNote] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editQty, setEditQty] = useState('');
@@ -120,25 +123,43 @@ export default function StoreKeeperDashboard() {
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
 
-  // --- DERIVED: Available Stock = Physical - Sum of all requested quantities (fallback) ---
+ // --- DERIVED: Available Stock = Physical - Sum of all requested quantities ---
   const availableStock = useMemo(() => {
-  // Build a map of requested quantities by product name (case‑insensitive, trimmed)
-  const requestedByName = new Map<string, number>();
-  shopRequests.forEach(req => {
-    const name = (req.item || '').toLowerCase().trim();
-    const prev = requestedByName.get(name) || 0;
-    requestedByName.set(name, prev + req.quantity);
-  });
+    // 1. Map all requested quantities by exact product name
+    const requestedByName = new Map<string, number>();
+    shopRequests.forEach(req => {
+      const name = (req.item || '').toLowerCase().trim();
+      const prev = requestedByName.get(name) || 0;
+      requestedByName.set(name, prev + req.quantity);
+    });
 
-  return myStock.map(item => {
-    const requestedQty = requestedByName.get((item.item || '').toLowerCase().trim()) || 0;
-    return {
-      ...item,
-      requested: requestedQty,
-      available: item.quantity - requestedQty,
-    };
-  });
-}, [myStock, shopRequests]);
+    // 2. Map all physical stock and FORCE duplicates to merge
+    const mergedPhysical = new Map<string, any>();
+    myStock.forEach(item => {
+      const name = (item.item || '').toLowerCase().trim();
+      if (mergedPhysical.has(name)) {
+         // If we already have Baguette, just add the new quantity to the existing one
+         mergedPhysical.get(name).quantity += Number(item.quantity || 0);
+      } else {
+         // If it's the first time seeing this product, save it
+         mergedPhysical.set(name, { ...item, quantity: Number(item.quantity || 0) }); 
+      }
+    });
+
+    // 3. Calculate Available = Merged Physical - Requested
+    const computedStock: any[] = [];
+    mergedPhysical.forEach((item, name) => {
+      const requestedQty = requestedByName.get(name) || 0;
+      computedStock.push({
+        ...item,
+        unique_id: name, // Force a unique ID so React doesn't duplicate rows
+        requested: requestedQty,
+        available: item.quantity - requestedQty,
+      });
+    });
+
+    return computedStock;
+  }, [myStock, shopRequests]);
 
   // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS (unchanged) ---
   const fetchAllDeliveryNotes = async () => {
@@ -276,9 +297,14 @@ export default function StoreKeeperDashboard() {
         if (reqRes.ok) {
           const result = await reqRes.json();
           const orders = result.data || [];
-          const flattenedRequests = [];
-          orders.forEach((order) => {
-            order.items?.forEach((item) => {
+          const flattenedRequests: any[] = [];
+          
+          orders.forEach((order: any) => {
+            // 👉 FIX 1: Ignore orders that are already delivered or completed
+            const status = (order.status || '').toLowerCase();
+            if (status === 'delivered' || status === 'completed') return;
+
+            order.items?.forEach((item: any) => {
               flattenedRequests.push({
                 id: order.id,
                 request_item_id: item.id,
@@ -376,10 +402,14 @@ export default function StoreKeeperDashboard() {
   }, [router, baseUrl]);
   
   // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS (unchanged) ---
+  // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS ---
   useEffect(() => {
     if (activeFilter !== 'requests') return;
 
     const interval = setInterval(async () => {
+      // 👉 FIX: Stop the refresh if the user is typing!
+      if (isTyping) return; 
+
       const token = localStorage.getItem('token');
       if (!token) return;
       const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
@@ -388,10 +418,15 @@ export default function StoreKeeperDashboard() {
         if (res.ok) {
           const result = await res.json();
           const orders = result.data || [];
-          const flattenedRequests = [];
-          orders.forEach((order) => {
+          const flattenedRequests: any[] = [];
+          
+          orders.forEach((order: any) => {
+            // 👉 FIX 2: Stop the 5-second interval from bringing delivered items back
+            const status = (order.status || '').toLowerCase();
+            if (status === 'delivered' || status === 'completed') return;
+
             if (order.items && Array.isArray(order.items)) {
-              order.items.forEach((item) => {
+              order.items.forEach((item: any) => {
                 flattenedRequests.push({
                   id: order.id,
                   request_item_id: item.id,
@@ -423,22 +458,45 @@ export default function StoreKeeperDashboard() {
   };
 
   // --- FULL HISTORY (unchanged) ---
-  const fullHistory = [
-    ...myStock.map(s => ({
-      type: 'STOCK ADDED',
-      item: s.item,
-      qty: s.quantity,
-      time: s.created_at ? new Date(s.created_at).toLocaleString() : 'In Stock',
-      color: 'text-teal-600',
-    })),
-    ...damagedProducts.map(d => ({
-      type: 'DAMAGE',
-      item: d.item,
-      qty: d.quantity,
-      time: d.created_at ? new Date(d.created_at).toLocaleString() : (d.date || 'N/A'),
-      color: 'text-red-600',
-    })),
-  ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+ const fullHistory = [
+  // Stock additions with quantity > 0
+  ...myStock
+    .filter(s => s.quantity > 0)
+    .map(s => {
+      const rawDate = s.created_at ? new Date(s.created_at) : null;
+      return {
+        type: 'STOCK ADDED',
+        item: s.item,
+        qty: s.quantity,
+        // Display the real date/time, or 'In Stock' if missing
+        time: rawDate ? rawDate.toLocaleString() : 'In Stock',
+        color: 'text-teal-600',
+        sortDate: rawDate ? rawDate.getTime() : 0,
+      };
+    }),
+  // Damages with quantity > 0
+  ...damagedProducts
+    .filter(d => d.quantity > 0)
+    .map(d => {
+      const rawDate = d.created_at
+        ? new Date(d.created_at)
+        : d.date
+        ? new Date(d.date)
+        : null;
+      return {
+        type: 'DAMAGE',
+        item: d.item,
+        qty: d.quantity,
+        time: rawDate ? rawDate.toLocaleString() : (d.date || 'N/A'),
+        color: 'text-red-600',
+        sortDate: rawDate ? rawDate.getTime() : 0,
+      };
+    }),
+]
+  // Sort newest first (highest timestamp first)
+  .sort((a, b) => b.sortDate - a.sortDate)
+  // Remove the extra 'sortDate' field from the final objects (optional but clean)
+  .map(({ sortDate, ...rest }) => rest);
 
   const handlePrint = () => { window.print(); };
 
@@ -459,15 +517,15 @@ const handleBulkDelivery = async () => {
     return;
   }
 
-  // 2. VALIDATE AVAILABLE STOCK FOR EACH SELECTED ITEM
+    // 2. VALIDATE AGAINST PHYSICAL STOCK (myStock) INSTEAD OF availableStock
   for (const item of selectedItems) {
-    const stockItem = availableStock.find(s => s.item?.toLowerCase() === item.item?.toLowerCase());
+    const stockItem = myStock.find(s => s.item?.toLowerCase() === item.item?.toLowerCase());
     if (!stockItem) {
       alert(`Product "${item.item}" not found in stock.`);
       return;
     }
-    if (item.quantity > stockItem.available) {
-      alert(`Not enough stock for "${item.item}". Available: ${stockItem.available}, requested: ${item.quantity}`);
+    if (item.quantity > stockItem.quantity) {
+      alert(`Not enough stock for "${item.item}". Physical stock: ${stockItem.quantity}, requested: ${item.quantity}`);
       return;
     }
   }
@@ -682,7 +740,7 @@ const handleSubmitDamage = async () => {
   const stats = [
     { id: 'requests', label: 'Requests', value: (shopRequests?.length || 0).toString(), icon: Bell },
     { id: 'baked_log', label: 'Baked Products', value: (bakedProducts?.length || 0).toString(), icon: ChefHat },
-    { id: 'my_stock', label: 'Stock', value: (myStock?.length || 0).toString(), icon: ShoppingBag },
+    { id: 'my_stock', label: 'Stock', value: (availableStock?.filter(s => s.quantity > 0).length || 0).toString(), icon: ShoppingBag },
     { id: 'cake_orders', label: 'Cake Orders', value: (cakeOrders?.length || 0).toString(), icon: ClipboardList }, 
     { id: 'full_history', label: 'Full History', value: (fullHistory?.length || 0).toString(), icon: CheckCheck },
     { id: 'damaged', label: 'Damaged', value: (damagedProducts?.length || 0).toString(), icon: ShieldAlert },
@@ -773,8 +831,12 @@ const handleSubmitDamage = async () => {
                   <tbody>
                     {selectedDeliveryNote.items?.map((item, idx) => (
                       <tr key={idx} className="border-b border-black">
-                        <td className="border-r border-black p-1">{item.product_name}</td>
-                        <td className="border-r border-black p-1 text-center">{item.quantity}</td>
+                        <td className="border-r border-black p-1">
+                            {item.product_name || item.name || item.product?.name || item.item || 'Unknown Item'}
+                        </td>
+                        <td className="border-r border-black p-1 text-center">
+                           {item.quantity || item.qty || item.delivered_quantity || 0}
+                        </td>
                         <td className="border-r border-black p-1 text-center">{item.unit_price}</td>
                         <td className="p-1 text-right">{item.total}</td>
                       </tr>
@@ -812,7 +874,15 @@ const handleSubmitDamage = async () => {
             <p className="font-bold text-gray-400 text-[10px] uppercase">{editingItem.item}</p>
             <div className="space-y-2 text-left">
               <label className="text-[10px] font-bold text-gray-400 uppercase">New Quantity</label>
-              <input type="number" value={editQty} onChange={(e) => setEditQty(e.target.value)} className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none font-black text-xl text-[#F57C00] focus:border-[#F57C00]" autoFocus />
+              <input 
+  type="number" 
+  value={editQty} 
+  onChange={(e) => setEditQty(e.target.value)} 
+  onFocus={() => setIsTyping(true)}   // 👉 Tells the timer to pause
+  onBlur={() => setIsTyping(false)}   // 👉 Tells the timer to resume
+  className="w-full border-2 border-gray-100 p-3 rounded-xl outline-none font-black text-xl text-[#F57C00] focus:border-[#F57C00]" 
+  autoFocus 
+/>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setEditingItem(null)} className="flex-1 font-bold text-gray-400">Cancel</button>
@@ -1011,42 +1081,26 @@ const handleSubmitDamage = async () => {
                   <th className="px-8 py-4 text-center">Available</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {/* Use API data if available, else fallback to computed availableStock */}
-                {apiAvailableStock.length > 0 ? (
-                  apiAvailableStock
-                    .filter(s => s.product_name.toLowerCase().includes(stockSearch.toLowerCase()))
-                    .map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.product_name}</td>
-                        <td className="px-8 py-6 text-center font-black text-gray-900">{s.physical_quantity}</td>
-                        <td className="px-8 py-6 text-center font-black text-blue-600">{s.requested_quantity}</td>
-                        <td className="px-8 py-6 text-center font-black text-lg">
-                          <span className={s.available_quantity < 0 ? 'text-red-600' : 'text-green-700'}>
-                            {s.available_quantity}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                ) : (
-                  availableStock
-                    .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
-                    .map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
-                        <td className="px-8 py-6 text-center font-black text-gray-900">{s.quantity}</td>
-                        <td className="px-8 py-6 text-center font-black text-blue-600">{s.requested}</td>
-                        <td className="px-8 py-6 text-center font-black text-lg">
-                          <span className={s.available < 0 ? 'text-red-600' : 'text-green-700'}>{s.available}</span>
-                        </td>
-                      </tr>
-                    ))
-                )}
-                {(apiAvailableStock.length === 0 ? availableStock : apiAvailableStock).filter((s: any) => 
-                  (s.product_name || s.item).toLowerCase().includes(stockSearch.toLowerCase())
-                ).length === 0 && (
-                  <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching stock items</td></tr>
-                )}
+              <tbody className="divide-y divide-gray-100 font-bold">
+                {/* We now IGNORE apiAvailableStock and exclusively use our flawless frontend math */}
+                {availableStock
+                  .filter(s => s.item.toLowerCase().includes(stockSearch.toLowerCase()))
+                  .filter(s => s.quantity > 0) 
+                  .map((s) => (
+                    <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{s.item}</td>
+                      <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{s.quantity}</td>
+                      <td className="px-8 py-6 text-center font-black text-blue-600 text-lg">{s.requested}</td>
+                      <td className="px-8 py-6 text-center font-black text-lg">
+                        <span className={s.available < 0 ? 'text-red-600' : 'text-green-700'}>
+                          {s.available}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                {availableStock.filter((s: any) => s.item.toLowerCase().includes(stockSearch.toLowerCase()) && s.quantity > 0).length === 0 && (
+                 <tr><td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching stock items</td></tr>
+                  )}
               </tbody>
             </table>
           </div>

@@ -109,9 +109,7 @@ export default function DynamicShopDashboard() {
   const branchIdString = rawBranchId?.toString().toLowerCase() || 'kabuga';
 
   // --- STATE (damage states removed, close day added) ---
-  const [factoryStock, setFactoryStock] = useState(MARKETING_PRODUCTS.map(p => ({ 
-    item: p.name, quantity:0, unit: p.name.includes('kg') ? 'Kg' : 'Pieces', entryTime: '06:00 AM' 
-  })));
+  const [factoryStock, setFactoryStock] = useState<any[]>([]);
   const [requestQty, setRequestQty] = useState('');
   // restQty removed
 
@@ -196,32 +194,30 @@ export default function DynamicShopDashboard() {
             }
         }
 
-        // 3. Factory available stock (NOW WORKS GLOBALLY) – for ordering
+        // 3. Factory available stock – build directly from API, do NOT merge into hardcoded list
         const factoryRes = await fetch(`${baseUrl}/sales/factory-available-stock`, { headers });
         if (factoryRes.ok) {
             const factoryData = await factoryRes.json();
             const stockArray = factoryData.data || [];
             if (stockArray.length > 0) {
-                setFactoryStock(prevStock =>
-                    prevStock.map(product => {
-                        const liveStock = stockArray.find(
-                            (apiItem: any) =>
-                                apiItem.product_name &&
-                                apiItem.product_name.toLowerCase().trim() === product.item.toLowerCase().trim()
-                        );
-                        if (liveStock) {
-                            return {
-                                ...product,
-                                quantity: parseInt(liveStock.available_quantity) || 0,   // <-- uses the global available_quantity
-                                unit: liveStock.unit || product.unit,
-                            };
-                        }
-                        return product; // keep 0 if not in factory
-                    })
+                setFactoryStock(
+                    stockArray.map((apiItem: any) => ({
+                        item: apiItem.product_name,
+                        quantity: parseInt(apiItem.available_quantity) || 0,
+                        unit: apiItem.unit || (apiItem.product_name?.toLowerCase().includes('kg') ? 'Kg' : 'Pieces'),
+                        entryTime: '06:00 AM',
+                    }))
                 );
             }
         }
 
+        // 4b. Real products list – needed so handleAddRequest can resolve the correct product_id
+        const productsRes = await fetch(`${baseUrl}/products`, { headers });
+        if (productsRes.ok) {
+            const productsData = await productsRes.json();
+            const productsArray = productsData.data || productsData || [];
+            setRealProducts(productsArray);
+        }
         // 4. Orders / received (unchanged)
         const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
         if (ordRes.ok) {
@@ -297,13 +293,14 @@ export default function DynamicShopDashboard() {
     const dbProductId = realDbProduct ? realDbProduct.id : 1;
 
     try {
-      const response = await fetchWithRetry('/api/orders', {
-  method: 'POST',
-  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ location: branchIdString, items: [{ product_id: dbProductId, quantity: parseInt(requestQty) }] }),
-  retries: 2,
-  timeout: 10000
-});
+      // ✅ THE FIX: We added `${baseUrl}/orders` so it actually talks to your backend!
+      const response = await fetchWithRetry(`${baseUrl}/orders`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location: branchIdString, items: [{ product_id: dbProductId, quantity: parseInt(requestQty) }] }),
+        retries: 2,
+        timeout: 10000
+      });
       if (response.ok) {
         setShowRequestSuccess(true);
         setTimeout(() => setShowRequestSuccess(false), 3000);
@@ -370,6 +367,15 @@ export default function DynamicShopDashboard() {
       });
       if (response.ok) {
         alert("Close Day submitted successfully!");
+        
+        // 👉 NEW CODE: This instantly clears the input boxes back to empty
+        setCloseDayEntries(prev => prev.map(entry => ({
+          ...entry,
+          remaining: '',
+          damaged: '',
+          expired: ''
+        })));
+        
       } else {
         const errorData = await response.json().catch(() => ({}));
         alert(errorData.error || "Failed to submit Close Day. Please try again.");
@@ -404,7 +410,7 @@ export default function DynamicShopDashboard() {
   ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
   const stats = [
-    { id: 'baked', label: 'Baked Items', icon: ShoppingBag, count: factoryStock.length },
+    { id: 'baked', label: 'Baked Items', icon: ShoppingBag, count: bakedProductsLog.length },
     { id: 'orders', label: 'Orders', icon: Clock, count: myRequests.length },
     { id: 'cake_orders', label: 'Cake Orders', icon: Cake, count: cakeOrders.length },
     { id: 'received', label: 'Received', icon: Archive, count: receivedStock.length },
@@ -693,7 +699,13 @@ export default function DynamicShopDashboard() {
                     <span className={`text-[10px] block font-black uppercase ${isOverLimit ? 'text-red-500' : 'text-emerald-600'}`}>
                       Available: {selectedItem ? bakedItemsAvailable : '--'}
                     </span>
-                    <input type="number" value={requestQty} onChange={(e) => setRequestQty(e.target.value)} className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" />
+                    <input 
+  type="number" 
+  value={requestQty} 
+  onChange={(e) => setRequestQty(e.target.value)} 
+  onWheel={(e) => (e.target as HTMLInputElement).blur()} /* 👉 THIS KILLS THE SCROLL BUG */
+  className="w-full border-2 border-gray-200 p-4 rounded-2xl font-black text-xl outline-none focus:border-[#F57C00]" 
+/>
                   </div>
                 </div>
                 <button disabled={isSubmitting || !requestQty || isOverLimit || !selectedItem} onClick={handleAddRequest} className="mt-6 px-8 py-4 bg-[#F57C00] text-white rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">
