@@ -62,6 +62,7 @@ export default function ProductionManagerDashboard() {
 
         if (response.ok) {
           const data = await response.json();
+          console.log('🔍 RAW damaged from backend:', data.damaged);
           
           setAllData({
             Measured: (data.measured || []).map((m: any) => ({
@@ -106,7 +107,7 @@ export default function ProductionManagerDashboard() {
             ),
             Damaged: (data.damaged || []).map((d: any) => ({
               id: d.id,
-              item: d.product?.name || 'Unknown Product',
+              item: d.product?.name || `Product #${d.product_id}` || 'Unknown Product',
               qty: `${d.quantity} pcs`,
               time: formatDateTime(d.created_at),
               status: 'Reported',

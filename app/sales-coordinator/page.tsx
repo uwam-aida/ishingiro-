@@ -156,13 +156,24 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
             time: d.created_at ? new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Latest',
             status: 'Delivered'
           })),
-          Stock: stockData.map((s: any) => ({
-            id: s.id,
-            item: s.product?.name || 'Unknown',
-            qty: `${s.quantity} pcs`,
-            location: s.location || 'factory',
-            time: s.created_at ? new Date(s.created_at).toLocaleDateString() : 'In Store',
-          })),
+          Stock: (() => {
+  // Create a map from product name to total stock quantity
+  const stockMap = new Map<string, number>();
+  stockData.forEach((s: any) => {
+    const name = s.product?.name || 'Unknown';
+    stockMap.set(name, (stockMap.get(name) || 0) + (s.quantity || 0));
+  });
+
+  return Array.from(stockMap.entries())
+    .map(([name, qty]) => ({
+      id: name,
+      item: name,
+      qty: `${qty} pcs`,
+      location: 'Shop',
+      time: qty > 0 ? 'In Stock' : 'No Stock',
+    }))
+    .filter(item => parseInt(item.qty) > 0);
+})(),
           Damaged: damagedData.map((d: any) => ({
             id: d.id,
             item: d.product?.name || 'Unknown',
@@ -282,10 +293,8 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
           req => branchFilter === 'all' || req.location === branchFilter
         );
       case 'Cake Orders':
-        return detailedLists.CakeOrders.filter(
-          cake => branchFilter === 'all' || 
-                  (cake.location && cake.location.toLowerCase() === branchFilter.toLowerCase())
-        );
+        return detailedLists.CakeOrders
+        
       case 'Baked':
         return detailedLists.Baked;
       case 'Delivered':

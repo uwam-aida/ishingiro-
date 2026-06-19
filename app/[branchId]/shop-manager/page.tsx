@@ -135,8 +135,10 @@ export default function DynamicShopDashboard() {
   const [showRequestSuccess, setShowRequestSuccess] = useState(false);
 
   // --- Close Day state ---
+  // REPLACE WITH
   const [closeDayEntries, setCloseDayEntries] = useState<any[]>([]);
   const [isCloseDaySubmitting, setIsCloseDaySubmitting] = useState(false);
+  const [closedTodayProductIds, setClosedTodayProductIds] = useState<number[]>([]);
 
   // Search states
   const [orderSearch, setOrderSearch] = useState('');
@@ -218,34 +220,40 @@ export default function DynamicShopDashboard() {
             const productsArray = productsData.data || productsData || [];
             setRealProducts(productsArray);
         }
-        // 4. Orders / received (unchanged)
+        // 4. Orders / received
         const ordRes = await fetch(`${baseUrl}/orders/${branchIdString}`, { headers });
         if (ordRes.ok) {
             const ordData = await ordRes.json();
             if (ordData.length > 0) {
-                const pendingOrders: any[] = [];
+                const allOrders: any[] = [];
                 const dispatchedOrders: any[] = [];
+                
                 ordData.forEach((o: any) => {
                     o.items?.forEach((i: any) => {
                         const mappedItem = {
                             id: o.id,
-                            item: i.product?.name || `Order #${o.id}`,
+                            // 👉 FIX 1: Checks multiple ways the backend might send the product name
+                            item: i.product?.name || i.product_name || i.name || `Order #${o.id}`,
                             quantity: i.quantity,
                             status: o.status,
                             time: o.created_at ? new Date(o.created_at).toLocaleString() : 'Unknown',
                             unit: 'Pieces',
                             arrivalTime: o.updated_at ? new Date(o.updated_at).toLocaleString() : 'Unknown'
                         };
-                        if (o.status === 'pending') {
-                            pendingOrders.push(mappedItem);
-                        } else {
+                        
+                        // 👉 FIX 2: Every single order goes into the "Orders" tab so you have a full history
+                        allOrders.push(mappedItem);
+
+                        // If the order has been processed/delivered, it ALSO goes to the "Received" tab
+                        if ((o.status || '').toLowerCase() !== 'pending') {
                             dispatchedOrders.push(mappedItem);
                         }
                     });
                 });
-                pendingOrders.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
-                setMyRequests(pendingOrders);
-                setReceivedStock(dispatchedOrders);
+                
+                allOrders.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+                setMyRequests(allOrders); // Now holds everything!
+                setReceivedStock(dispatchedOrders); // Now holds only received items
             }
         }
 
@@ -289,10 +297,17 @@ export default function DynamicShopDashboard() {
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
-    const realDbProduct = realProducts.find(p => p.name.toLowerCase() === selectedItem.toLowerCase());
-    const dbProductId = realDbProduct ? realDbProduct.id : 1;
+   const realDbProduct = realProducts.find(p => p.name.toLowerCase().trim() === selectedItem.toLowerCase().trim());
+   
+   // 👉 NO MORE TRAP: If it can't find it, it stops and warns you instead of defaulting to 1!
+   if (!realDbProduct) {
+      alert(`Error: Database ID not found for ${selectedItem}. Please refresh.`);
+      setIsSubmitting(false);
+      return;
+   }
+   const dbProductId = realDbProduct.id;
 
-    try {
+   try {
       // ✅ THE FIX: We added `${baseUrl}/orders` so it actually talks to your backend!
       const response = await fetchWithRetry(`${baseUrl}/orders`, {
         method: 'POST',
@@ -326,29 +341,40 @@ export default function DynamicShopDashboard() {
   // --- CLOSE DAY HANDLERS (payload updated to match API) ---
   const closeDayInitialised = useRef(false);
 
+  // REPLACE WITH
   useEffect(() => {
     if (myStock.length > 0 && !closeDayInitialised.current) {
-      setCloseDayEntries(myStock.map(item => ({
-        product_id: item.product_id,
-        product_name: item.item,
-        opening_stock: item.quantity,       // for display only
-        remaining: '',
-        damaged: '',
-        expired: ''
-      })));
+      setCloseDayEntries(
+        myStock
+          .filter(item => !closedTodayProductIds.includes(item.product_id))
+          .map(item => ({
+            product_id: item.product_id,
+            product_name: item.item,
+            opening_stock: item.quantity,
+            remaining: '',
+            damaged: '',
+            expired: ''
+          }))
+      );
       closeDayInitialised.current = true;
     }
-  }, [myStock]);
+  }, [myStock, closedTodayProductIds]);
 
+  // REPLACE WITH
   const handleCloseDaySubmit = async () => {
+    const entriesToSubmit = closeDayEntries.filter(entry => entry.remaining !== '');
+    if (entriesToSubmit.length === 0) {
+      alert('Enter the remaining quantity for at least one product before submitting.');
+      return;
+    }
+
     setIsCloseDaySubmitting(true);
     const token = localStorage.getItem('token');
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
-    // Build payload according to the documented POST /api/shop/close-day
     const payload = {
-      closing_date: new Date().toISOString().split('T')[0], // today's date
-      products: closeDayEntries.map(entry => ({
+      closing_date: new Date().toISOString().split('T')[0],
+      products: entriesToSubmit.map(entry => ({
         product_id: entry.product_id,
         remaining: parseInt(entry.remaining) || 0,
         damaged: parseInt(entry.damaged) || 0,
@@ -365,17 +391,12 @@ export default function DynamicShopDashboard() {
         },
         body: JSON.stringify(payload)
       });
+     // REPLACE WITH
       if (response.ok) {
-        alert("Close Day submitted successfully!");
-        
-        // 👉 NEW CODE: This instantly clears the input boxes back to empty
-        setCloseDayEntries(prev => prev.map(entry => ({
-          ...entry,
-          remaining: '',
-          damaged: '',
-          expired: ''
-        })));
-        
+        const submittedIds = entriesToSubmit.map(e => e.product_id);
+        setCloseDayEntries(prev => prev.filter(entry => !submittedIds.includes(entry.product_id)));
+        setClosedTodayProductIds(prev => [...prev, ...submittedIds]);
+        alert(`Closed ${submittedIds.length} product(s) successfully!`);
       } else {
         const errorData = await response.json().catch(() => ({}));
         alert(errorData.error || "Failed to submit Close Day. Please try again.");

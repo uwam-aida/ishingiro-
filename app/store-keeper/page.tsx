@@ -264,6 +264,7 @@ export default function StoreKeeperDashboard() {
       try {
         // Fetch available stock from the new API
         setIsAvailableStockLoading(true);
+        let masterProductList: any[] = [];
         const availStockRes = await fetch(`${baseUrl}/storekeeper/available-stock`, { headers });
         if (availStockRes.ok) {
           const availData = await availStockRes.json();
@@ -377,15 +378,21 @@ export default function StoreKeeperDashboard() {
         const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
         if (damagedRes.ok) {
           const data = await damagedRes.json();
-          const mappedDamaged = data.map((d: any) => ({
-            id: d.id,
-            item: d.product?.name || 'Damaged Item',
-            quantity: d.quantity,
-            reason: d.reason || 'N/A',
-            date: d.date || 'N/A',
-            time: d.time || '',
-            created_at: d.created_at || null,
-          }));
+          
+          // 👉 THE SPY CODE: This will print the raw data to your browser!
+          console.log("🕵️ RAW DAMAGE DATA FROM BACKEND:", data);
+
+      console.log('🔍 RAW damaged from backend:', data.damaged);
+
+const mappedDamaged = (data.damaged || []).map((d: any) => ({
+  id: d.id,
+  item: d.product?.name || 'Unknown Product',
+  qty: `${d.quantity} pcs`,
+  time: d.created_at ? new Date(d.created_at).toLocaleString() : 'Unknown',
+  status: 'Reported',
+  location: d.reported_by || d.location || 'Not specified'
+}));
+console.log('🔍 MAPPED damaged:', mappedDamaged);
           mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setDamagedProducts(mappedDamaged);
         }
@@ -678,11 +685,18 @@ const handleSubmitDamage = async () => {
   }
 
   // Find product by name in the available stock list (which includes product_id)
+  // Find product by name in the available stock list (which includes product_id)
   const stockItem = availableStock.find(
     s => s.item?.toLowerCase() === productName.toLowerCase()
   );
   if (!stockItem) {
     alert('Product not found in stock. Please use a valid product name.');
+    return;
+  }
+
+  // 👉 NEW: Safety check blocks "Unknown Item" ghost records
+  if (!stockItem.product_id) {
+    alert('You cannot report damage for a product that has never been received in stock yet.');
     return;
   }
 
@@ -711,15 +725,25 @@ const handleSubmitDamage = async () => {
       const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
       if (damagedRes.ok) {
         const data = await damagedRes.json();
-        const mappedDamaged = data.map((d: any) => ({
-          id: d.id,
-          item: d.product?.name || 'Damaged Item',
-          quantity: d.quantity,
-          reason: d.reason || 'N/A',
-          date: d.date || 'N/A',
-          time: d.time || '',
-          created_at: d.created_at || null,
-        }));
+        const mappedDamaged = data.map((d: any) => {
+          let realName = d.product?.name || d.product_name || d.name || d.item;
+          
+          // 👉 DICTIONARY LOOKUP: Do the exact same cross-reference using the React state!
+          if (!realName && d.product_id) {
+             const match = apiAvailableStock.find(s => s.product_id === d.product_id || s.id === d.product_id);
+             if (match) realName = match.product_name || match.name || match.product?.name;
+          }
+
+          return {
+            id: d.id,
+            item: realName || 'UNKNOWN ITEM', 
+            quantity: d.quantity,
+            reason: d.reason || 'N/A',
+            date: d.date || 'N/A',
+            time: d.time || '',
+            created_at: d.created_at || null,
+          };
+        });
         mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
         setDamagedProducts(mappedDamaged);
       }
