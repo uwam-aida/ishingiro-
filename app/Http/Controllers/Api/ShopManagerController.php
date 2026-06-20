@@ -882,7 +882,14 @@ class ShopManagerController extends Controller
     }
 
     /**
-     * Close the day by recording remaining, damaged, and expired stock
+     * Close the day by recording remaining, damaged, and expired stock.
+     *
+     * FIX: this used to hard-block any second call for the same date with
+     * "Already closed for this date", forcing the manager to submit every
+     * product in one go. Now it merges into the existing record for today
+     * (if any) and only processes products that haven't been closed yet,
+     * so products can be closed one at a time as the day goes.
+     *
      * POST /api/shop/close-day
      */
     public function closeDay(Request $request)
@@ -891,7 +898,7 @@ class ShopManagerController extends Controller
 
         $request->validate([
             'closing_date' => 'required|date',
-            'products' => 'required|array',
+            'products' => 'required|array|min:1',
             'products.*.product_id' => 'required|exists:products,id',
             'products.*.remaining' => 'required|integer|min:0',
             'products.*.damaged' => 'nullable|integer|min:0',
@@ -900,13 +907,22 @@ class ShopManagerController extends Controller
 
         $closingDate = $request->closing_date;
 
-        // Check if already closed for this date
-        $existing = ShopClosingRecord::where('location', $myLocation)
+        // Find today's record, if some products were already closed earlier today
+        $record = ShopClosingRecord::where('location', $myLocation)
             ->where('closing_date', $closingDate)
             ->first();
 
-        if ($existing) {
-            return response()->json(['error' => 'Already closed for this date'], 400);
+        $alreadyClosedProductIds = $record
+            ? collect($record->products)->pluck('product_id')->all()
+            : [];
+
+        // Only process products that haven't already been closed today
+        $incomingProducts = collect($request->products)
+            ->reject(fn ($p) => in_array($p['product_id'], $alreadyClosedProductIds))
+            ->values();
+
+        if ($incomingProducts->isEmpty()) {
+            return response()->json(['error' => 'These product(s) have already been closed for today.'], 400);
         }
 
         // Get current stock (opening stock for the day)
@@ -915,8 +931,8 @@ class ShopManagerController extends Controller
             ->get()
             ->keyBy('product_id');
 
-        $productsData = [];
-        $summary = [
+        $productsData = $record ? $record->products : [];
+        $summary = $record ? $record->summary : [
             'total_sold' => 0,
             'total_damaged' => 0,
             'total_expired' => 0,
@@ -924,8 +940,8 @@ class ShopManagerController extends Controller
             'total_products' => 0,
         ];
 
-        DB::transaction(function () use ($request, $myLocation, $closingDate, $currentStock, &$productsData, &$summary) {
-            foreach ($request->products as $productData) {
+        DB::transaction(function () use ($incomingProducts, $myLocation, $closingDate, $currentStock, &$productsData, &$summary, $record) {
+            foreach ($incomingProducts as $productData) {
                 $productId = $productData['product_id'];
                 $stock = $currentStock[$productId] ?? null;
 
@@ -1011,14 +1027,17 @@ class ShopManagerController extends Controller
                 $summary['total_products']++;
             }
 
-            // Create closing record
-            ShopClosingRecord::create([
-                'shop_manager_id' => auth()->id(),
-                'location' => $myLocation,
-                'closing_date' => $closingDate,
-                'products' => $productsData,
-                'summary' => $summary,
-            ]);
+            if ($record) {
+                $record->update(['products' => $productsData, 'summary' => $summary]);
+            } else {
+                ShopClosingRecord::create([
+                    'shop_manager_id' => auth()->id(),
+                    'location' => $myLocation,
+                    'closing_date' => $closingDate,
+                    'products' => $productsData,
+                    'summary' => $summary,
+                ]);
+            }
         });
 
         return response()->json([

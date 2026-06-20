@@ -21,6 +21,14 @@
     border-radius: 50%;
     background: #666;
     margin: 0 auto 7px auto;
+    overflow: hidden;
+  }
+
+  .logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
   }
 
   .company-name {
@@ -144,7 +152,11 @@
 
   {{-- HEADER --}}
   <div class="header">
-    <div class="logo"></div>
+    <div class="logo">
+      @if($logo ?? null)
+        <img src="{{ $logo }}" alt="Logo">
+      @endif
+    </div>
     <div class="company-name">BINYA LTD</div>
     <div class="company-info">
       B.P:2558 KIGALI RWANDA<br>

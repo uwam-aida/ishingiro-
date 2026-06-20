@@ -22,9 +22,12 @@ use Illuminate\Support\Facades\DB;
 class StoreKeeperController extends Controller
 {
     // VIEW ALL STOCK
+    // FIX: was returning every Stock row (factory + both branches), which made
+    // a shop's close-day "remaining" look like it bled into the store keeper's
+    // physical stock numbers. Store keeper's "My Stock" is factory-only.
     public function index()
     {
-        return Stock::with('product')->get();
+        return Stock::with('product')->where('location', 'factory')->get();
     }
 
     // ADD / INCREMENT STOCK
@@ -904,10 +907,14 @@ class StoreKeeperController extends Controller
     /**
      * Get available stock (physical stock minus pending requests)
      * GET /api/storekeeper/available-stock
+     *
+     * FIX: defaulted to location=all, which pulled kabuga/masaka stock into
+     * the store keeper's Requested/Available math along with factory stock.
+     * Store keeper's "available" view should be factory stock by default.
      */
     public function getAvailableStock(Request $request)
     {
-        $location = $request->query('location', 'all');
+        $location = $request->query('location', 'factory');
 
         $stockQuery = Stock::with('product');
         if ($location !== 'all') {
