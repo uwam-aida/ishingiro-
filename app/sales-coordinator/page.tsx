@@ -54,6 +54,7 @@ export default function SalesCoordinatorDashboard() {
   const [branchFilter, setBranchFilter] = useState<'all' | 'kabuga' | 'masaka'>('all');
 
   // --- ZOOM IMAGE MODAL STATE ---
+  // REPLACE WITH
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [selectedCakeOrderDetail, setSelectedCakeOrderDetail] = useState<any>(null);
@@ -293,8 +294,10 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
           req => branchFilter === 'all' || req.location === branchFilter
         );
       case 'Cake Orders':
-        return detailedLists.CakeOrders
-        
+        return detailedLists.CakeOrders.filter(
+          cake => branchFilter === 'all' || 
+                  (cake.location && cake.location.toLowerCase() === branchFilter.toLowerCase())
+        );
       case 'Baked':
         return detailedLists.Baked;
       case 'Delivered':
@@ -451,14 +454,48 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
       >
         <X size={32} />
       </button>
-      <img 
-        src={zoomImageUrl} 
-        alt="Zoomed cake" 
-        className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
-      />
-    </div>
-  </div>
-)}
+     // REPLACE WITH
+            <img 
+              src={zoomImageUrl} 
+              alt="Zoomed cake" 
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+
+      {showCakeDetailModal && selectedCakeOrderDetail && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+            <div className="bg-[#5D4037] text-white p-4 flex justify-between items-center">
+              <h3 className="font-black uppercase text-sm">Cake Order #{selectedCakeOrderDetail.id}</h3>
+              <button onClick={() => setShowCakeDetailModal(false)} className="text-white hover:opacity-80"><X size={20} /></button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-h-[70vh] overflow-y-auto">
+              <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
+              <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
+              <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
+              <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
+              <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
+              <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
+              <div className="col-span-2"><strong>Size / Stages:</strong> {selectedCakeOrderDetail.cake_size}</div>
+              <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
+              <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
+              <div className="col-span-2"><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
+              <div className="col-span-2"><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
+              {selectedCakeOrderDetail.inspo_image_url && (
+                <div className="col-span-2">
+                  <strong>Inspiration Image:</strong><br />
+                  <img src={selectedCakeOrderDetail.inspo_image_url} alt="Cake inspo" className="max-h-48 rounded-xl mt-2 cursor-zoom-in" onClick={() => { setZoomImageUrl(selectedCakeOrderDetail.inspo_image_url); setShowZoomModal(true); }} />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-100">
+              <button onClick={() => setShowCakeDetailModal(false)} className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
       {currentView === 'Dashboard' && (
         <>
           <div>
@@ -559,17 +596,13 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
+                  // REPLACE WITH
                   {getDataForView(currentView).map((row) => (
                     <tr
-  key={row.id}
-  className="hover:bg-gray-50/50 transition-colors"
-  onClick={() => {
-    if (currentView === 'Cake Orders') {
-      fetchCakeOrderDetail(row.id);
-    }
-  }}
-  style={currentView === 'Cake Orders' ? { cursor: 'pointer' } : {}}
->
+                      key={row.id}
+                      className={`hover:bg-gray-50/50 transition-colors ${currentView === 'Cake Orders' ? 'cursor-pointer' : ''}`}
+                      onClick={() => { if (currentView === 'Cake Orders') fetchCakeOrderDetail(row.id); }}
+                    >
                       {getTableColumns(currentView).map((col) => {
                         // Special rendering for 'image' column in Cake Orders
                         if (currentView === 'Cake Orders' && col.key === 'image') {

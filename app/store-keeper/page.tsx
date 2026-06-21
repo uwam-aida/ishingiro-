@@ -17,10 +17,11 @@ interface Product {
 
 // --- OFFICIAL PRODUCT LIST (KEPT EXACTLY AS PROVIDED) ---
 const FINANCE_PRODUCTS: Product[] = [
-    { name: 'big milk', price: 1300, category: 'BREAD', type: 'baked' },
-    { name: 'small milk', price: 600, category: 'BREAD', type: 'baked' },
+    // BREAD (Baked)
+    { name: 'big milk Bread', price: 1300, category: 'BREAD', type: 'baked' },
+    { name: 'small milk Bread', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
-    { name: 'sen', price: 1000, category: 'BREAD', type: 'baked' },
+    { name: 'scn', price: 1000, category: 'BREAD', type: 'baked' },
     { name: 'salted bread', price: 1100, category: 'BREAD', type: 'baked' },
     { name: 'baguette', price: 500, category: 'BREAD', type: 'baked' },
     { name: 'milk slice bread', price: 200, category: 'BREAD', type: 'baked' },
@@ -30,23 +31,30 @@ const FINANCE_PRODUCTS: Product[] = [
     { name: 'mult graine', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'milk mult graine', price: 1000, category: 'BREAD', type: 'baked' },
     { name: 'brown bread', price: 800, category: 'BREAD', type: 'baked' },
+ 
+    // CAKES (Baked)
     { name: 'tea cake', price: 1000, category: 'CAKES', type: 'baked' },
     { name: 'marble cake', price: 1200, category: 'CAKES', type: 'baked' },
     { name: 'brown cake', price: 250, category: 'CAKES', type: 'baked' },
     { name: 'oliver corn cake', price: 350, category: 'CAKES', type: 'baked' },
     { name: 'muffin cake', price: 170, category: 'CAKES', type: 'baked' },
+
+    // AMANDAZI (Baked)
     { name: 'ishingiro', price: 150, category: 'AMANDAZI', type: 'baked' },
     { name: 's.begne', price: 70, category: 'AMANDAZI', type: 'baked' },
     { name: 'dark donut', price: 450, category: 'AMANDAZI', type: 'baked' },
     { name: 'choc donuts', price: 450, category: 'AMANDAZI', type: 'baked' },
     { name: 'kk donuts', price: 250, category: 'AMANDAZI', type: 'baked' },
     { name: 'triangle', price: 150, category: 'AMANDAZI', type: 'baked' },
+
+    // OTHERS (Mixed)
     { name: 'meat samosa', price: 450, category: 'OTHERS', type: 'baked' },
     { name: 'biscuits', price: 85, category: 'OTHERS', type: 'baked' },
     { name: 'ISH.MILK Cookie', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'butter biscuits', price: 130, category: 'OTHERS', type: 'baked' },
     { name: 'chocolate biscuits', price: 140, category: 'OTHERS', type: 'baked' },
-    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'baked' },
+    
+    // UNBAKED OTHERS
     { name: 'ikinyuranyo 1kg', price: 1600, category: 'OTHERS', type: 'unbaked' },
     { name: 'ikinyuranyo 3kg', price: 4500, category: 'OTHERS', type: 'unbaked' },
     { name: 'ikinyuranyo 5kg', price: 7500, category: 'OTHERS', type: 'unbaked' },
@@ -55,6 +63,10 @@ const FINANCE_PRODUCTS: Product[] = [
     { name: 'yellow c flour 3kg', price: 4800, category: 'OTHERS', type: 'unbaked' },
     { name: 'cashnewnuts', price: 5500, category: 'OTHERS', type: 'unbaked' },
     { name: 'cornfresh cream', price: 500, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'unbaked' },
+    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'unbaked' },
+
+    // BIG CAKES (Baked)
     { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 20000', price: 20000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cakes 24000', price: 24000, category: 'BIG CAKES', type: 'baked' },
@@ -70,7 +82,6 @@ const FINANCE_PRODUCTS: Product[] = [
     { name: 'cakes 7000', price: 7000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
-    { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'baked' },
 ];
 
 export default function StoreKeeperDashboard() {
@@ -79,6 +90,7 @@ export default function StoreKeeperDashboard() {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
   // --- STATE INITIALIZATION ---
+  
   const [activeFilter, setActiveFilter] = useState<'baked_log' | 'requests' | 'my_stock' | 'delivered' | 'damaged' | 'notes' | 'cake_orders' | 'full_history'>('requests');  
   
   // 👉 ADDED HERE: Must be inside the function!
@@ -320,8 +332,50 @@ export default function StoreKeeperDashboard() {
               });
             });
           });
-          setShopRequests(flattenedRequests);
-        }
+          // 👉 THE FIX: Keep the newly fetched regular requests, but preserve the cake orders!
+useEffect(() => {
+  if (activeFilter !== 'requests') return;
+  const interval = setInterval(async () => {
+    if (isTyping) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+    try {
+      const res = await fetch(`${baseUrl}/storekeeper/all-orders`, { headers });
+      if (res.ok) {
+        const result = await res.json();
+        const orders = result.data || [];
+        const flattenedRequests: any[] = [];
+        orders.forEach((order: any) => {
+          const status = (order.status || '').toLowerCase();
+          if (status === 'delivered' || status === 'completed') return;
+          order.items?.forEach((item: any) => {
+            flattenedRequests.push({
+              id: order.id,
+              request_item_id: item.id,
+              product_id: item.product_id,
+              item: item.product?.name || item.product_name || 'Unknown',
+              quantity: item.quantity,
+              unit: 'pcs',
+              time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+              branch: order.location,
+              isEdited: false,
+              type: 'request'
+            });
+          });
+        });
+        // ✅ Keep cake orders when refreshing
+        setShopRequests(prev => [
+          ...flattenedRequests,
+          ...prev.filter(req => req.type === 'cake_order')
+        ]);
+      }
+    } catch (err) {
+      console.error("Auto-refresh failed", err);
+    }
+  }, 5000);
+  return () => clearInterval(interval);
+}, [activeFilter, baseUrl]);        }
 
         // Fetch 3: Delivery History
         const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
@@ -358,8 +412,25 @@ export default function StoreKeeperDashboard() {
           }));
           mappedCakes.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setCakeOrders(mappedCakes);
-        }
 
+         // Also add cake orders to the shopRequests list for the Requests tab
+          const cakeRequestItems = data
+            .filter((c: any) => (c.status || 'pending').toLowerCase() !== 'delivered')
+            .map((c: any) => ({
+              id: c.id,
+              // 👉 THE FIX: Give it a unique name like "cake-5" so React doesn't delete it!
+              request_item_id: `cake-${c.id}`, 
+              product_id: null,
+              item: c.cake_type || 'Cake Order',
+              quantity: c.quantity || 1,
+              unit: 'pcs',
+              time: c.delivery_date || 'Pending',
+              branch: c.location || 'kabuga',
+              isEdited: false,
+              type: 'cake_order'
+            }));
+          setShopRequests(prev => [...prev, ...cakeRequestItems]);
+        }
         // Fetch 6: Baked Products (Production Log)
         const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
         if (bakedRes.ok) {
@@ -378,21 +449,25 @@ export default function StoreKeeperDashboard() {
         const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
         if (damagedRes.ok) {
           const data = await damagedRes.json();
-          
-          // 👉 THE SPY CODE: This will print the raw data to your browser!
-          console.log("🕵️ RAW DAMAGE DATA FROM BACKEND:", data);
+          const mappedDamaged = data.map((d: any) => {
+            let realName = d.product?.name || d.product_name || d.name || d.item;
+            
+            // 👉 DICTIONARY LOOKUP: If the backend hid the name, we force-find it here
+            if (!realName && d.product_id) {
+               const match = masterProductList.find(s => s.product_id === d.product_id || s.id === d.product_id);
+               if (match) realName = match.product_name || match.name || match.product?.name;
+            }
 
-      console.log('🔍 RAW damaged from backend:', data.damaged);
-
-const mappedDamaged = (data.damaged || []).map((d: any) => ({
-  id: d.id,
-  item: d.product?.name || 'Unknown Product',
-  qty: `${d.quantity} pcs`,
-  time: d.created_at ? new Date(d.created_at).toLocaleString() : 'Unknown',
-  status: 'Reported',
-  location: d.reported_by || d.location || 'Not specified'
-}));
-console.log('🔍 MAPPED damaged:', mappedDamaged);
+            return {
+              id: d.id,
+              item: realName || 'UNKNOWN ITEM', 
+              quantity: d.quantity,
+              reason: d.reason || 'N/A',
+              date: d.date || 'N/A',
+              time: d.time || '',
+              created_at: d.created_at || null,
+            };
+          });
           mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
           setDamagedProducts(mappedDamaged);
         }
@@ -526,37 +601,43 @@ const handleBulkDelivery = async () => {
 
     // 2. VALIDATE AGAINST PHYSICAL STOCK (myStock) INSTEAD OF availableStock
   for (const item of selectedItems) {
-    const stockItem = myStock.find(s => s.item?.toLowerCase() === item.item?.toLowerCase());
-    if (!stockItem) {
-      alert(`Product "${item.item}" not found in stock.`);
-      return;
-    }
-    if (item.quantity > stockItem.quantity) {
-      alert(`Not enough stock for "${item.item}". Physical stock: ${stockItem.quantity}, requested: ${item.quantity}`);
-      return;
-    }
+  if (item.type === 'cake_order') continue; // skip stock check for cake orders
+  const stockItem = myStock.find(s => s.item?.toLowerCase() === item.item?.toLowerCase());
+  if (!stockItem) {
+    alert(`Product "${item.item}" not found in stock.`);
+    return;
   }
+  if (item.quantity > stockItem.quantity) {
+    alert(`Not enough stock for "${item.item}". Physical stock: ${stockItem.quantity}, requested: ${item.quantity}`);
+    return;
+  }
+}
 
   const token = localStorage.getItem('token');
-  const uniqueOrderIds = Array.from(new Set(selectedItems.map(item => item.id)));
-  const destinationBranch = selectedItems[0]?.branch 
-      ? `${selectedItems[0].branch} Shop` 
-      : 'Unknown Shop';
+const regularOrderIds = selectedItems
+  .filter(item => item.type !== 'cake_order')
+  .map(item => item.id);
+const cakeOrderIds = selectedItems
+  .filter(item => item.type === 'cake_order')
+  .map(item => item.id);
+const destinationBranch = selectedItems[0]?.branch 
+    ? `${selectedItems[0].branch} Shop` 
+    : 'Unknown Shop';
 
-  try {
-    const response = await fetch(`${baseUrl}/storekeeper/deliver`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify({
-        order_ids: uniqueOrderIds,
-        cake_order_ids: [], 
-        recipient_name: destinationBranch,
-        payment_received: true
-      })
-    });
+try {
+  const response = await fetch(`${baseUrl}/storekeeper/deliver`, {
+    method: 'POST',
+    headers: { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json' 
+    },
+    body: JSON.stringify({
+      order_ids: Array.from(new Set(regularOrderIds)),   // product order IDs
+      cake_order_ids: Array.from(new Set(cakeOrderIds)), // cake order IDs
+      recipient_name: destinationBranch,
+      payment_received: true
+    })
+  });
 
     if (response.ok) {
       const newNoteId = `DN-${Math.floor(Math.random() * 10000)}`;
@@ -725,25 +806,15 @@ const handleSubmitDamage = async () => {
       const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
       if (damagedRes.ok) {
         const data = await damagedRes.json();
-        const mappedDamaged = data.map((d: any) => {
-          let realName = d.product?.name || d.product_name || d.name || d.item;
-          
-          // 👉 DICTIONARY LOOKUP: Do the exact same cross-reference using the React state!
-          if (!realName && d.product_id) {
-             const match = apiAvailableStock.find(s => s.product_id === d.product_id || s.id === d.product_id);
-             if (match) realName = match.product_name || match.name || match.product?.name;
-          }
-
-          return {
-            id: d.id,
-            item: realName || 'UNKNOWN ITEM', 
-            quantity: d.quantity,
-            reason: d.reason || 'N/A',
-            date: d.date || 'N/A',
-            time: d.time || '',
-            created_at: d.created_at || null,
-          };
-        });
+        const mappedDamaged = data.map((d: any) => ({
+          id: d.id,
+          item: d.product?.name || d.product_name || d.name || d.item || 'Unknown Item',
+          quantity: d.quantity,
+          reason: d.reason || 'N/A',
+          date: d.date || 'N/A',
+          time: d.time || '',
+          created_at: d.created_at || null,
+        }));
         mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
         setDamagedProducts(mappedDamaged);
       }
