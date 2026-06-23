@@ -79,9 +79,10 @@ export default function ProductionManagerDashboard() {
               time: formatDateTime(b.created_at),
               status: 'Baked'
             })),
-            Distribution: (data.distribution || []).map((d: any) => ({
+           Distribution: (data.distribution || []).map((d: any) => ({
               id: d.id,
-              item: d.product?.name || 'Unknown Product',
+              // 👉 FIX: Safely extracts the string name instead of crashing on the object
+              item: d.product?.name || d.product_name || d.name || (typeof d.product === 'string' ? d.product : 'Unknown Product'),
               qty: `${d.quantity} pcs`,
               target: d.category || 'General',
               time: formatDateTime(d.created_at),
@@ -89,7 +90,8 @@ export default function ProductionManagerDashboard() {
             })),
             Delivered: (data.delivered || []).map((d: any) => ({
               id: d.id,
-              item: d.product?.name || 'Unknown Product',
+              // 👉 FIX: Safely extracts the string name instead of crashing on the object
+              item: d.product?.name || d.product_name || d.name || (typeof d.product === 'string' ? d.product : 'Unknown Product'),
               qty: `${d.quantity} pcs`,
               time: formatDateTime(d.created_at),
               status: 'Delivered',

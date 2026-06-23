@@ -129,13 +129,18 @@ export default function DynamicShopDashboard() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const suggestionRef = useRef<HTMLDivElement>(null);
 
+  
   const [cakeOrders, setCakeOrders] = useState<any[]>([]);
   const [realProducts, setRealProducts] = useState<any[]>([]);
+  const [selectedCakeOrderDetail, setSelectedCakeOrderDetail] = useState<any>(null);
+  const [showCakeDetailModal, setShowCakeDetailModal] = useState(false);
+  const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
+  const [showZoomModal, setShowZoomModal] = useState(false);
 
   const [showRequestSuccess, setShowRequestSuccess] = useState(false);
 
   // --- Close Day state ---
-  // REPLACE WITH
+
   const [closeDayEntries, setCloseDayEntries] = useState<any[]>([]);
   const [isCloseDaySubmitting, setIsCloseDaySubmitting] = useState(false);
   const [closedTodayProductIds, setClosedTodayProductIds] = useState<number[]>([]);
@@ -257,18 +262,32 @@ export default function DynamicShopDashboard() {
             }
         }
 
-        // 5. Cake orders (unchanged)
+        // 5. Cake orders
         const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
         if (cakeRes.ok) {
             const cakeData = await cakeRes.json();
             if (cakeData.length > 0) {
-                const mappedCakes = cakeData.map((c: any) => ({
-                    id: c.id,
-                    item: c.cake_type,
-                    code: `CK-${c.id}`,
-                    customer: c.customer_name,
-                    time: c.created_at ? new Date(c.created_at).toLocaleString() : (c.delivery_date || 'Pending')
-                }));
+                const mappedCakes = cakeData.map((c: any) => {
+                   // 👉 FIX: Matches the exact names from your Cake Form components!
+                   const paidAmt = Number(c.paidAmount || c.paid_amount || c.advance_payment || c.total_paid || 0);
+                   const totalAmt = Number(c.totalAmount || c.total_amount || c.price || c.total_price || 0);
+                   const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
+                   const img = c.cakeFile || c.cake_file || c.imageUrl || c.image_url || c.inspo_image_url || c.sample_image || null;
+
+                   return {
+                     ...c,
+                     id: c.id,
+                     item: c.cake_type || c.flavor || 'Custom Cake',
+                     code: `CK-${c.id}`,
+                     customer: c.customerFullName || c.customer_name || 'Unknown',
+                     time: c.pickupDate || c.delivery_date || 'Pending',
+                     imageUrl: img,
+                     price: totalAmt,
+                     total_paid: paidAmt,
+                     remaining_payment: remainingAmt,
+                     needs_sample: c.needsSample || c.needs_sample || (img ? 'Yes' : 'No')
+                   };
+                });
                 mappedCakes.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
                 setCakeOrders(mappedCakes);
             }
@@ -341,7 +360,7 @@ export default function DynamicShopDashboard() {
   // --- CLOSE DAY HANDLERS (payload updated to match API) ---
   const closeDayInitialised = useRef(false);
 
-  // REPLACE WITH
+  
   useEffect(() => {
     if (myStock.length > 0 && !closeDayInitialised.current) {
       setCloseDayEntries(
@@ -360,7 +379,7 @@ export default function DynamicShopDashboard() {
     }
   }, [myStock, closedTodayProductIds]);
 
-  // REPLACE WITH
+  
   const handleCloseDaySubmit = async () => {
     const entriesToSubmit = closeDayEntries.filter(entry => entry.remaining !== '');
     if (entriesToSubmit.length === 0) {
@@ -391,7 +410,7 @@ export default function DynamicShopDashboard() {
         },
         body: JSON.stringify(payload)
       });
-     // REPLACE WITH
+     
       if (response.ok) {
         const submittedIds = entriesToSubmit.map(e => e.product_id);
         setCloseDayEntries(prev => prev.filter(entry => !submittedIds.includes(entry.product_id)));
@@ -443,12 +462,86 @@ export default function DynamicShopDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 pb-12 font-sans w-full overflow-x-hidden">
       
+     
       {showRequestSuccess && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
             <div className="bg-green-50 text-green-700 px-8 py-4 rounded-2xl flex items-center gap-3 shadow-2xl border border-green-200">
                 <CheckCircle2 className="text-green-600" size={20} />
                 <span className="font-black uppercase text-xs tracking-widest">Added Request</span>
             </div>
+        </div>
+      )}
+
+      {showZoomModal && zoomImageUrl && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-4" onClick={() => setShowZoomModal(false)}>
+          <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowZoomModal(false)} className="absolute -top-12 right-0 text-white hover:text-gray-300"><X size={32} /></button>
+            <img src={zoomImageUrl} alt="Zoomed cake" className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+          </div>
+        </div>
+      )}
+
+      {showCakeDetailModal && selectedCakeOrderDetail && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
+            <div className="bg-[#F57C00] text-white p-4 flex justify-between items-center">
+              <h3 className="font-black uppercase text-sm">Cake Order #{selectedCakeOrderDetail.id}</h3>
+              <button onClick={() => setShowCakeDetailModal(false)} className="text-white hover:opacity-80"><X size={20} /></button>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-h-[70vh] overflow-y-auto">
+              <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
+              <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
+              <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
+              <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
+              
+              {(() => {
+                 const modalPaid = Number(selectedCakeOrderDetail.total_paid || 0);
+                 const modalTotal = Number(selectedCakeOrderDetail.price || 0);
+                 const modalRem = Number(selectedCakeOrderDetail.remaining_payment || 0);
+                 return (
+                   <>
+                     <div><strong>Price:</strong> {modalTotal.toLocaleString()} RWF</div>
+                     <div><strong>Total Paid:</strong> {modalPaid.toLocaleString()} RWF</div>
+                     <div><strong>Remaining:</strong> {modalRem.toLocaleString()} RWF</div>
+                   </>
+                 );
+              })()}
+
+              <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
+              <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
+              <div className="col-span-2"><strong>Size / Stages:</strong> {selectedCakeOrderDetail.cake_size}</div>
+              <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
+              <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
+              <div className="col-span-2"><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
+              <div className="col-span-2"><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
+              
+              {(() => {
+                 const modalImg = selectedCakeOrderDetail.imageUrl;
+                 return (
+                   <>
+                     <div><strong>Needs Sample / Picture:</strong> {modalImg ? 'Yes' : 'No'}</div>
+                     {modalImg && (
+                       <div className="col-span-2 mt-2">
+                         <strong>Sample Picture:</strong><br />
+                         <img 
+                           src={modalImg} 
+                           alt="Cake sample" 
+                           className="max-h-48 rounded-xl mt-2 cursor-zoom-in hover:opacity-80 transition-opacity shadow-md border border-gray-100" 
+                           onClick={() => { 
+                             setZoomImageUrl(modalImg); 
+                             setShowZoomModal(true); 
+                           }} 
+                         />
+                       </div>
+                     )}
+                   </>
+                 );
+              })()}
+            </div>
+            <div className="flex justify-end gap-3 p-4 border-t border-gray-100">
+              <button onClick={() => setShowCakeDetailModal(false)} className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs">Close</button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -653,28 +746,65 @@ export default function DynamicShopDashboard() {
                   className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
                 />
               </div>
+              
               <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
                 <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
                   <tr>
-                    <th className="px-8 py-4 text-gray-900">Cake Name</th>
-                    <th className="px-8 py-4 text-center text-gray-900">Order Code</th>
-                    <th className="px-8 py-4 text-center text-gray-900">Customer</th>
-                    <th className="px-8 py-4 text-right text-gray-900">Status</th>
+                    <th className="px-8 py-4">Customer / Item</th>
+                    <th className="px-8 py-4 text-center">Payment Status</th>
+                    <th className="px-8 py-4 text-center">Image</th>
+                    <th className="px-8 py-4 text-right">Date & Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {cakeOrders
                     .filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
                     .map((cake) => (
-                      <tr key={cake.id} className="hover:bg-gray-50 transition-colors font-bold">
-                        <td className="px-8 py-6 uppercase text-sm font-black text-[#F57C00]">{cake.item}</td>
-                        <td className="px-8 py-6 text-center text-lg text-gray-900">{cake.code}</td>
-                        <td className="px-8 py-6 text-center text-sm text-gray-900">{cake.customer}</td>
+                      <tr key={cake.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedCakeOrderDetail(cake); setShowCakeDetailModal(true); }}>
+                        <td className="px-8 py-6">
+                          <div className="flex flex-col">
+                            <span className="font-black text-[#F57C00] uppercase text-sm">{cake.customer}</span>
+                            <span className="text-[10px] text-gray-400 uppercase">{cake.item} ({cake.code})</span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className={`px-3 py-1 rounded-full text-[9px] uppercase font-black ${
+                              cake.remaining_payment <= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            }`}>
+                              {cake.remaining_payment <= 0 ? 'Fully Paid' : `Debt: ${cake.remaining_payment?.toLocaleString() || 0} RWF`}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-8 py-6 text-center" onClick={(e) => e.stopPropagation()}>
+                          {cake.imageUrl ? (
+                            <img 
+                              src={cake.imageUrl} 
+                              alt="cake" 
+                              className="w-12 h-12 object-cover rounded-lg cursor-zoom-in hover:opacity-80 transition-opacity mx-auto shadow-sm"
+                              onClick={() => {
+                                setZoomImageUrl(cake.imageUrl);
+                                setShowZoomModal(true);
+                              }}
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto" />
+                          )}
+                        </td>
                         <td className="px-8 py-6 text-right">
-                          <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{cake.time} • PENDING</span>
+                          <div className="flex flex-col items-end gap-1">
+                            {/* Formats the date cleanly to remove the long timestamp string */}
+                            <span className="text-xs font-black text-gray-400">{cake.time ? cake.time.split('T')[0] : 'Pending'}</span>
+                            <span className="bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{cake.status || 'PENDING'}</span>
+                          </div>
                         </td>
                       </tr>
                     ))}
+                  {cakeOrders.filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase())).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

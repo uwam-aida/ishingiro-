@@ -170,7 +170,12 @@ export default function StoreKeeperDashboard() {
       });
     });
 
-    return computedStock;
+    // 👉 THE FIX: Sorts the "My Stock" grid so newest are aggressively pushed to the top!
+    return computedStock.sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : Number(a.id || 0) || 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : Number(b.id || 0) || 0;
+      return timeB - timeA;
+    });
   }, [myStock, shopRequests]);
 
   // --- NEW FUNCTIONS FOR DELIVERY NOTES APIS (unchanged) ---
@@ -273,39 +278,43 @@ export default function StoreKeeperDashboard() {
         'Accept': 'application/json' 
       };
 
+      // 👉 UNIVERSAL SORTING HELPER: Forces newest items to the very top
+      const sortByNewest = (arr: any[]) => {
+        return arr.sort((a, b) => {
+          const timeA = a.created_at ? new Date(a.created_at).getTime() : Number(a.id || 0) || 0;
+          const timeB = b.created_at ? new Date(b.created_at).getTime() : Number(b.id || 0) || 0;
+          return timeB - timeA;
+        });
+      };
+
       try {
-        // Fetch available stock from the new API
         setIsAvailableStockLoading(true);
         let masterProductList: any[] = [];
         const availStockRes = await fetch(`${baseUrl}/storekeeper/available-stock`, { headers });
         if (availStockRes.ok) {
           const availData = await availStockRes.json();
-          // The response is { total_available, data: [...] }
+          masterProductList = availData.data || []; // 👉 FIX: Actually saves the data to the dictionary!
           setApiAvailableStock(availData.data || []);
         }
         setIsAvailableStockLoading(false);
 
-        // Fetch 1: My Stock (physical) – keeping as fallback
+        // Fetch 1: My Stock
         const stockRes = await fetch(`${baseUrl}/storekeeper`, { headers });
         if (stockRes.ok) {
           const data = await stockRes.json();
           const mappedStock = data.map((item: any) => ({
             id: item.id,
             product_id: item.product_id,
-            item: item.product?.name || 'Unknown',
+            // 👉 FIX: Searches all possible fields to retrieve the real name
+            item: item.product?.name || item.product_name || item.name || item.item || 'Unknown',
             quantity: item.quantity,
             unit: item.unit || 'pcs',
             created_at: item.created_at || null,
           }));
-          mappedStock.sort((a: any, b: any) => {
-  const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
-  const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
-  return dateB - dateA;
-});
-          setMyStock(mappedStock);
+          setMyStock(sortByNewest(mappedStock));
         }
 
-        // Fetch 2: Shop Requests - GET /storekeeper/all-orders
+        // Fetch 2: Shop Requests
         const reqRes = await fetch(`${baseUrl}/storekeeper/all-orders`, { headers });
         if (reqRes.ok) {
           const result = await reqRes.json();
@@ -313,7 +322,6 @@ export default function StoreKeeperDashboard() {
           const flattenedRequests: any[] = [];
           
           orders.forEach((order: any) => {
-            // 👉 FIX 1: Ignore orders that are already delivered or completed
             const status = (order.status || '').toLowerCase();
             if (status === 'delivered' || status === 'completed') return;
 
@@ -328,54 +336,13 @@ export default function StoreKeeperDashboard() {
                 time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
                 branch: order.location,
                 isEdited: false,
-                type: 'request'
+                type: 'request',
+                created_at: order.created_at // Saved for perfect sorting
               });
             });
           });
-          // 👉 THE FIX: Keep the newly fetched regular requests, but preserve the cake orders!
-useEffect(() => {
-  if (activeFilter !== 'requests') return;
-  const interval = setInterval(async () => {
-    if (isTyping) return;
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
-    try {
-      const res = await fetch(`${baseUrl}/storekeeper/all-orders`, { headers });
-      if (res.ok) {
-        const result = await res.json();
-        const orders = result.data || [];
-        const flattenedRequests: any[] = [];
-        orders.forEach((order: any) => {
-          const status = (order.status || '').toLowerCase();
-          if (status === 'delivered' || status === 'completed') return;
-          order.items?.forEach((item: any) => {
-            flattenedRequests.push({
-              id: order.id,
-              request_item_id: item.id,
-              product_id: item.product_id,
-              item: item.product?.name || item.product_name || 'Unknown',
-              quantity: item.quantity,
-              unit: 'pcs',
-              time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
-              branch: order.location,
-              isEdited: false,
-              type: 'request'
-            });
-          });
-        });
-        // ✅ Keep cake orders when refreshing
-        setShopRequests(prev => [
-          ...flattenedRequests,
-          ...prev.filter(req => req.type === 'cake_order')
-        ]);
-      }
-    } catch (err) {
-      console.error("Auto-refresh failed", err);
-    }
-  }, 5000);
-  return () => clearInterval(interval);
-}, [activeFilter, baseUrl]);        }
+          setShopRequests(sortByNewest(flattenedRequests));
+        }
 
         // Fetch 3: Delivery History
         const histRes = await fetch(`${baseUrl}/storekeeper/history`, { headers });
@@ -386,39 +353,45 @@ useEffect(() => {
              item: h.product?.name || 'Unknown',
              quantity: h.quantity,
              date: h.date || (h.created_at ? new Date(h.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 'No Date'), 
-             receiver: h.to_location
+             receiver: h.to_location,
+             created_at: h.created_at
           }));
-          mappedHistory.sort((a: any, b: any) => Number(b.id) - Number(a.id));
-          setDeliveryHistory(mappedHistory);
+          setDeliveryHistory(sortByNewest(mappedHistory));
         }
 
-        // Fetch 4: Cake Orders - GET /storekeeper/cake-orders
+        // Fetch 4: Cake Orders
         const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
         if (cakeOrderRes.ok) {
           const data = await cakeOrderRes.json();
-          const mappedCakes = data.map((c: any) => ({
-             id: c.id,
-             customer: c.customer_name,
-             details: c.cake_type,
-             pickupLocation: c.location,
-             pickupDate: c.delivery_date,
-             status: c.status,
-             totalPrice: c.price,
-             paid: c.total_paid,
-             remaining: c.remaining_payment,
-             imageUrl: c.inspo_image_url,
-             payerName: c.payer_name || c.customer_name,    // adjust if backend uses different key
-             pickupPerson: c.pickup_contact_name || '—'
-          }));
-          mappedCakes.sort((a: any, b: any) => Number(b.id) - Number(a.id));
-          setCakeOrders(mappedCakes);
+          const mappedCakes = data.map((c: any) => {
+             // 👉 FIX: Aggressively hunt for the real payment and image keys!
+             const paidAmt = Number(c.total_paid || c.advance_payment || c.paid_amount || c.paid || 0);
+             const totalAmt = Number(c.price || c.total_price || 0);
+             const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
+             const img = c.inspo_image_url || c.sample_image || c.image_url || c.cake_image || c.picture || c.image || null;
 
-         // Also add cake orders to the shopRequests list for the Requests tab
+             return {
+               id: c.id,
+               customer: c.customer_name,
+               details: c.cake_type,
+               pickupLocation: c.location,
+               pickupDate: c.delivery_date,
+               status: c.status,
+               totalPrice: totalAmt,
+               paid: paidAmt,
+               remaining: remainingAmt,
+               imageUrl: img,
+               payerName: c.payer_name || c.customer_name,
+               pickupPerson: c.pickup_contact_name || '—',
+               created_at: c.created_at
+             };
+          });
+          setCakeOrders(sortByNewest(mappedCakes));
+
           const cakeRequestItems = data
             .filter((c: any) => (c.status || 'pending').toLowerCase() !== 'delivered')
             .map((c: any) => ({
               id: c.id,
-              // 👉 THE FIX: Give it a unique name like "cake-5" so React doesn't delete it!
               request_item_id: `cake-${c.id}`, 
               product_id: null,
               item: c.cake_type || 'Cake Order',
@@ -427,35 +400,56 @@ useEffect(() => {
               time: c.delivery_date || 'Pending',
               branch: c.location || 'kabuga',
               isEdited: false,
-              type: 'cake_order'
+              type: 'cake_order',
+              created_at: c.created_at
             }));
-          setShopRequests(prev => [...prev, ...cakeRequestItems]);
-        }
-        // Fetch 6: Baked Products (Production Log)
-        const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
-        if (bakedRes.ok) {
-          const data = await bakedRes.json();
-          const mappedBaked = data.map((b: any) => ({
-            id: b.id,
-            item: b.product?.name || 'Baked Item',
-            quantity: b.quantity,
-            time: b.time || 'Logged'
-          }));
-          mappedBaked.sort((a: any, b: any) => Number(b.id) - Number(a.id));
-          setBakedProducts(mappedBaked);
+            
+          setShopRequests(prev => sortByNewest([...prev, ...cakeRequestItems]));
         }
 
-        // Fetch 7: Damaged Products Log
+        // Fetch 6: Baked Products
+        const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
+        if (bakedRes.ok) {
+          const rawData = await bakedRes.json();
+          
+          // 👉 BULLETPROOF ARRAY EXTRACTOR
+          let data = [];
+          if (Array.isArray(rawData)) data = rawData;
+          else if (rawData.data && Array.isArray(rawData.data)) data = rawData.data;
+          else {
+             const foundArray = Object.values(rawData).find(val => Array.isArray(val));
+             if (foundArray) data = foundArray;
+          }
+          
+          const mappedBaked = data.map((b: any) => ({
+            id: b.id,
+            item: b.product?.name || b.product_name || b.name || 'Baked Item',
+            quantity: b.quantity,
+            time: b.time || (b.created_at ? new Date(b.created_at).toLocaleString() : 'Logged'),
+            created_at: b.created_at
+          }));
+          setBakedProducts(sortByNewest(mappedBaked));
+        }
+
+        // Fetch 7: Damaged Products
         const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
         if (damagedRes.ok) {
-          const data = await damagedRes.json();
+          const rawData = await damagedRes.json();
+          // Safe unwrap in case it's an object { data: [] }
+          let data = Array.isArray(rawData) ? rawData : (rawData.data || []);
+
           const mappedDamaged = data.map((d: any) => {
             let realName = d.product?.name || d.product_name || d.name || d.item;
             
-            // 👉 DICTIONARY LOOKUP: If the backend hid the name, we force-find it here
-            if (!realName && d.product_id) {
-               const match = masterProductList.find(s => s.product_id === d.product_id || s.id === d.product_id);
-               if (match) realName = match.product_name || match.name || match.product?.name;
+            // Extract the ID no matter how the backend spells it
+            const damageId = d.product_id || d.productId || d.product?.id || (typeof d.product !== 'object' ? d.product : null);
+            
+            // 👉 FIX 1: Convert both IDs to Strings so "5" and 5 match perfectly!
+            if (!realName && damageId) {
+               const match = masterProductList.find((s: any) => 
+                 String(s.product_id) === String(damageId) || String(s.id) === String(damageId)
+               );
+               if (match) realName = match.product_name || match.name || match.product?.name || match.item;
             }
 
             return {
@@ -468,11 +462,10 @@ useEffect(() => {
               created_at: d.created_at || null,
             };
           });
-          mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
-          setDamagedProducts(mappedDamaged);
+          setDamagedProducts(sortByNewest(mappedDamaged));
         }
 
-        // Fetch 8: Delivery Notes - GET /storekeeper/delivery-notes
+        // Fetch 8: Delivery Notes
         await fetchAllDeliveryNotes();
 
       } catch (err) {
@@ -483,13 +476,11 @@ useEffect(() => {
     fetchAllData();
   }, [router, baseUrl]);
   
-  // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS (unchanged) ---
   // --- AUTO-REFRESH REQUESTS EVERY 5 SECONDS ---
   useEffect(() => {
     if (activeFilter !== 'requests') return;
 
     const interval = setInterval(async () => {
-      // 👉 FIX: Stop the refresh if the user is typing!
       if (isTyping) return; 
 
       const token = localStorage.getItem('token');
@@ -503,7 +494,6 @@ useEffect(() => {
           const flattenedRequests: any[] = [];
           
           orders.forEach((order: any) => {
-            // 👉 FIX 2: Stop the 5-second interval from bringing delivered items back
             const status = (order.status || '').toLowerCase();
             if (status === 'delivered' || status === 'completed') return;
 
@@ -519,12 +509,25 @@ useEffect(() => {
                   time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
                   branch: order.location,
                   isEdited: false,
-                  type: 'request'
+                  type: 'request',
+                  created_at: order.created_at // Saved for perfect sorting
                 });
               });
             }
           });
-          setShopRequests(flattenedRequests);
+          
+          setShopRequests(prev => {
+             const merged = [
+               ...flattenedRequests,
+               ...prev.filter(req => req.type === 'cake_order')
+             ];
+             // Automatically force the newest entries to the top
+             return merged.sort((a, b) => {
+               const timeA = a.created_at ? new Date(a.created_at).getTime() : Number(a.id || 0) || 0;
+               const timeB = b.created_at ? new Date(b.created_at).getTime() : Number(b.id || 0) || 0;
+               return timeB - timeA;
+             });
+          });
         }
       } catch (err) {
         console.error("Auto-refresh failed", err);
@@ -532,7 +535,7 @@ useEffect(() => {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [activeFilter, baseUrl]);
+  }, [activeFilter, baseUrl, isTyping]);
 
   const rawBranchId = params?.branchId || 'store';
   const getCurrentTime = () => {
@@ -805,17 +808,36 @@ const handleSubmitDamage = async () => {
       const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
       const damagedRes = await fetch(`${baseUrl}/storekeeper/damage`, { headers });
       if (damagedRes.ok) {
-        const data = await damagedRes.json();
-        const mappedDamaged = data.map((d: any) => ({
-          id: d.id,
-          item: d.product?.name || d.product_name || d.name || d.item || 'Unknown Item',
-          quantity: d.quantity,
-          reason: d.reason || 'N/A',
-          date: d.date || 'N/A',
-          time: d.time || '',
-          created_at: d.created_at || null,
-        }));
-        mappedDamaged.sort((a: any, b: any) => Number(b.id) - Number(a.id));
+        const rawData = await damagedRes.json();
+        const data = Array.isArray(rawData) ? rawData : (rawData.data || []);
+        
+        const mappedDamaged = data.map((d: any) => {
+           let realName = d.product?.name || d.product_name || d.name || d.item;
+           const damageId = d.product_id || d.productId || d.product?.id || (typeof d.product !== 'object' ? d.product : null);
+           
+           // 👉 FIX 2: Check the available stock to restore the name after submitting!
+           if (!realName && damageId) {
+              const match = availableStock.find((s: any) => String(s.product_id) === String(damageId));
+              if (match) realName = match.item;
+           }
+
+           return {
+             id: d.id,
+             item: realName || 'UNKNOWN ITEM',
+             quantity: d.quantity,
+             reason: d.reason || 'N/A',
+             date: d.date || 'N/A',
+             time: d.time || '',
+             created_at: d.created_at || null,
+           };
+        });
+        
+        // Force newest to top
+        mappedDamaged.sort((a: any, b: any) => {
+           const timeA = a.created_at ? new Date(a.created_at).getTime() : Number(a.id || 0) || 0;
+           const timeB = b.created_at ? new Date(b.created_at).getTime() : Number(b.id || 0) || 0;
+           return timeB - timeA;
+        });
         setDamagedProducts(mappedDamaged);
       }
 
@@ -863,10 +885,19 @@ const handleSubmitDamage = async () => {
               <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
               <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
               <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
-              <div><strong>Price:</strong> {selectedCakeOrderDetail.price} RWF</div>
-              <div><strong>Advance Payment:</strong> {selectedCakeOrderDetail.advance_payment} RWF</div>
-              <div><strong>Remaining:</strong> {selectedCakeOrderDetail.remaining_payment} RWF</div>
-              <div><strong>Total Paid:</strong> {selectedCakeOrderDetail.total_paid} RWF</div>
+              {(() => {
+                 // Calculate the correct math just in case the backend sends zeroes
+                 const modalPaid = Number(selectedCakeOrderDetail.total_paid || selectedCakeOrderDetail.advance_payment || selectedCakeOrderDetail.paid_amount || selectedCakeOrderDetail.paid || 0);
+                 const modalTotal = Number(selectedCakeOrderDetail.price || selectedCakeOrderDetail.total_price || 0);
+                 const modalRem = selectedCakeOrderDetail.remaining_payment !== undefined ? Number(selectedCakeOrderDetail.remaining_payment) : (modalTotal - modalPaid);
+                 return (
+                   <>
+                     <div><strong>Price:</strong> {modalTotal.toLocaleString()} RWF</div>
+                     <div><strong>Total Paid:</strong> {modalPaid.toLocaleString()} RWF</div>
+                     <div><strong>Remaining:</strong> {modalRem.toLocaleString()} RWF</div>
+                   </>
+                 );
+              })()}
               <div><strong>Location:</strong> {selectedCakeOrderDetail.location}</div>
               <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
               <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
@@ -876,13 +907,29 @@ const handleSubmitDamage = async () => {
               <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
               <div><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
               <div><strong>Reception Location:</strong> {selectedCakeOrderDetail.reception_location}</div>
-              <div><strong>Needs Sample:</strong> {selectedCakeOrderDetail.needs_sample ? 'Yes' : 'No'}</div>
-              {selectedCakeOrderDetail.inspo_image_url && (
-                <div className="col-span-2">
-                  <strong>Inspiration Image:</strong><br />
-                  <img src={selectedCakeOrderDetail.inspo_image_url} alt="Cake inspo" className="max-h-48 rounded-xl mt-2" />
-                </div>
-              )}
+              
+              {(() => {
+                 const modalImg = selectedCakeOrderDetail.inspo_image_url || selectedCakeOrderDetail.sample_image || selectedCakeOrderDetail.image_url || selectedCakeOrderDetail.cake_image || selectedCakeOrderDetail.picture || selectedCakeOrderDetail.image;
+                 return (
+                   <>
+                     <div><strong>Has Sample Picture:</strong> {modalImg ? 'Yes' : 'No'}</div>
+                     {modalImg && (
+                       <div className="col-span-2 mt-2">
+                         <strong>Sample Picture:</strong><br />
+                         <img 
+                           src={modalImg} 
+                           alt="Cake sample" 
+                           className="max-h-48 rounded-xl mt-2 cursor-zoom-in hover:opacity-80 transition-opacity shadow-md border border-gray-100" 
+                           onClick={() => {
+                             setZoomImageUrl(modalImg);
+                             setShowZoomModal(true);
+                           }}
+                         />
+                       </div>
+                     )}
+                   </>
+                 );
+              })()}
             </div>
             <div className="flex justify-end gap-3 p-4">
               <button 
@@ -1443,8 +1490,7 @@ const handleSubmitDamage = async () => {
           <th className="px-8 py-4">Customer / Item</th>
           <th className="px-8 py-4 text-center">Payment Status</th>
           <th className="px-8 py-4 text-right">Pickup Location & Date</th>
-          <th className="px-8 py-4">Image</th>
-          <th className="px-8 py-4 text-right">Action</th>
+          <th className="px-8 py-4 text-center">Image</th>
          </tr>
       </thead>
       <tbody className="divide-y divide-gray-100 font-bold">
@@ -1461,40 +1507,35 @@ const handleSubmitDamage = async () => {
               <td className="px-8 py-6 text-center">
                 <div className="flex flex-col items-center">
                   <span className={`px-3 py-1 rounded-full text-[9px] uppercase font-black ${
-                    order.remaining === 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                    order.remaining <= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
                   }`}>
-                    {order.remaining === 0 ? 'Fully Paid' : `Debt: ${order.remaining?.toLocaleString() || 0} RWF`}
+                    {order.remaining <= 0 ? 'Fully Paid' : `Debt: ${order.remaining?.toLocaleString() || 0} RWF`}
                   </span>
                 </div>
                </td>
               <td className="px-8 py-6 text-right text-xs font-black text-gray-400">
                 {order.pickupLocation} – {order.pickupDate?.split('T')[0]}
                </td>
-              {/* Image column */}
-              <td className="px-8 py-6" onClick={(e) => e.stopPropagation()}>
-  {order.imageUrl ? (
-    <img 
-      src={order.imageUrl} 
-      alt="cake" 
-      className="w-12 h-12 object-cover rounded-lg cursor-zoom-in hover:opacity-80 transition-opacity"
-      onClick={() => {
-        setZoomImageUrl(order.imageUrl);
-        setShowZoomModal(true);
-      }}
-    />
-  ) : (
-    <div className="w-12 h-12 bg-gray-100 rounded-lg" />
-  )}
-</td>
-              
-              <td className="px-8 py-6 text-right" onClick={(e) => e.stopPropagation()}>
-                
-               </td>
+              <td className="px-8 py-6 text-center" onClick={(e) => e.stopPropagation()}>
+                {order.imageUrl ? (
+                  <img 
+                    src={order.imageUrl} 
+                    alt="cake" 
+                    className="w-12 h-12 object-cover rounded-lg cursor-zoom-in hover:opacity-80 transition-opacity mx-auto"
+                    onClick={() => {
+                      setZoomImageUrl(order.imageUrl);
+                      setShowZoomModal(true);
+                    }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto" />
+                )}
+              </td>
             </tr>
           ))}
         {cakeOrders.filter(o => o.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || o.details.toLowerCase().includes(cakeOrderSearch.toLowerCase())).length === 0 && (
           <tr>
-            <td colSpan={7} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
+            <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
           </tr>
         )}
       </tbody>

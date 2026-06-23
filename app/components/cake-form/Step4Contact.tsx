@@ -123,6 +123,7 @@ export default function Step4Contact({ formData, setFormData, handleNext, handle
               className={`w-full border-2 ${localError && !formData.orderLocation ? 'border-red-500 shadow-[0_0_0_1px_rgba(239,68,68,0.2)]' : 'border-gray-300'} rounded-lg p-3 text-sm font-black outline-none focus:border-[#5D4037] text-gray-900 bg-white shadow-sm transition-all`}
             >
               <option value="">Select Order Location</option>
+             <option value="kabuga">Factory kabuga</option>
               <option value="kabuga">Kabuga</option>
               <option value="masaka">Masaka</option>
             </select>

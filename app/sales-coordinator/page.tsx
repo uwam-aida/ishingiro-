@@ -19,7 +19,6 @@ import {
   X
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { fetchWithRetry } from '../lib/api';
 
 export default function SalesCoordinatorDashboard() {
   const router = useRouter();
@@ -54,11 +53,40 @@ export default function SalesCoordinatorDashboard() {
   const [branchFilter, setBranchFilter] = useState<'all' | 'kabuga' | 'masaka'>('all');
 
   // --- ZOOM IMAGE MODAL STATE ---
-  // REPLACE WITH
   const [zoomImageUrl, setZoomImageUrl] = useState<string | null>(null);
   const [showZoomModal, setShowZoomModal] = useState(false);
   const [selectedCakeOrderDetail, setSelectedCakeOrderDetail] = useState<any>(null);
   const [showCakeDetailModal, setShowCakeDetailModal] = useState(false);
+
+  // --- FETCH WITH RETRY HELPER ---
+  const fetchWithRetry = async (
+    url: string,
+    options: { headers: any; retries?: number; timeout?: number } = { headers: {} }
+  ): Promise<Response> => {
+    const { headers, retries = 3, timeout = 15000 } = options;
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+    const fullUrl = url.startsWith('http') ? url : `${baseUrl}${url}`;
+
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        const response = await fetch(fullUrl, {
+          headers,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error) {
+        if (attempt === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
+
+    throw new Error(`Failed to fetch ${url} after ${retries} retries`);
+  };
 
   // --- FETCH DATA ON LOAD ---
   useEffect(() => {
@@ -74,11 +102,20 @@ export default function SalesCoordinatorDashboard() {
         const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        // 1. Fetch Dashboard Summary
-const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, retries: 3, timeout: 15000 });
-        if (summaryResponse.ok) {
-          const summary = await summaryResponse.json();
-          setApiData(prev => ({
+ // 1. Fetch Dashboard Summary
+const summaryResponse = await fetchWithRetry(
+  '/sales/dashboard', // 👉 FIX: Removed /api
+  { headers, retries: 3, timeout: 15000 }
+);
+
+console.log("Summary Response:", summaryResponse);
+
+if (summaryResponse.ok) {
+  const summary = await summaryResponse.json();
+
+  console.log("Dashboard Summary Data:", summary);
+
+  setApiData(prev => ({
             ...prev,
             shop_requests: summary.shop_requests || 0,
             cake_orders: summary.cake_orders || 0,
@@ -91,32 +128,44 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
         }
 
         // 2. Fetch all detailed data from the correct endpoints
+        // 👉 FIX: Removed /api from all 8 of these URLs!
         const [requestsRes, cakeRes, bakedRes, deliveredRes, stockRes, damagedRes, historyRes, targetsRes] = await Promise.all([
-  fetchWithRetry('/api/sales/requests', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/cake-orders', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/baked', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/delivered', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/stock', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/damaged', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/history', { headers, retries: 3, timeout: 15000 }),
-  fetchWithRetry('/api/sales/targets', { headers, retries: 3, timeout: 15000 })
+  fetchWithRetry('/sales/requests', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/cake-orders', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/baked', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/delivered', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/stock', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/damaged', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/history', { headers, retries: 3, timeout: 15000 }),
+  fetchWithRetry('/sales/targets', { headers, retries: 3, timeout: 15000 })
 ]);
 
-        const requestsData = requestsRes.ok ? await requestsRes.json() : [];
-        let cakeData = [];
-        if (cakeRes.ok) {
-          const rawData = await cakeRes.json();
-          cakeData = Array.isArray(rawData) ? rawData : (rawData.data || []);
-        }
-        const bakedData = bakedRes.ok ? await bakedRes.json() : [];
-        const deliveredData = deliveredRes.ok ? await deliveredRes.json() : [];
-        const stockData = stockRes.ok ? await stockRes.json() : [];
-        const damagedData = damagedRes.ok ? await damagedRes.json() : [];
-        const historyData = historyRes.ok ? await historyRes.json() : [];
-        const targetsData = targetsRes.ok ? await targetsRes.json() : [];
+        // 👉 THE BULLETPROOF FIX: Automatically finds the array no matter how the backend wrapped it!
+        const safeArray = async (res: any) => {
+          if (!res.ok) return [];
+          try {
+            const json = await res.json();
+            if (Array.isArray(json)) return json;
+            if (json.data && Array.isArray(json.data)) return json.data;
+            
+            // If the backend wrapped it in something weird like { cake_orders: [...] }, find it:
+            const foundArray = Object.values(json).find(val => Array.isArray(val));
+            return foundArray || [];
+          } catch (e) {
+            return [];
+          }
+        };
+
+        const requestsData = await safeArray(requestsRes);
+        const cakeData = await safeArray(cakeRes);
+        const bakedData = await safeArray(bakedRes);
+        const deliveredData = await safeArray(deliveredRes);
+        const stockData = await safeArray(stockRes);
+        const damagedData = await safeArray(damagedRes);
+        const historyData = await safeArray(historyRes);
+        const targetsData = await safeArray(targetsRes);
 
         setApiData(prev => ({ ...prev, targets: targetsData.length }));
-
         setDetailedLists({
           Requests: requestsData.flatMap((r: any) =>
             (r.items || []).map((item: any) => ({
@@ -183,14 +232,17 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
             time: d.created_at ? new Date(d.created_at).toLocaleString() : 'Latest',
             reason: d.reason || 'N/A',
           })),
-          History: cakeData.map((c: any) => ({
-            id: c.id,
-            item: c.cake_type,
-            qty: `Code: CK-${c.id}`,
-            stock: `Customer: ${c.customer_name}`,
-            time: c.delivery_date || 'N/A',
-            status: c.status || 'pending'
-          })),
+         // 👉 THE FIX: Filters out regular products so ONLY Cake Orders show in History!
+          History: historyData
+            .filter((h: any) => h.cake_type || h.customer_name) // If it doesn't have a customer or cake type, ignore it!
+            .map((h: any) => ({
+              id: h.id,
+              item: h.cake_type || 'Custom Cake',
+              qty: `Code: CK-${h.id}`,
+              stock: `Customer: ${h.customer_name || 'Unknown'}`,
+              time: h.delivery_date || h.date || h.created_at || 'N/A',
+              status: h.status || 'Delivered'
+            })),
           Targets: targetsData.map((t: any) => ({
             id: t.id,
             item: t.product_name || 'Product',
@@ -454,48 +506,14 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
       >
         <X size={32} />
       </button>
-     // REPLACE WITH
-            <img 
-              src={zoomImageUrl} 
-              alt="Zoomed cake" 
-              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
-            />
-          </div>
-        </div>
-      )}
-
-      {showCakeDetailModal && selectedCakeOrderDetail && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden">
-            <div className="bg-[#5D4037] text-white p-4 flex justify-between items-center">
-              <h3 className="font-black uppercase text-sm">Cake Order #{selectedCakeOrderDetail.id}</h3>
-              <button onClick={() => setShowCakeDetailModal(false)} className="text-white hover:opacity-80"><X size={20} /></button>
-            </div>
-            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm max-h-[70vh] overflow-y-auto">
-              <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
-              <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
-              <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
-              <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
-              <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
-              <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
-              <div className="col-span-2"><strong>Size / Stages:</strong> {selectedCakeOrderDetail.cake_size}</div>
-              <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
-              <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
-              <div className="col-span-2"><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
-              <div className="col-span-2"><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
-              {selectedCakeOrderDetail.inspo_image_url && (
-                <div className="col-span-2">
-                  <strong>Inspiration Image:</strong><br />
-                  <img src={selectedCakeOrderDetail.inspo_image_url} alt="Cake inspo" className="max-h-48 rounded-xl mt-2 cursor-zoom-in" onClick={() => { setZoomImageUrl(selectedCakeOrderDetail.inspo_image_url); setShowZoomModal(true); }} />
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-3 p-4 border-t border-gray-100">
-              <button onClick={() => setShowCakeDetailModal(false)} className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <img 
+        src={zoomImageUrl} 
+        alt="Zoomed cake" 
+        className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+      />
+    </div>
+  </div>
+)}
       {currentView === 'Dashboard' && (
         <>
           <div>
@@ -596,13 +614,17 @@ const summaryResponse = await fetchWithRetry('/api/sales/dashboard', { headers, 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  // REPLACE WITH
                   {getDataForView(currentView).map((row) => (
                     <tr
-                      key={row.id}
-                      className={`hover:bg-gray-50/50 transition-colors ${currentView === 'Cake Orders' ? 'cursor-pointer' : ''}`}
-                      onClick={() => { if (currentView === 'Cake Orders') fetchCakeOrderDetail(row.id); }}
-                    >
+  key={row.id}
+  className="hover:bg-gray-50/50 transition-colors"
+  onClick={() => {
+    if (currentView === 'Cake Orders') {
+      fetchCakeOrderDetail(row.id);
+    }
+  }}
+  style={currentView === 'Cake Orders' ? { cursor: 'pointer' } : {}}
+>
                       {getTableColumns(currentView).map((col) => {
                         // Special rendering for 'image' column in Cake Orders
                         if (currentView === 'Cake Orders' && col.key === 'image') {
