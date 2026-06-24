@@ -28,14 +28,16 @@ class OperationsController extends Controller
     }
 
     // DASHBOARD DETAILS
-    // - damaged array now includes reported_by (the name of the user who recorded it)
+    // FIXED: Now includes proper damages with product names and reported_by,
+    // and baked products with proper data
     public function details()
     {
+        // ✅ Damages with product names and reported_by
         $damages = Damage::with(['product', 'user'])->latest()->get()->map(function ($d) {
             return [
                 'id'          => $d->id,
                 'product_id'  => $d->product_id,
-                'product'     => optional($d->product)->name,
+                'product'     => optional($d->product)->name ?? 'Unknown Product',
                 'quantity'    => $d->quantity,
                 'reason'      => $d->reason,
                 'location'    => $d->location,
@@ -45,12 +47,83 @@ class OperationsController extends Controller
             ];
         });
 
+        // ✅ Baked products with proper data
+        $baked = Production::with('product')
+            ->latest()
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id'          => $p->id,
+                    'product_id'  => $p->product_id,
+                    'product'     => optional($p->product)->name ?? 'Unknown Product',
+                    'product_name'=> optional($p->product)->name ?? 'Unknown Product',
+                    'quantity'    => $p->quantity,
+                    'location'    => $p->location,
+                    'created_at'  => $p->created_at,
+                    'updated_at'  => $p->updated_at,
+                ];
+            });
+
+        // ✅ Distribution with product names
+        $distribution = Distribution::with('product')->latest()->get()->map(function ($d) {
+            return [
+                'id'          => $d->id,
+                'product_id'  => $d->product_id,
+                'product'     => optional($d->product)->name ?? 'Unknown Product',
+                'product_name'=> optional($d->product)->name ?? 'Unknown Product',
+                'quantity'    => $d->quantity,
+                'category'    => $d->category,
+                'location'    => $d->location,
+                'notes'       => $d->notes,
+                'created_at'  => $d->created_at,
+            ];
+        });
+
+        // ✅ Delivery with product names
+        $delivered = Delivery::with('product')->latest()->get()->map(function ($d) {
+            return [
+                'id'            => $d->id,
+                'product_id'    => $d->product_id,
+                'product'       => optional($d->product)->name ?? 'Unknown Product',
+                'product_name'  => optional($d->product)->name ?? 'Unknown Product',
+                'quantity'      => $d->quantity,
+                'from_location' => $d->from_location,
+                'to_location'   => $d->to_location,
+                'created_at'    => $d->created_at,
+            ];
+        });
+
+        // ✅ Orders with items and product names
+        $orders = Order::with('items.product')->latest()->get()->map(function ($order) {
+            return [
+                'id'         => $order->id,
+                'user_id'    => $order->user_id,
+                'location'   => $order->location,
+                'status'     => $order->status,
+                'created_at' => $order->created_at,
+                'updated_at' => $order->updated_at,
+                'items'      => $order->items->map(function ($item) {
+                    return [
+                        'id'           => $item->id,
+                        'product_id'   => $item->product_id,
+                        'product_name' => optional($item->product)->name ?? 'Unknown Product',
+                        'quantity'     => $item->quantity,
+                        'price'        => $item->price,
+                        'total'        => $item->quantity * $item->price,
+                    ];
+                }),
+                'total_amount' => $order->items->sum(function ($item) {
+                    return $item->quantity * $item->price;
+                }),
+            ];
+        });
+
         return [
             'measured'     => Ingredient::all(),
-            'baked'        => Production::with('product')->latest()->get(),
-            'distribution' => Distribution::with('product')->latest()->get(),
-            'delivered'    => Delivery::with('product')->latest()->get(),
-            'orders'       => Order::with('items.product')->latest()->get(),
+            'baked'        => $baked,
+            'distribution' => $distribution,
+            'delivered'    => $delivered,
+            'orders'       => $orders,
             'damaged'      => $damages,
         ];
     }
@@ -96,6 +169,7 @@ class OperationsController extends Controller
             ->each(function ($d) {
                 $d->time = $d->created_at->format('h:i A');
                 $d->date = $d->created_at->toDateString();
+                $d->product_name = optional($d->product)->name ?? 'Unknown Product';
             });
     }
 

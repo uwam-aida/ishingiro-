@@ -277,6 +277,7 @@ class StoreKeeperController extends Controller
                             continue;
                         }
 
+                        // ✅ Mark delivered — this removes it from pending lists
                         $cake->update(['status' => 'delivered']);
 
                         $outstanding = $cake->price - ($cake->total_paid ?? 0);
@@ -430,6 +431,7 @@ class StoreKeeperController extends Controller
             ->each(function ($d) {
                 $d->time = $d->created_at->format('h:i A');
                 $d->date = $d->created_at->toDateString();
+                $d->product_name = optional($d->product)->name ?? 'Unknown Product';
             });
     }
 
@@ -484,7 +486,7 @@ class StoreKeeperController extends Controller
         return $damage->load(['product', 'user']);  // ✅ return with user
     }
 
-    // GET DAMAGE LOG - with reported_by
+    // GET DAMAGE LOG - with reported_by and product name
     public function damages()
     {
         return Damage::with(['product', 'user'])  // ✅ eager load user
@@ -494,7 +496,8 @@ class StoreKeeperController extends Controller
                 return [
                     'id'          => $d->id,
                     'product_id'  => $d->product_id,
-                    'product'     => optional($d->product)->name,
+                    'product'     => optional($d->product)->name ?? 'Unknown Product',
+                    'product_name'=> optional($d->product)->name ?? 'Unknown Product',
                     'quantity'    => $d->quantity,
                     'reason'      => $d->reason,
                     'location'    => $d->location,
@@ -506,7 +509,7 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // GET PRODUCTION LOG
+    // GET PRODUCTION LOG - with product names
     public function productionLog()
     {
         return Production::with('product')
@@ -515,29 +518,53 @@ class StoreKeeperController extends Controller
             })
             ->latest()
             ->get()
-            ->each(function ($p) {
-                $p->time = $p->created_at->format('h:i A');
-                $p->date = $p->created_at->toDateString();
+            ->map(function ($p) {
+                return [
+                    'id'          => $p->id,
+                    'product_id'  => $p->product_id,
+                    'product'     => optional($p->product)->name ?? 'Unknown Product',
+                    'product_name'=> optional($p->product)->name ?? 'Unknown Product',
+                    'quantity'    => $p->quantity,
+                    'location'    => $p->location,
+                    'created_at'  => $p->created_at,
+                    'time'        => $p->created_at->format('h:i A'),
+                    'date'        => $p->created_at->toDateString(),
+                ];
             });
     }
 
-    // ALL CAKE ORDERS (all types across all branches) - with reported_by
+    // ALL CAKE ORDERS (all types across all branches) - with reported_by and image
+    // ✅ FIXED: Excludes delivered orders and includes image URL
     public function cakeOrders()
     {
         return CakeOrder::with('user')  // ✅ eager load user
             ->where('type', 'order')
+            ->where('status', '!=', 'delivered')  // ✅ Exclude delivered orders
             ->latest()
             ->get()
             ->map(function ($c) {
                 $data = $c->toArray();
                 $data['time'] = $c->created_at->format('h:i A');
                 $data['date'] = $c->created_at->toDateString();
-                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';  // ✅ add reported_by
+                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';
+                
+                // ✅ Include image URL
+                if ($c->inspo_image_path) {
+                    $data['inspo_image_url'] = asset('storage/' . $c->inspo_image_path);
+                }
+                
+                // ✅ Include payment info
+                $data['total_paid'] = (float) $c->total_paid;
+                $data['remaining_payment'] = (float) $c->remaining_payment;
+                $data['advance_payment'] = (float) $c->advance_payment;
+                $data['is_fully_paid'] = $c->isFullyPaid();
+                $data['payment_status'] = $c->getPaymentStatusAttribute();
+                
                 return $data;
             });
     }
 
-    // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending') - with reported_by
+    // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending') - with reported_by and image
     public function cakeRequests()
     {
         return CakeOrder::with('user')  // ✅ eager load user
@@ -549,7 +576,18 @@ class StoreKeeperController extends Controller
                 $data = $c->toArray();
                 $data['time'] = $c->created_at->format('h:i A');
                 $data['date'] = $c->created_at->toDateString();
-                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';  // ✅ add reported_by
+                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';
+                
+                // ✅ Include image URL
+                if ($c->inspo_image_path) {
+                    $data['inspo_image_url'] = asset('storage/' . $c->inspo_image_path);
+                }
+                
+                // ✅ Include payment info
+                $data['total_paid'] = (float) $c->total_paid;
+                $data['remaining_payment'] = (float) $c->remaining_payment;
+                $data['advance_payment'] = (float) $c->advance_payment;
+                
                 return $data;
             });
     }
@@ -588,6 +626,11 @@ class StoreKeeperController extends Controller
                 'source'   => 'cake_order_payment',
                 'location' => $cakeOrder->location,
             ]);
+
+            // ✅ If fully paid, update status
+            if ($cakeOrder->total_paid >= $cakeOrder->price) {
+                $cakeOrder->update(['status' => 'paid']);
+            }
         });
 
         return response()->json([
@@ -595,6 +638,8 @@ class StoreKeeperController extends Controller
             'cake_order'        => $cakeOrder->fresh(),
             'total_paid'        => $cakeOrder->total_paid,
             'remaining_balance' => $cakeOrder->remaining_payment,
+            'payment_status'    => $cakeOrder->getPaymentStatusAttribute(),
+            'status'            => $cakeOrder->status,
         ]);
     }
 
@@ -616,7 +661,7 @@ class StoreKeeperController extends Controller
         return $query->take($limit)->get()->map(fn($m) => [
             'id'           => $m->id,
             'product_id'   => $m->product_id,
-            'product_name' => optional($m->product)->name,
+            'product_name' => optional($m->product)->name ?? 'Unknown Product',
             'type'         => $m->type === 'in' ? 'Added' : 'Removed',
             'quantity'     => $m->quantity,
             'location'     => $m->location,
@@ -637,7 +682,7 @@ class StoreKeeperController extends Controller
         return response()->json([
             'id'            => $stock->id,
             'product_id'    => $stock->product_id,
-            'product_name'  => optional($stock->product)->name,
+            'product_name'  => optional($stock->product)->name ?? 'Unknown Product',
             'product_price' => optional($stock->product)->price,
             'product_cost'  => optional($stock->product)->cost,
             'product_type'  => optional($stock->product)->type,
@@ -700,7 +745,7 @@ class StoreKeeperController extends Controller
                 return [
                     'id'             => $movement->id,
                     'product_id'     => $movement->product_id,
-                    'product_name'   => optional($movement->product)->name,
+                    'product_name'   => optional($movement->product)->name ?? 'Unknown Product',
                     'type'           => $movement->type === 'in' ? 'Added' : 'Removed',
                     'type_code'      => $movement->type,
                     'quantity'       => $movement->quantity,
@@ -865,7 +910,7 @@ class StoreKeeperController extends Controller
                     'items'        => $order->items->map(function ($item) {
                         return [
                             'id'           => $item->id,
-                            'product_name' => optional($item->product)->name,
+                            'product_name' => optional($item->product)->name ?? 'Unknown Product',
                             'quantity'     => $item->quantity,
                             'price'        => $item->price,
                             'total'        => $item->quantity * $item->price,
@@ -892,7 +937,7 @@ class StoreKeeperController extends Controller
                 return [
                     'id'            => $item->id,
                     'product_id'    => $item->product_id,
-                    'product_name'  => optional($item->product)->name,
+                    'product_name'  => optional($item->product)->name ?? 'Unknown Product',
                     'product_price' => optional($item->product)->price,
                     'quantity'      => $item->quantity,
                     'unit'          => $item->unit ?? 'pcs',
@@ -961,7 +1006,7 @@ class StoreKeeperController extends Controller
     }
 
     /**
-     * Get single cake order by ID for store keeper - with reported_by
+     * Get single cake order by ID for store keeper - with reported_by and image
      * GET /api/storekeeper/cake-orders/{id}
      */
     public function getCakeOrder($id)
@@ -975,6 +1020,8 @@ class StoreKeeperController extends Controller
         $cakeOrder->time = $cakeOrder->created_at->format('h:i A');
         $cakeOrder->date = $cakeOrder->created_at->toDateString();
         $cakeOrder->reported_by = optional($cakeOrder->user)->name ?? 'Unknown';
+        $cakeOrder->is_fully_paid = $cakeOrder->isFullyPaid();
+        $cakeOrder->payment_status = $cakeOrder->getPaymentStatusAttribute();
 
         return response()->json($cakeOrder);
     }

@@ -33,7 +33,7 @@ class CakeOrder extends Model
         'inspo_image_path',
         'payment_method',
         'payer_name',
-        'user_id',  
+        'user_id',
         'type',
     ];
 
@@ -77,20 +77,40 @@ class CakeOrder extends Model
     }
 
     /**
-     * Accessor for full image URL
-     * Generates the public URL for the inspiration image
+     * Accessor for full image URL - FIXED: properly returns the full URL
      */
     public function getInspoImageUrlAttribute()
     {
         if ($this->inspo_image_path) {
-            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
-            $disk = Storage::disk('public');
-            return $disk->url($this->inspo_image_path);
+            // Check if it already has the full URL
+            if (filter_var($this->inspo_image_path, FILTER_VALIDATE_URL)) {
+                return $this->inspo_image_path;
+            }
+            
+            // Properly generate the URL using the storage facade
+            try {
+                return Storage::disk('public')->url($this->inspo_image_path);
+            } catch (\Exception $e) {
+                // Fallback to asset helper
+                return asset('storage/' . $this->inspo_image_path);
+            }
         }
         if ($this->inspo_image) {
-            return $this->inspo_image; // Legacy support for old URL field
+            // Legacy support for old URL field
+            if (filter_var($this->inspo_image, FILTER_VALIDATE_URL)) {
+                return $this->inspo_image;
+            }
+            return asset('storage/' . $this->inspo_image);
         }
         return null;
+    }
+
+    /**
+     * Get the full image URL directly (alias for inspo_image_url)
+     */
+    public function getImageUrlAttribute()
+    {
+        return $this->getInspoImageUrlAttribute();
     }
 
     /**
