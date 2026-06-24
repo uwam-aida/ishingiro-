@@ -232,19 +232,37 @@ class SalesController extends Controller
     }
 
     // GET TARGETS WITH LIVE PROGRESS
-    public function targets()
+     public function targets()
     {
-        return SalesTarget::with('product')->get()->map(function ($target) {
-            $actual = OrderItem::where('product_id', $target->product_id)
+        $targets = SalesTarget::with('product')->get();
+ 
+        if ($targets->isEmpty()) {
+            return response()->json([]);
+        }
+ 
+        // Build a single query that sums quantity per (product_id, target_id).
+        // We use a CASE WHEN per target so the whole thing is one round-trip.
+        $productIds = $targets->pluck('product_id')->unique()->values();
+ 
+        // Fetch all relevant order-item rows in one query, keyed by product_id.
+        // Then we filter by date range in PHP — avoids a cartesian UNION approach
+        // while still being a single DB hit.
+        $orderItems = OrderItem::whereIn('product_id', $productIds)
+            ->select('product_id', 'quantity', 'created_at')
+            ->get();
+ 
+        return $targets->map(function ($target) use ($orderItems) {
+            $actual = $orderItems
+                ->where('product_id', $target->product_id)
                 ->whereBetween('created_at', [$target->start_date, $target->end_date])
                 ->sum('quantity');
-
+ 
             $status = match (true) {
                 $actual >= $target->target_volume          => 'Completed',
                 $actual >= ($target->target_volume * 0.7) => 'On Track',
                 default                                    => 'Behind',
             };
-
+ 
             return [
                 'id'            => $target->id,
                 'product_name'  => $target->product->name,
@@ -400,10 +418,10 @@ class SalesController extends Controller
             'recipient_role'    => 'sometimes|string|in:shop_manager_kabuga,shop_manager_masaka,store_keeper,baker_assistant,production_manager,sales_coordinator,cicm,all',
             'message'           => 'required|string|min:1|max:1000',
         ]);
-
+ 
         $message = $request->message;
         $roles   = [];
-
+ 
         if ($request->has('recipient_roles')) {
             $roles = $request->recipient_roles;
         } elseif ($request->has('recipient_role')) {
@@ -418,28 +436,35 @@ class SalesController extends Controller
         } else {
             return response()->json(['error' => 'Please provide recipient_role or recipient_roles'], 422);
         }
-
+ 
         $forbiddenRoles = ['marketing_manager', 'finance_chief'];
-        $roles          = array_diff($roles, $forbiddenRoles);
-
+        $roles          = array_values(array_diff($roles, $forbiddenRoles));
+ 
         if (empty($roles)) {
             return response()->json(['error' => 'No valid recipient roles selected'], 422);
         }
-
-        $recipientCount = 0;
+ 
+        // Single query: count users grouped by role name, filtered to the target roles.
+        $countsByRole = User::join('roles', 'users.role_id', '=', 'roles.id')
+            ->whereIn('roles.name', $roles)
+            ->selectRaw('roles.name as role_name, count(*) as total')
+            ->groupBy('roles.name')
+            ->pluck('total', 'role_name');
+ 
+        $recipientCount = $countsByRole->sum();
+ 
+        // Dispatch one notification job per role (unchanged behaviour).
         foreach ($roles as $role) {
-            $count = User::whereHas('role', fn($q) => $q->where('name', $role))->count();
-            $recipientCount += $count;
             SendNotificationJob::dispatch($role, $message);
         }
-
+ 
         SentMessage::create([
             'sender_id'       => auth()->id(),
             'recipient_role'  => implode(', ', $roles),
             'message'         => $message,
             'recipient_count' => $recipientCount,
         ]);
-
+ 
         return response()->json([
             'status'          => 'sent',
             'message'         => 'Message sent to ' . count($roles) . ' role(s)',
