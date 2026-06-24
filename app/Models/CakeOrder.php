@@ -89,7 +89,10 @@ class CakeOrder extends Model
             
             // Properly generate the URL using the storage facade
             try {
-                return Storage::disk('public')->url($this->inspo_image_path);
+                /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+                $disk = Storage::disk('public');
+
+                return $disk->url($this->inspo_image_path);
             } catch (\Exception $e) {
                 // Fallback to asset helper
                 return asset('storage/' . $this->inspo_image_path);
