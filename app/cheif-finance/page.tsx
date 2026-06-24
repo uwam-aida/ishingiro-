@@ -144,8 +144,8 @@ const FALLBACK_CHART: ChartPoint[] = [
 
 const formatMoney = (amount: number) => `${Math.round(amount).toLocaleString()} Frw`;
 
-const ChiefFinanceDashboard = () => {
-  const router = useRouter();
+export default function Page() {
+    const router = useRouter();
 
   // --- UI STATE ---
   const [selectedBranch, setSelectedBranch] = useState<Branch>('All');
