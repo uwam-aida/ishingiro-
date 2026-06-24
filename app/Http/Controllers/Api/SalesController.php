@@ -61,7 +61,19 @@ class SalesController extends Controller
     // PRODUCTION LIST
     public function baked()
     {
-        return Production::with('product')->latest()->get();
+        return Production::with('product')
+            ->latest()
+            ->get()
+            ->map(fn($p) => [
+                'id'           => $p->id,
+                'product_id'   => $p->product_id,
+                'product_name' => optional($p->product)->name ?? 'Unknown Product',
+                'product'      => optional($p->product)->name ?? 'Unknown Product',
+                'quantity'     => $p->quantity,
+                'location'     => $p->location,
+                'created_at'   => $p->created_at,
+                'updated_at'   => $p->updated_at,
+            ]);
     }
 
     // DELIVERIES LIST
@@ -79,7 +91,21 @@ class SalesController extends Controller
     // DAMAGE LIST
     public function damaged()
     {
-        return Damage::with('product')->latest()->get();
+        return Damage::with(['product', 'user'])
+            ->latest()
+            ->get()
+            ->map(fn($d) => [
+                'id'           => $d->id,
+                'product_id'   => $d->product_id,
+                'product_name' => optional($d->product)->name ?? 'Unknown Product',
+                'product'      => optional($d->product)->name ?? 'Unknown Product',
+                'quantity'     => $d->quantity,
+                'reason'       => $d->reason,
+                'location'     => $d->location,
+                'reported_by'  => optional($d->user)->name ?? 'Unknown',
+                'created_at'   => $d->created_at,
+                'updated_at'   => $d->updated_at,
+            ]);
     }
 
     // STOCK MOVEMENT HISTORY
@@ -97,11 +123,9 @@ class SalesController extends Controller
             ->map(function ($order) {
                 $data = $order->toArray();
 
-                if ($order->inspo_image_path) {
-                    $data['inspo_image_url'] = asset('storage/' . $order->inspo_image_path);
-                }
-
-                $data['reported_by'] = optional($order->user)->name ?? 'Unknown';
+                // Always include the key so frontend never gets undefined
+                $data['inspo_image_url'] = $order->inspo_image_url;
+                $data['reported_by']     = optional($order->user)->name ?? 'Unknown';
 
                 return $data;
             });
@@ -151,6 +175,7 @@ class SalesController extends Controller
                 'location'             => $request->location,
                 'delivery_date'        => $request->delivery_date,
                 'status'               => 'pending',
+                'type'                 => 'order',
                 'cake_message'         => $request->cake_message,
                 'cake_size'            => $request->cake_size,
                 'frosting_cream'       => $request->frosting_cream,
@@ -161,7 +186,7 @@ class SalesController extends Controller
                 'inspo_image_path'     => $inspoImagePath,
                 'payment_method'       => $request->payment_method,
                 'payer_name'           => $request->payer_name,
-                'user_id'              => auth()->id(), // ✅ track who created it
+                'user_id'              => auth()->id(),
             ]);
 
             if ($advance > 0) {

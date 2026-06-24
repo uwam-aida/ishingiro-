@@ -534,32 +534,24 @@ class StoreKeeperController extends Controller
     }
 
     // ALL CAKE ORDERS (all types across all branches) - with reported_by and image
-    // ✅ FIXED: Excludes delivered orders and includes image URL
     public function cakeOrders()
     {
-        return CakeOrder::with('user')  // ✅ eager load user
+        return CakeOrder::with('user')
             ->where('type', 'order')
-            ->where('status', '!=', 'delivered')  // ✅ Exclude delivered orders
+            ->where('status', '!=', 'delivered')
             ->latest()
             ->get()
             ->map(function ($c) {
                 $data = $c->toArray();
-                $data['time'] = $c->created_at->format('h:i A');
-                $data['date'] = $c->created_at->toDateString();
-                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';
-                
-                // ✅ Include image URL
-                if ($c->inspo_image_path) {
-                    $data['inspo_image_url'] = asset('storage/' . $c->inspo_image_path);
-                }
-                
-                // ✅ Include payment info
-                $data['total_paid'] = (float) $c->total_paid;
-                $data['remaining_payment'] = (float) $c->remaining_payment;
-                $data['advance_payment'] = (float) $c->advance_payment;
-                $data['is_fully_paid'] = $c->isFullyPaid();
-                $data['payment_status'] = $c->getPaymentStatusAttribute();
-                
+                $data['time']            = $c->created_at->format('h:i A');
+                $data['date']            = $c->created_at->toDateString();
+                $data['reported_by']     = optional($c->user)->name ?? 'Unknown';
+                $data['inspo_image_url'] = $c->inspo_image_url; // always present, null if no image
+                $data['total_paid']       = (float) $c->total_paid;
+                $data['remaining_payment']= (float) $c->remaining_payment;
+                $data['advance_payment']  = (float) $c->advance_payment;
+                $data['is_fully_paid']    = $c->isFullyPaid();
+                $data['payment_status']   = $c->getPaymentStatusAttribute();
                 return $data;
             });
     }
@@ -567,27 +559,20 @@ class StoreKeeperController extends Controller
     // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending') - with reported_by and image
     public function cakeRequests()
     {
-        return CakeOrder::with('user')  // ✅ eager load user
+        return CakeOrder::with('user')
             ->where('type', 'request')
             ->where('status', 'pending')
             ->latest()
             ->get()
             ->map(function ($c) {
                 $data = $c->toArray();
-                $data['time'] = $c->created_at->format('h:i A');
-                $data['date'] = $c->created_at->toDateString();
-                $data['reported_by'] = optional($c->user)->name ?? 'Unknown';
-                
-                // ✅ Include image URL
-                if ($c->inspo_image_path) {
-                    $data['inspo_image_url'] = asset('storage/' . $c->inspo_image_path);
-                }
-                
-                // ✅ Include payment info
-                $data['total_paid'] = (float) $c->total_paid;
-                $data['remaining_payment'] = (float) $c->remaining_payment;
-                $data['advance_payment'] = (float) $c->advance_payment;
-                
+                $data['time']             = $c->created_at->format('h:i A');
+                $data['date']             = $c->created_at->toDateString();
+                $data['reported_by']      = optional($c->user)->name ?? 'Unknown';
+                $data['inspo_image_url']  = $c->inspo_image_url; // always present, null if no image
+                $data['total_paid']       = (float) $c->total_paid;
+                $data['remaining_payment']= (float) $c->remaining_payment;
+                $data['advance_payment']  = (float) $c->advance_payment;
                 return $data;
             });
     }
