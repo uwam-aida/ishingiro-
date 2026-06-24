@@ -360,39 +360,51 @@ export default function StoreKeeperDashboard() {
         }
 
         // Fetch 4: Cake Orders
-        const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
-        if (cakeOrderRes.ok) {
-          const data = await cakeOrderRes.json();
-          const mappedCakes = data.map((c: any) => {
-             // 👉 FIX: Aggressively hunt for the real payment and image keys!
-             const paidAmt = Number(c.total_paid || c.advance_payment || c.paid_amount || c.paid || 0);
-             const totalAmt = Number(c.price || c.total_price || 0);
-             const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
-             const img = c.inspo_image_url || c.sample_image || c.image_url || c.cake_image || c.picture || c.image || null;
+const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
+console.log('📡 Cake orders response status:', cakeOrderRes.status);
+let cakeData: any[] = [];
+if (cakeOrderRes.ok) {
+  const raw = await cakeOrderRes.json();
+  console.log('📦 RAW cake orders response:', raw);
+  // Try to extract array – supports { data: [] } or plain []
+  cakeData = Array.isArray(raw) ? raw : (raw.data || []);
+  console.log('📦 Extracted cake orders array:', cakeData);
+  if (cakeData.length === 0) {
+    console.warn('⚠️ No cake orders found. Endpoint returned empty.');
+  } else {
+    const mappedCakes = cakeData.map((c: any) => {
+      const paidAmt = Number(c.total_paid || c.advance_payment || c.paid_amount || c.paid || 0);
+      const totalAmt = Number(c.price || c.total_price || 0);
+      const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
+      const img = c.inspo_image_url || c.sample_image || c.image_url || c.cake_image || c.picture || c.image || null;
+      return {
+        id: c.id,
+        customer: c.customer_name,
+        details: c.cake_type,
+        pickupLocation: c.location,
+        pickupDate: c.delivery_date,
+        status: c.status,
+        totalPrice: totalAmt,
+        paid: paidAmt,
+        remaining: remainingAmt,
+        imageUrl: img,
+        payerName: c.payer_name || c.customer_name,
+        pickupPerson: c.pickup_contact_name || '—',
+        created_at: c.created_at
+      };
+    });
+    console.log('✅ MAPPED cake orders:', mappedCakes);
+    setCakeOrders(sortByNewest(mappedCakes));
+  }
+} else {
+  console.error('❌ Failed to fetch cake orders:', cakeOrderRes.status);
+}
 
-             return {
-               id: c.id,
-               customer: c.customer_name,
-               details: c.cake_type,
-               pickupLocation: c.location,
-               pickupDate: c.delivery_date,
-               status: c.status,
-               totalPrice: totalAmt,
-               paid: paidAmt,
-               remaining: remainingAmt,
-               imageUrl: img,
-               payerName: c.payer_name || c.customer_name,
-               pickupPerson: c.pickup_contact_name || '—',
-               created_at: c.created_at
-             };
-          });
-          setCakeOrders(sortByNewest(mappedCakes));
-
-          const cakeRequestItems = data
+          const cakeRequestItems = cakeData
             .filter((c: any) => (c.status || 'pending').toLowerCase() !== 'delivered')
             .map((c: any) => ({
               id: c.id,
-              request_item_id: `cake-${c.id}`, 
+              request_item_id: `cake-${c.id}`,
               product_id: null,
               item: c.cake_type || 'Cake Order',
               quantity: c.quantity || 1,
@@ -403,9 +415,20 @@ export default function StoreKeeperDashboard() {
               type: 'cake_order',
               created_at: c.created_at
             }));
-            
-          setShopRequests(prev => sortByNewest([...prev, ...cakeRequestItems]));
-        }
+
+          setShopRequests(prev => {
+  const map = new Map();
+  // Add existing items
+  prev.forEach(item => map.set(item.request_item_id, item));
+  // Add new items (skip if already exists)
+  cakeRequestItems.forEach(item => {
+    if (!map.has(item.request_item_id)) {
+      map.set(item.request_item_id, item);
+    }
+  });
+  return sortByNewest(Array.from(map.values()));
+});
+        
 
         // Fetch 6: Baked Products
         const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
@@ -589,8 +612,7 @@ export default function StoreKeeperDashboard() {
     setSelectedProductIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   };
 
-  const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
-
+const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.request_item_id));
 // --- BULK DELIVERY (with branch validation & cleanup) ---
 const handleBulkDelivery = async () => {
   if (selectedProductIds.length === 0) return;
@@ -657,8 +679,7 @@ try {
       setDeliveryNote(noteData);
       setIssuedNotes(prev => [noteData, ...prev]);
       // Remove the fulfilled requests from the list
-      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
-      setSelectedProductIds([]);
+setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.request_item_id)));      setSelectedProductIds([]);
       
       await fetchAllDeliveryNotes();
     }
@@ -1185,7 +1206,11 @@ const handleSubmitDamage = async () => {
                   .filter(req => req.item.toLowerCase().includes(requestSearch.toLowerCase()))
                   .map((req) => (
                     <tr key={req.request_item_id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-8 py-6"><button onClick={() => toggleSelection(req.id)} className="text-[#F57C00]">{selectedProductIds.includes(req.id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}</button></td>
+                      <td className="px-8 py-6">
+                        <button onClick={() => toggleSelection(req.request_item_id)} className="text-[#F57C00]">
+  {selectedProductIds.includes(req.request_item_id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}
+</button>
+                      </td>
                       <td className="px-8 py-6"><div className="flex flex-col gap-1"><span className="font-black text-[#F57C00] uppercase text-sm">{req.item}</span>{req.isEdited && <span className="text-[9px] font-black text-rose-600 uppercase flex items-center gap-1"><AlertCircle size={10}/> Modified</span>}</div></td>
                       <td className="px-8 py-6 text-center"><span className="px-3 py-1 bg-[#FAF6F4] text-[#F57C00] rounded-lg text-[10px] font-black uppercase">{req.branch}</span></td>
                       <td className="px-8 py-6 text-center"><span className="font-black text-lg text-gray-900">{req.quantity}</span></td>

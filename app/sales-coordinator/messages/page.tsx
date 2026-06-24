@@ -285,7 +285,7 @@ export default function SalesBroadcastPage() {
                     {msg.date} at {msg.time}
                   </span>
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-700">
-                    {msg.recipient_roles.join(', ')}
+                    {Array.isArray(msg.recipient_roles) ? msg.recipient_roles.join(', ') : 'All Staff'}
                   </span>
                 </div>
                 <p className="text-sm font-bold text-gray-800">{msg.message}</p>

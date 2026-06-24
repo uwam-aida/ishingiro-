@@ -52,7 +52,7 @@ const fetchWithRetry = async (
 
 // The hardcoded list acts as a fallback if the API is unreachable
 const STORE_PRODUCTS = [
-  // BREAD (Baked)
+   // BREAD (Baked)
     { name: 'big milk Bread', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk Bread', price: 600, category: 'BREAD', type: 'baked' },
     { name: 'pcpn', price: 1100, category: 'BREAD', type: 'baked' },
@@ -101,6 +101,22 @@ const STORE_PRODUCTS = [
     { name: 'ubunyobwa', price: 1800, category: 'OTHERS', type: 'unbaked' },
     { name: 'ADDCAKE', price: 2000, category: 'BIG CAKES', type: 'unbaked' },
 
+    // BIG CAKES (Baked)
+    { name: 'cake 38000', price: 38000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 20000', price: 20000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 24000', price: 24000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 19000', price: 19000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake18000', price: 18000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 15000', price: 15000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 14000', price: 14000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 13000', price: 13000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 12000', price: 12000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 10000', price: 10000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 9000', price: 9000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 8000', price: 8000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 7000', price: 7000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
+    { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
 ];
 
 export default function StoreKeeperAddProduct() {

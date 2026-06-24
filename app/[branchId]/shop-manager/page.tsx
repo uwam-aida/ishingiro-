@@ -758,9 +758,9 @@ export default function DynamicShopDashboard() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {cakeOrders
-                    .filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
-                    .map((cake) => (
-                      <tr key={cake.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedCakeOrderDetail(cake); setShowCakeDetailModal(true); }}>
+                   .filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
+                   .map((cake, index) => (
+                   <tr key={`cake-${cake.id}-${index}`} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedCakeOrderDetail(cake); setShowCakeDetailModal(true); }}>
                         <td className="px-8 py-6">
                           <div className="flex flex-col">
                             <span className="font-black text-[#F57C00] uppercase text-sm">{cake.customer}</span>

@@ -130,15 +130,20 @@ export default function FinancePricingPage() {
     
     try {
         const response = await fetch(`${baseUrl}/finance/products`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: newItem.name,
-                price: Number(newItem.price),
-                category: newItem.category.toLowerCase(), 
-                type: newItem.type
-            })
-        });
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        name: newItem.name,
+        price: Number(newItem.price),
+        category: newItem.category, // <-- Fix 1: Removed .toLowerCase()
+        type: newItem.type,
+        
+        cost: 0,
+        stock: 0,
+        quantity: 0,
+        description: "New product"
+    })
+});
 
         if (response.ok) {
             const addedProduct = await response.json();
