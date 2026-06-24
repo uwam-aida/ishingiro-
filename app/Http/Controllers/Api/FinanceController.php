@@ -104,12 +104,33 @@ class FinanceController extends Controller
     // INVENTORY — BAKED GOODS
     public function inventoryBaked()
     {
-        return Product::where('type', 'baked')->get()->map(fn($product) => [
+        $products = Product::where('type', 'baked')->get();
+
+        if ($products->isEmpty()) {
+            return response()->json([]);
+        }
+
+        $productIds = $products->pluck('id');
+
+        // One query each instead of one per product (fixes N+1)
+        $produced = Production::whereIn('product_id', $productIds)
+            ->groupBy('product_id')
+            ->pluck(DB::raw('SUM(quantity)'), 'product_id');
+
+        $sold = OrderItem::whereIn('product_id', $productIds)
+            ->groupBy('product_id')
+            ->pluck(DB::raw('SUM(quantity)'), 'product_id');
+
+        $lost = Damage::whereIn('product_id', $productIds)
+            ->groupBy('product_id')
+            ->pluck(DB::raw('SUM(quantity)'), 'product_id');
+
+        return $products->map(fn($product) => [
             'id'     => $product->id,
             'name'   => $product->name,
-            'daily'  => Production::where('product_id', $product->id)->sum('quantity') . ' pcs',
-            'sold'   => (string) OrderItem::where('product_id', $product->id)->sum('quantity'),
-            'loss'   => (string) Damage::where('product_id', $product->id)->sum('quantity'),
+            'daily'  => ($produced[$product->id] ?? 0) . ' pcs',
+            'sold'   => (string) ($sold[$product->id] ?? 0),
+            'loss'   => (string) ($lost[$product->id] ?? 0),
             'branch' => 'All',
         ]);
     }
