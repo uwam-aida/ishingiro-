@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
+    "@inertiajs/react": "^3.4.0",
     "@sentry/nextjs": "^10.53.1",
     "lucide-react": "^0.563.0",
     "next": "^15.1.4",
