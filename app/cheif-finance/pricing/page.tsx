@@ -14,7 +14,7 @@ interface Product {
   type: string;
 }
 
-export const defaultProducts: Product[] = [ 
+const defaultProducts: Product[] = [ 
     // BREAD (Baked)
     { name: 'big milk Bread', price: 1300, category: 'BREAD', type: 'baked' },
     { name: 'small milk Bread', price: 600, category: 'BREAD', type: 'baked' },
