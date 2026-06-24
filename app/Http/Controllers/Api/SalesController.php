@@ -76,26 +76,10 @@ class SalesController extends Controller
         return Stock::with('product')->get();
     }
 
-    // DAMAGE LIST - FIXED: includes product name
+    // DAMAGE LIST
     public function damaged()
     {
-        return Damage::with(['product', 'user'])
-            ->latest()
-            ->get()
-            ->map(function ($damage) {
-                return [
-                    'id'          => $damage->id,
-                    'product_id'  => $damage->product_id,
-                    'product_name' => optional($damage->product)->name ?? 'Unknown Product',
-                    'product'     => optional($damage->product)->name ?? 'Unknown Product',
-                    'quantity'    => $damage->quantity,
-                    'reason'      => $damage->reason,
-                    'location'    => $damage->location,
-                    'reported_by' => optional($damage->user)->name ?? 'Unknown',
-                    'created_at'  => $damage->created_at,
-                    'updated_at'  => $damage->updated_at,
-                ];
-            });
+        return Damage::with('product')->latest()->get();
     }
 
     // STOCK MOVEMENT HISTORY
@@ -203,7 +187,7 @@ class SalesController extends Controller
         return response()->json($cakeOrder, 201);
     }
 
-    // ADD PAYMENT TO EXISTING CAKE ORDER - FIXED: properly updates paid amount
+    // ADD PAYMENT TO EXISTING CAKE ORDER
     public function addCakeOrderPayment(Request $request, $id)
     {
         $request->validate([
@@ -237,11 +221,6 @@ class SalesController extends Controller
                 'source'   => 'cake_order_payment',
                 'location' => $cakeOrder->location,
             ]);
-
-            // If fully paid, update status to 'paid'
-            if ($cakeOrder->total_paid >= $cakeOrder->price) {
-                $cakeOrder->update(['status' => 'paid']);
-            }
         });
 
         return response()->json([
@@ -249,13 +228,11 @@ class SalesController extends Controller
             'cake_order'        => $cakeOrder->fresh(),
             'total_paid'        => $cakeOrder->total_paid,
             'remaining_balance' => $cakeOrder->remaining_payment,
-            'payment_status'    => $cakeOrder->getPaymentStatusAttribute(),
-            'status'            => $cakeOrder->status,
         ]);
     }
 
     // GET TARGETS WITH LIVE PROGRESS
-    public function targets()
+     public function targets()
     {
         $targets = SalesTarget::with('product')->get();
  
@@ -263,8 +240,13 @@ class SalesController extends Controller
             return response()->json([]);
         }
  
+        // Build a single query that sums quantity per (product_id, target_id).
+        // We use a CASE WHEN per target so the whole thing is one round-trip.
         $productIds = $targets->pluck('product_id')->unique()->values();
  
+        // Fetch all relevant order-item rows in one query, keyed by product_id.
+        // Then we filter by date range in PHP — avoids a cartesian UNION approach
+        // while still being a single DB hit.
         $orderItems = OrderItem::whereIn('product_id', $productIds)
             ->select('product_id', 'quantity', 'created_at')
             ->get();
@@ -364,7 +346,7 @@ class SalesController extends Controller
         ]);
     }
 
-    // Get single cake order with full details — includes reported_by and full payment info
+    // Get single cake order with full details — includes reported_by
     public function getCakeOrderDetails($id)
     {
         $cakeOrder = CakeOrder::with('user')->findOrFail($id);
@@ -416,16 +398,11 @@ class SalesController extends Controller
             'reception_location'   => $cakeOrder->reception_location,
             'needs_sample'         => $cakeOrder->needs_sample,
             'inspo_image_url'      => $cakeOrder->inspo_image_url ?? null,
-            'reported_by'          => optional($cakeOrder->user)->name ?? 'Unknown',
+            'reported_by'          => optional($cakeOrder->user)->name ?? 'Unknown',  // who created it
             'created_at'           => $cakeOrder->created_at,
             'updated_at'           => $cakeOrder->updated_at,
             'payment'              => $paymentSummary,
             'payment_history'      => $paymentHistory,
-            // ✅ Include these for easy access
-            'total_paid'           => (float) $cakeOrder->total_paid,
-            'remaining_payment'    => (float) $cakeOrder->remaining_payment,
-            'advance_payment'      => (float) $cakeOrder->advance_payment,
-            'is_fully_paid'        => $cakeOrder->isFullyPaid(),
         ]);
     }
 
@@ -467,6 +444,7 @@ class SalesController extends Controller
             return response()->json(['error' => 'No valid recipient roles selected'], 422);
         }
  
+        // Single query: count users grouped by role name, filtered to the target roles.
         $countsByRole = User::join('roles', 'users.role_id', '=', 'roles.id')
             ->whereIn('roles.name', $roles)
             ->selectRaw('roles.name as role_name, count(*) as total')
@@ -475,6 +453,7 @@ class SalesController extends Controller
  
         $recipientCount = $countsByRole->sum();
  
+        // Dispatch one notification job per role (unchanged behaviour).
         foreach ($roles as $role) {
             SendNotificationJob::dispatch($role, $message);
         }

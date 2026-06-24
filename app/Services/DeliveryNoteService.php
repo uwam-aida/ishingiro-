@@ -9,32 +9,6 @@ use Illuminate\Support\Collection;
 class DeliveryNoteService
 {
     /**
-     * Read public/logo.png once per request and return it as a base64 data
-     * URI. DomPDF can't reliably resolve relative paths (and remote URLs are
-     * disabled by default), so embedding the bytes directly is the only
-     * approach that works regardless of server/path configuration.
-     */
-    private function getLogoBase64(): string
-    {
-        static $cached = null;
-
-        if ($cached !== null) {
-            return $cached;
-        }
-
-        $path = public_path('logo.png');
-
-        if (!file_exists($path)) {
-            return $cached = '';
-        }
-
-        $mime = mime_content_type($path) ?: 'image/png';
-        $data = base64_encode(file_get_contents($path));
-
-        return $cached = "data:{$mime};base64,{$data}";
-    }
-
-    /**
      * Generate a PDF delivery note and return the raw PDF bytes.
      *
      * @param  Collection  $orders      — Order models with items.product eager-loaded
@@ -117,5 +91,33 @@ class DeliveryNoteService
         ])->setPaper('a5', 'portrait');
 
         return $pdf->output();
+    }
+
+    /**
+     * FIX: the template's image src was a relative path, which DomPDF can't
+     * always resolve (it has no "current page" to resolve relative to, unlike
+     * a browser) — that's what was rendering as a broken/grey placeholder.
+     * Embedding the logo as a base64 data URI sidesteps path resolution
+     * entirely and is the most reliable option for DomPDF.
+     *
+     * Drop your logo file at public/images/logo.png (or storage/app/public/logo.png)
+     * and it will be picked up automatically. Falls back to no logo (the
+     * template's placeholder circle) if neither file exists yet.
+     */
+    private function getLogoBase64(): ?string
+    {
+        $candidates = [
+            public_path('images/logo.png'),
+            storage_path('app/public/logo.png'),
+        ];
+
+        foreach ($candidates as $path) {
+            if (is_file($path)) {
+                $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'png';
+                return 'data:image/' . $extension . ';base64,' . base64_encode(file_get_contents($path));
+            }
+        }
+
+        return null;
     }
 }
