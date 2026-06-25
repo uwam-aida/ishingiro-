@@ -15,7 +15,7 @@ fi
 
 # Run migrations
 echo "Running migrations..."
-php artisan migrate:fresh --force
+php artisan migrate --force
 
 # Seed roles and products
 echo "Setting up roles..."
