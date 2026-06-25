@@ -331,6 +331,10 @@ class StoreKeeperController extends Controller
                         'unit_price'   => $cake->price,
                         'price'        => $cake->price,
                         'total'        => $cake->quantity * $cake->price,
+                        // FIX: Carry the cake's sample image through so it
+                        // can be printed on the delivery note PDF — this
+                        // was never being captured before.
+                        'image'        => $cake->inspo_image_url,
                     ]);
                 }
 
@@ -547,6 +551,16 @@ class StoreKeeperController extends Controller
                 $data['date']            = $c->created_at->toDateString();
                 $data['reported_by']     = optional($c->user)->name ?? 'Unknown';
                 $data['inspo_image_url'] = $c->inspo_image_url; // always present, null if no image
+                // FIX: Derive needs_sample from image presence too, so
+                // orders saved before the frontend's needs_sample bug was
+                // fixed still display correctly here.
+                $data['needs_sample']    = (bool) ($c->needs_sample || $c->inspo_image_url);
+                // FIX: location was already included via toArray() (it's a
+                // fillable column), but we re-assert it explicitly so the
+                // store keeper can always see which branch placed the
+                // order, even if the frontend ever narrows the fields it
+                // reads from this response.
+                $data['location']        = $c->location;
                 $data['total_paid']       = (float) $c->total_paid;
                 $data['remaining_payment']= (float) $c->remaining_payment;
                 $data['advance_payment']  = (float) $c->advance_payment;
@@ -794,6 +808,7 @@ class StoreKeeperController extends Controller
                 'qty'        => $item['qty'] ?? $item['quantity'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
                 'total'      => $item['total'] ?? 0,
+                'image'      => $item['image'] ?? null,
             ];
         });
 
@@ -827,6 +842,7 @@ class StoreKeeperController extends Controller
                 'qty'        => $item['qty'] ?? $item['quantity'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? $item['price'] ?? 0,
                 'total'      => $item['total'] ?? 0,
+                'image'      => $item['image'] ?? null,
             ];
         });
 

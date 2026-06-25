@@ -84,10 +84,13 @@
 
   th { font-weight: bold; }
 
-  .c-name  { width: 46%; }
-  .c-qty   { width: 11%; text-align: center; }
-  .c-price { width: 22%; text-align: right; }
-  .c-total { width: 21%; text-align: right; font-weight: bold; }
+  .c-name  { width: 36%; }
+  .c-img   { width: 14%; text-align: center; }
+  .c-qty   { width: 10%; text-align: center; }
+  .c-price { width: 20%; text-align: right; }
+  .c-total { width: 20%; text-align: right; font-weight: bold; }
+
+  .item-img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; }
 
   .total-label {
     text-align: right;
@@ -184,6 +187,7 @@
     <thead>
       <tr>
         <th class="c-name">ITEM NAME</th>
+        <th class="c-img">IMAGE</th>
         <th class="c-qty">QTY</th>
         <th class="c-price">UNIT PRICE</th>
         <th class="c-total">TOTAL</th>
@@ -194,6 +198,11 @@
       <tr>
         {{-- Support both 'name' and 'product_name' keys --}}
         <td class="c-name">{{ strtoupper($item['name'] ?? $item['product_name'] ?? 'Unknown') }}</td>
+        <td class="c-img">
+          @if(!empty($item['image']))
+            <img src="{{ $item['image'] }}" class="item-img">
+          @endif
+        </td>
         {{-- Support both 'qty' and 'quantity' keys --}}
         <td class="c-qty">{{ $item['qty'] ?? $item['quantity'] ?? 0 }}</td>
         <td class="c-price">{{ number_format($item['unit_price'] ?? 0) }}</td>
@@ -203,7 +212,7 @@
 
       {{-- TOTAL ROW --}}
       <tr>
-        <td colspan="3" class="total-label">TOTAL AMOUNT</td>
+        <td colspan="4" class="total-label">TOTAL AMOUNT</td>
         <td class="total-value">{{ number_format($grand_total ?? 0) }}</td>
       </tr>
     </tbody>

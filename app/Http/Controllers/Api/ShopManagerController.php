@@ -371,9 +371,11 @@ class ShopManagerController extends Controller
         $result = [];
         foreach ($cakeOrders as $cake) {
             $cakeData = $cake->toArray();
-            if ($cake->inspo_image_path) {
-                $cakeData['inspo_image_url'] = asset('storage/' . $cake->inspo_image_path);
-            }
+            // FIX: Always re-assert inspo_image_url and derive needs_sample
+            // from image presence too, same reliability fix as
+            // getAllCakeOrders() above.
+            $cakeData['inspo_image_url'] = $cake->inspo_image_url;
+            $cakeData['needs_sample'] = (bool) ($cake->needs_sample || $cake->inspo_image_url);
             $cakeData['reported_by'] = optional($cake->user)->name ?? 'Unknown';  // ✅ add reported_by
             $result[] = $cakeData;
         }
@@ -678,10 +680,12 @@ class ShopManagerController extends Controller
      */
     public function getAllCakeOrders(Request $request)
     {
-        $myLocation = $this->myLocation();
-        
+        // FIX: Shop managers must see EVERY cake order — placed by the
+        // sales coordinator, by Shop Manager Kabuga, or by Shop Manager
+        // Masaka — not just orders tagged with their own branch. The old
+        // ->where('location', $myLocation) restricted each manager to only
+        // their own branch's orders.
         $query = CakeOrder::with('user')  // ✅ eager load user
-            ->where('location', $myLocation)
             ->where('type', 'order')
             ->latest();
         
@@ -703,9 +707,15 @@ class ShopManagerController extends Controller
         $result = [];
         foreach ($orders as $order) {
             $orderData = $order->toArray();
-            if ($order->inspo_image_path) {
-                $orderData['inspo_image_url'] = asset('storage/' . $order->inspo_image_path);
-            }
+            // FIX: inspo_image_url is already an appended accessor on the
+            // model and is included by toArray(), but we re-assert it here
+            // explicitly so it's never missing from the response.
+            $orderData['inspo_image_url'] = $order->inspo_image_url;
+            // FIX: Derive "needs sample" from whether an image actually
+            // exists too, not just the raw stored flag — older orders
+            // saved before a frontend bug was fixed may have needs_sample
+            // = false even though a sample image was uploaded.
+            $orderData['needs_sample'] = (bool) ($order->needs_sample || $order->inspo_image_url);
             $orderData['reported_by'] = optional($order->user)->name ?? 'Unknown';  // ✅ add reported_by
             $result[] = $orderData;
         }
@@ -974,7 +984,7 @@ class ShopManagerController extends Controller
                         'quantity' => $damaged,
                         'reason' => 'End of day damage',
                         'location' => $myLocation,
-                        'user_id' => auth()->id(),  // ✅ track who reported
+                        'user_id' => auth()->id(),  //track who reported
                     ]);
                 }
 

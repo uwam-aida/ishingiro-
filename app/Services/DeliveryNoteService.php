@@ -43,6 +43,8 @@ class DeliveryNoteService
                 'qty'        => $cake->quantity,
                 'unit_price' => $cake->price,
                 'total'      => $cake->quantity * $cake->price,
+                // FIX: Carry the cake's sample image through to the PDF.
+                'image'      => $this->resolveImageForPdf($cake->inspo_image_url),
             ]);
         }
 
@@ -78,6 +80,10 @@ class DeliveryNoteService
                 'qty'        => $item['quantity'] ?? $item['qty'] ?? 0,
                 'unit_price' => $item['unit_price'] ?? 0,
                 'total'      => $item['total'] ?? 0,
+                // FIX: Pick up the stored image (saved on the delivery
+                // note's items JSON at creation time) and resolve it to a
+                // PDF-safe base64 data URI.
+                'image'      => $this->resolveImageForPdf($item['image'] ?? null),
             ];
         });
         
@@ -104,6 +110,33 @@ class DeliveryNoteService
      * and it will be picked up automatically. Falls back to no logo (the
      * template's placeholder circle) if neither file exists yet.
      */
+    private function resolveImageForPdf(?string $url): ?string
+    {
+        if (!$url) {
+            return null;
+        }
+        if (str_starts_with($url, 'data:')) {
+            return $url;
+        }
+        try {
+            $path = parse_url($url, PHP_URL_PATH);
+            $relative = $path ? preg_replace('#^/storage/#', '', $path) : null;
+            $localPath = $relative ? storage_path('app/public/' . $relative) : null;
+            if ($localPath && is_file($localPath)) {
+                $extension = pathinfo($localPath, PATHINFO_EXTENSION) ?: 'png';
+                return 'data:image/' . $extension . ';base64,' . base64_encode(file_get_contents($localPath));
+            }
+            $contents = @file_get_contents($url);
+            if ($contents !== false) {
+                $extension = pathinfo($path ?? '', PATHINFO_EXTENSION) ?: 'png';
+                return 'data:image/' . $extension . ';base64,' . base64_encode($contents);
+            }
+        } catch (\Exception $e) {
+            return null;
+        }
+        return null;
+    }
+
     private function getLogoBase64(): ?string
     {
         $candidates = [
