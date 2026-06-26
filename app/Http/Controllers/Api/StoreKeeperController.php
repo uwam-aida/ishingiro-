@@ -22,9 +22,6 @@ use Illuminate\Support\Facades\DB;
 class StoreKeeperController extends Controller
 {
     // VIEW ALL STOCK
-    // FIX: was returning every Stock row (factory + both branches), which made
-    // a shop's close-day "remaining" look like it bled into the store keeper's
-    // physical stock numbers. Store keeper's "My Stock" is factory-only.
     public function index()
     {
         return Stock::with('product')->where('location', 'factory')->get();
@@ -176,13 +173,9 @@ class StoreKeeperController extends Controller
         $cakeOrders   = collect();
         $deliveryNote = null;
 
-        // ── Run the entire delivery inside a transaction ──────────────────
-        // If anything fails (e.g. insufficient stock), everything rolls back
-        // and NO delivery note or PDF is produced.
         try {
             DB::transaction(function () use ($request, &$orders, &$cakeOrders, &$deliveryNote) {
 
-                // ── Regular orders ────────────────────────────────────────
                 if (!empty($request->order_ids)) {
                     $orders = Order::with('items.product')
                         ->whereIn('id', $request->order_ids)
@@ -250,7 +243,6 @@ class StoreKeeperController extends Controller
                             ]);
                         }
 
-                        // ✅ Mark delivered — this is what removes it from requests()
                         $order->update(['status' => 'delivered']);
 
                         if ($request->input('payment_received', true)) {
@@ -268,7 +260,6 @@ class StoreKeeperController extends Controller
                     }
                 }
 
-                // ── Cake orders ───────────────────────────────────────────
                 if (!empty($request->cake_order_ids)) {
                     $cakeOrders = CakeOrder::whereIn('id', $request->cake_order_ids)->get();
 
@@ -277,7 +268,6 @@ class StoreKeeperController extends Controller
                             continue;
                         }
 
-                        // ✅ Mark delivered — this removes it from pending lists
                         $cake->update(['status' => 'delivered']);
 
                         $outstanding = $cake->price - ($cake->total_paid ?? 0);
@@ -301,7 +291,6 @@ class StoreKeeperController extends Controller
                     }
                 }
 
-                // ── Save delivery note ────────────────────────────────────
                 $allItems = collect();
 
                 foreach ($orders as $order) {
@@ -331,9 +320,6 @@ class StoreKeeperController extends Controller
                         'unit_price'   => $cake->price,
                         'price'        => $cake->price,
                         'total'        => $cake->quantity * $cake->price,
-                        // FIX: Carry the cake's sample image through so it
-                        // can be printed on the delivery note PDF — this
-                        // was never being captured before.
                         'image'        => $cake->inspo_image_url,
                     ]);
                 }
@@ -349,11 +335,9 @@ class StoreKeeperController extends Controller
                 }
             });
         } catch (\Exception $e) {
-            // Transaction rolled back — orders are still 'pending', no stock changed
             return response()->json(['error' => $e->getMessage()], 422);
         }
 
-        // Only reached if transaction succeeded — orders are now 'delivered'
         $pdf = app(DeliveryNoteService::class)->generate(
             orders:      $orders,
             cakeOrders:  $cakeOrders,
@@ -439,7 +423,7 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // RECORD DAMAGE - with user_id
+    // RECORD DAMAGE
     public function storeDamage(Request $request)
     {
         $request->validate([
@@ -452,7 +436,6 @@ class StoreKeeperController extends Controller
         ]);
 
         $damage = DB::transaction(function () use ($request) {
-            // ✅ Add user_id so reported_by works
             $damage = Damage::create([
                 'product_id'  => $request->product_id,
                 'quantity'    => $request->quantity,
@@ -460,7 +443,7 @@ class StoreKeeperController extends Controller
                 'reason'      => $request->reason,
                 'description' => $request->description,
                 'unit'        => $request->unit,
-                'user_id'     => auth()->id(),  // ✅ THIS SAVES THE REPORTER
+                'user_id'     => auth()->id(),
             ]);
 
             $stock = Stock::where('product_id', $request->product_id)
@@ -487,33 +470,33 @@ class StoreKeeperController extends Controller
             SendNotificationJob::dispatch('marketing_manager', 'Critical damage alert');
         }
 
-        return $damage->load(['product', 'user']);  // ✅ return with user
+        return $damage->load(['product', 'user']);
     }
 
-    // GET DAMAGE LOG - with reported_by and product name
+    // GET DAMAGE LOG
     public function damages()
     {
-        return Damage::with(['product', 'user'])  // ✅ eager load user
+        return Damage::with(['product', 'user'])
             ->latest()
             ->get()
             ->map(function ($d) {
                 return [
-                    'id'          => $d->id,
-                    'product_id'  => $d->product_id,
-                    'product'     => optional($d->product)->name ?? 'Unknown Product',
-                    'product_name'=> optional($d->product)->name ?? 'Unknown Product',
-                    'quantity'    => $d->quantity,
-                    'reason'      => $d->reason,
-                    'location'    => $d->location,
-                    'reported_by' => optional($d->user)->name ?? 'Unknown',  // ✅ add reported_by
-                    'created_at'  => $d->created_at,
-                    'time'        => $d->created_at->format('h:i A'),
-                    'date'        => $d->created_at->toDateString(),
+                    'id'           => $d->id,
+                    'product_id'   => $d->product_id,
+                    'product'      => optional($d->product)->name ?? 'Unknown Product',
+                    'product_name' => optional($d->product)->name ?? 'Unknown Product',
+                    'quantity'     => $d->quantity,
+                    'reason'       => $d->reason,
+                    'location'     => $d->location,
+                    'reported_by'  => optional($d->user)->name ?? 'Unknown',
+                    'created_at'   => $d->created_at,
+                    'time'         => $d->created_at->format('h:i A'),
+                    'date'         => $d->created_at->toDateString(),
                 ];
             });
     }
 
-    // GET PRODUCTION LOG - with product names
+    // GET PRODUCTION LOG
     public function productionLog()
     {
         return Production::with('product')
@@ -524,20 +507,20 @@ class StoreKeeperController extends Controller
             ->get()
             ->map(function ($p) {
                 return [
-                    'id'          => $p->id,
-                    'product_id'  => $p->product_id,
-                    'product'     => optional($p->product)->name ?? 'Unknown Product',
-                    'product_name'=> optional($p->product)->name ?? 'Unknown Product',
-                    'quantity'    => $p->quantity,
-                    'location'    => $p->location,
-                    'created_at'  => $p->created_at,
-                    'time'        => $p->created_at->format('h:i A'),
-                    'date'        => $p->created_at->toDateString(),
+                    'id'           => $p->id,
+                    'product_id'   => $p->product_id,
+                    'product'      => optional($p->product)->name ?? 'Unknown Product',
+                    'product_name' => optional($p->product)->name ?? 'Unknown Product',
+                    'quantity'     => $p->quantity,
+                    'location'     => $p->location,
+                    'created_at'   => $p->created_at,
+                    'time'         => $p->created_at->format('h:i A'),
+                    'date'         => $p->created_at->toDateString(),
                 ];
             });
     }
 
-    // ALL CAKE ORDERS (all types across all branches) - with reported_by and image
+    // ALL CAKE ORDERS
     public function cakeOrders()
     {
         return CakeOrder::with('user')
@@ -547,20 +530,12 @@ class StoreKeeperController extends Controller
             ->get()
             ->map(function ($c) {
                 $data = $c->toArray();
-                $data['time']            = $c->created_at->format('h:i A');
-                $data['date']            = $c->created_at->toDateString();
-                $data['reported_by']     = optional($c->user)->name ?? 'Unknown';
-                $data['inspo_image_url'] = $c->inspo_image_url; // always present, null if no image
-                // FIX: Derive needs_sample from image presence too, so
-                // orders saved before the frontend's needs_sample bug was
-                // fixed still display correctly here.
-                $data['needs_sample']    = (bool) ($c->needs_sample || $c->inspo_image_url);
-                // FIX: location was already included via toArray() (it's a
-                // fillable column), but we re-assert it explicitly so the
-                // store keeper can always see which branch placed the
-                // order, even if the frontend ever narrows the fields it
-                // reads from this response.
-                $data['location']        = $c->location;
+                $data['time']             = $c->created_at->format('h:i A');
+                $data['date']             = $c->created_at->toDateString();
+                $data['reported_by']      = optional($c->user)->name ?? 'Unknown';
+                $data['inspo_image_url']  = $c->inspo_image_url;
+                $data['needs_sample']     = (bool) ($c->needs_sample || $c->inspo_image_url);
+                $data['location']         = $c->location;
                 $data['total_paid']       = (float) $c->total_paid;
                 $data['remaining_payment']= (float) $c->remaining_payment;
                 $data['advance_payment']  = (float) $c->advance_payment;
@@ -570,7 +545,7 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // PENDING CAKE REQUESTS ONLY (type = 'request', status = 'pending') - with reported_by and image
+    // PENDING CAKE REQUESTS ONLY
     public function cakeRequests()
     {
         return CakeOrder::with('user')
@@ -583,7 +558,7 @@ class StoreKeeperController extends Controller
                 $data['time']             = $c->created_at->format('h:i A');
                 $data['date']             = $c->created_at->toDateString();
                 $data['reported_by']      = optional($c->user)->name ?? 'Unknown';
-                $data['inspo_image_url']  = $c->inspo_image_url; // always present, null if no image
+                $data['inspo_image_url']  = $c->inspo_image_url;
                 $data['total_paid']       = (float) $c->total_paid;
                 $data['remaining_payment']= (float) $c->remaining_payment;
                 $data['advance_payment']  = (float) $c->advance_payment;
@@ -591,7 +566,7 @@ class StoreKeeperController extends Controller
             });
     }
 
-    // RECORD CAKE PAYMENT (for store keeper)
+    // RECORD CAKE PAYMENT
     public function recordCakePayment(Request $request, $id)
     {
         $request->validate([
@@ -626,7 +601,6 @@ class StoreKeeperController extends Controller
                 'location' => $cakeOrder->location,
             ]);
 
-            // ✅ If fully paid, update status
             if ($cakeOrder->total_paid >= $cakeOrder->price) {
                 $cakeOrder->update(['status' => 'paid']);
             }
@@ -671,9 +645,7 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Get single stock item by ID with full details
-     */
+    // GET SINGLE STOCK ITEM
     public function getStockItem($id)
     {
         $stock = Stock::with('product')->findOrFail($id);
@@ -694,9 +666,7 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Delete a stock item
-     */
+    // DELETE STOCK ITEM
     public function deleteStockItem($id)
     {
         $stock = Stock::findOrFail($id);
@@ -715,9 +685,7 @@ class StoreKeeperController extends Controller
         return response()->json(['message' => 'Stock item deleted successfully'], 200);
     }
 
-    /**
-     * Get detailed stock movement history for store keeper
-     */
+    // GET STOCK MOVEMENTS
     public function getStockMovements(Request $request)
     {
         $query = StockMovement::with('product', 'user')->latest();
@@ -734,8 +702,7 @@ class StoreKeeperController extends Controller
             $query->where('product_id', $request->product_id);
         }
 
-        $limit = (int) $request->query('limit', 100);
-
+        $limit     = (int) $request->query('limit', 100);
         $movements = $query->take($limit)->get();
 
         return response()->json([
@@ -950,14 +917,6 @@ class StoreKeeperController extends Controller
         return response()->json($stock);
     }
 
-    /**
-     * Get available stock (physical stock minus pending requests)
-     * GET /api/storekeeper/available-stock
-     *
-     * FIX: defaulted to location=all, which pulled kabuga/masaka stock into
-     * the store keeper's Requested/Available math along with factory stock.
-     * Store keeper's "available" view should be factory stock by default.
-     */
     public function getAvailableStock(Request $request)
     {
         $location = $request->query('location', 'factory');
@@ -1006,10 +965,6 @@ class StoreKeeperController extends Controller
         ]);
     }
 
-    /**
-     * Get single cake order by ID for store keeper - with reported_by and image
-     * GET /api/storekeeper/cake-orders/{id}
-     */
     public function getCakeOrder($id)
     {
         $cakeOrder = CakeOrder::with('user')->findOrFail($id);
@@ -1018,12 +973,71 @@ class StoreKeeperController extends Controller
             $cakeOrder->inspo_image_url = asset('storage/' . $cakeOrder->inspo_image_path);
         }
 
-        $cakeOrder->time = $cakeOrder->created_at->format('h:i A');
-        $cakeOrder->date = $cakeOrder->created_at->toDateString();
-        $cakeOrder->reported_by = optional($cakeOrder->user)->name ?? 'Unknown';
-        $cakeOrder->is_fully_paid = $cakeOrder->isFullyPaid();
+        $cakeOrder->time           = $cakeOrder->created_at->format('h:i A');
+        $cakeOrder->date           = $cakeOrder->created_at->toDateString();
+        $cakeOrder->reported_by    = optional($cakeOrder->user)->name ?? 'Unknown';
+        $cakeOrder->is_fully_paid  = $cakeOrder->isFullyPaid();
         $cakeOrder->payment_status = $cakeOrder->getPaymentStatusAttribute();
 
         return response()->json($cakeOrder);
+    }
+
+    // ============================================
+    // EXPORT TO CSV/EXCEL
+    // ============================================
+
+    public function exportExcel(Request $request)
+    {
+        $type = $request->query('type', 'stock');
+
+        if ($type === 'stock') {
+            $rows = Stock::with('product')->where('location', 'factory')->get()->map(fn($s) => [
+                'Product'  => optional($s->product)->name ?? 'Unknown',
+                'Quantity' => $s->quantity,
+                'Unit'     => $s->unit ?? 'pcs',
+                'Location' => $s->location,
+                'Updated'  => $s->updated_at->toDateTimeString(),
+            ]);
+        } elseif ($type === 'damages') {
+            $rows = Damage::with('product')->latest()->get()->map(fn($d) => [
+                'Product'  => optional($d->product)->name ?? 'Unknown',
+                'Quantity' => $d->quantity,
+                'Reason'   => $d->reason ?? 'N/A',
+                'Location' => $d->location,
+                'Date'     => $d->created_at->toDateString(),
+            ]);
+        } elseif ($type === 'production') {
+            $rows = Production::with('product')->latest()->get()->map(fn($p) => [
+                'Product'  => optional($p->product)->name ?? 'Unknown',
+                'Quantity' => $p->quantity,
+                'Location' => $p->location,
+                'Date'     => $p->created_at->toDateString(),
+            ]);
+        } elseif ($type === 'deliveries') {
+            $rows = Delivery::with('product')->latest()->get()->map(fn($d) => [
+                'Product'  => optional($d->product)->name ?? 'Unknown',
+                'Quantity' => $d->quantity,
+                'From'     => $d->from_location,
+                'To'       => $d->to_location,
+                'Date'     => $d->created_at->toDateString(),
+            ]);
+        } else {
+            return response()->json(['error' => 'Invalid export type'], 400);
+        }
+
+        $filename = tempnam(sys_get_temp_dir(), 'export_');
+        $handle   = fopen($filename, 'w');
+
+        if ($rows->isNotEmpty()) {
+            fputcsv($handle, array_keys($rows->first()));
+        }
+        foreach ($rows as $row) {
+            fputcsv($handle, array_values($row));
+        }
+        fclose($handle);
+
+        return response()->download($filename, $type . '-report-' . now()->format('Y-m-d') . '.csv', [
+            'Content-Type' => 'text/csv',
+        ])->deleteFileAfterSend(true);
     }
 }
