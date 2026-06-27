@@ -74,7 +74,7 @@ export default function ProductionManagerDashboard() {
             })),
             Baked: (data.baked || []).map((b: any) => ({
               id: b.id,
-              item: b.product?.name || 'Unknown Product',
+              item: b.product?.name || b.product_name || b.name || (typeof b.product === 'string' ? b.product : 'Unknown Product'),
               qty: `${b.quantity} pcs`,
               time: formatDateTime(b.created_at),
               status: 'Baked'
@@ -109,7 +109,7 @@ export default function ProductionManagerDashboard() {
             ),
             Damaged: (data.damaged || []).map((d: any) => ({
               id: d.id,
-              item: d.product?.name || `Product #${d.product_id}` || 'Unknown Product',
+              item: d.product?.name || d.product_name || d.name || (typeof d.product === 'string' ? d.product : `Product #${d.product_id}`),
               qty: `${d.quantity} pcs`,
               time: formatDateTime(d.created_at),
               status: 'Reported',
@@ -237,12 +237,42 @@ export default function ProductionManagerDashboard() {
   };
 
   const stats = [
-    { label: 'Measured', fullLabel: 'Measured Products', value: allData.Measured.length.toString(), sub: 'Batches ready to bake', icon: Scale, color: 'text-blue-600', bg: 'bg-blue-50', editable: true },
-    { label: 'Baked', fullLabel: 'Baked Products', value: allData.Baked.length.toString(), sub: 'Completed today', icon: ChefHat, color: 'text-green-600', bg: 'bg-green-50', editable: true },
-    { label: 'Distribution', fullLabel: 'Other Distributions', value: allData.Distribution.length.toString(), sub: 'Clients, Tiku, Guests', icon: Users, color: 'text-orange-600', bg: 'bg-orange-50', editable: true },
-    { label: 'Delivered', fullLabel: 'Delivered Products', value: allData.Delivered.length.toString(), sub: 'Sent to shops', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50', editable: true },
-    { label: 'Orders', fullLabel: 'Shop Orders', value: allData.Orders.length.toString(), sub: 'Incoming requests', icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50', editable: true },
-    { label: 'Damaged', fullLabel: 'Total Damaged', value: allData.Damaged.length.toString(), sub: 'Recorded losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', editable: true },
+    { 
+      label: 'Measured', 
+      fullLabel: 'Measured Products', 
+      value: new Set(allData.Measured.map(i => i.item.toLowerCase().trim())).size.toString(), 
+      sub: 'Batches ready to bake', icon: Scale, color: 'text-blue-600', bg: 'bg-blue-50', editable: true 
+    },
+    { 
+      label: 'Baked', 
+      fullLabel: 'Baked Products', 
+      value: new Set(allData.Baked.map(i => i.item.toLowerCase().trim())).size.toString(), 
+      sub: 'Completed today', icon: ChefHat, color: 'text-green-600', bg: 'bg-green-50', editable: true 
+    },
+    { 
+      label: 'Distribution', 
+      fullLabel: 'Other Distributions', 
+      value: new Set(allData.Distribution.map(i => i.item.toLowerCase().trim())).size.toString(), 
+      sub: 'Clients, Tiku, Guests', icon: Users, color: 'text-orange-600', bg: 'bg-orange-50', editable: true 
+    },
+    { 
+      label: 'Delivered', 
+      fullLabel: 'Delivered Products', 
+      value: new Set(allData.Delivered.map(i => i.item.toLowerCase().trim())).size.toString(), 
+      sub: 'Sent to shops', icon: Truck, color: 'text-indigo-600', bg: 'bg-indigo-50', editable: true 
+    },
+    { 
+      label: 'Orders', 
+      fullLabel: 'Shop Orders', 
+      value: new Set(allData.Orders.map(i => i.item.toLowerCase().trim())).size.toString(), 
+      sub: 'Incoming requests', icon: ShoppingCart, color: 'text-purple-600', bg: 'bg-purple-50', editable: true 
+    },
+    { 
+      label: 'Damaged', 
+      fullLabel: 'Total Damaged', 
+      value: new Set(allData.Damaged.map(i => i.item.toLowerCase().trim())).size.toString(), 
+      sub: 'Recorded losses', icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', editable: true 
+    },
   ];
 
   const getDataForView = (view: string) => {

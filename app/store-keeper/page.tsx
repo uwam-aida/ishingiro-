@@ -360,51 +360,44 @@ export default function StoreKeeperDashboard() {
         }
 
         // Fetch 4: Cake Orders
-const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
-console.log('📡 Cake orders response status:', cakeOrderRes.status);
-let cakeData: any[] = [];
-if (cakeOrderRes.ok) {
-  const raw = await cakeOrderRes.json();
-  console.log('📦 RAW cake orders response:', raw);
-  // Try to extract array – supports { data: [] } or plain []
-  cakeData = Array.isArray(raw) ? raw : (raw.data || []);
-  console.log('📦 Extracted cake orders array:', cakeData);
-  if (cakeData.length === 0) {
-    console.warn('⚠️ No cake orders found. Endpoint returned empty.');
-  } else {
-    const mappedCakes = cakeData.map((c: any) => {
-      const paidAmt = Number(c.total_paid || c.advance_payment || c.paid_amount || c.paid || 0);
-      const totalAmt = Number(c.price || c.total_price || 0);
-      const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
-      const img = c.inspo_image_url || c.sample_image || c.image_url || c.cake_image || c.picture || c.image || null;
-      return {
-        id: c.id,
-        customer: c.customer_name,
-        details: c.cake_type,
-        pickupLocation: c.location,
-        pickupDate: c.delivery_date,
-        status: c.status,
-        totalPrice: totalAmt,
-        paid: paidAmt,
-        remaining: remainingAmt,
-        imageUrl: img,
-        payerName: c.payer_name || c.customer_name,
-        pickupPerson: c.pickup_contact_name || '—',
-        created_at: c.created_at
-      };
-    });
-    console.log('✅ MAPPED cake orders:', mappedCakes);
-    setCakeOrders(sortByNewest(mappedCakes));
-  }
-} else {
-  console.error('❌ Failed to fetch cake orders:', cakeOrderRes.status);
-}
+        const cakeOrderRes = await fetch(`${baseUrl}/storekeeper/cake-orders`, { headers });
+        if (cakeOrderRes.ok) {
+          const data = await cakeOrderRes.json();
+          const mappedCakes = data.map((c: any) => {
+             // 👉 FIX: Aggressively hunt for the real payment and image keys!
+             const paidAmt = Number(c.total_paid || c.advance_payment || c.paid_amount || c.paid || 0);
+             const totalAmt = Number(c.price || c.total_price || 0);
+             const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
+             const img = c.inspo_image_url || c.sample_image || c.image_url || c.cake_image || c.picture || c.image || null;
 
-          const cakeRequestItems = cakeData
+             return {
+               id: c.id,
+               customer: c.customer_name,
+               details: c.cake_type,
+               // FIX: branch is the location that placed the order
+               // (kabuga/masaka); pickupLocation is the customer-facing
+               // reception/pickup spot if one was specified, falling back
+               // to branch when it wasn't.
+               branch: c.location,
+               pickupLocation: c.reception_location || c.location,
+               pickupDate: c.delivery_date,
+               status: c.status,
+               totalPrice: totalAmt,
+               paid: paidAmt,
+               remaining: remainingAmt,
+               imageUrl: img,
+               payerName: c.payer_name || c.customer_name,
+               pickupPerson: c.pickup_contact_name || '—',
+               created_at: c.created_at
+             };
+          });
+          setCakeOrders(sortByNewest(mappedCakes));
+
+          const cakeRequestItems = data
             .filter((c: any) => (c.status || 'pending').toLowerCase() !== 'delivered')
             .map((c: any) => ({
               id: c.id,
-              request_item_id: `cake-${c.id}`,
+              request_item_id: `cake-${c.id}`, 
               product_id: null,
               item: c.cake_type || 'Cake Order',
               quantity: c.quantity || 1,
@@ -415,20 +408,9 @@ if (cakeOrderRes.ok) {
               type: 'cake_order',
               created_at: c.created_at
             }));
-
-          setShopRequests(prev => {
-  const map = new Map();
-  // Add existing items
-  prev.forEach(item => map.set(item.request_item_id, item));
-  // Add new items (skip if already exists)
-  cakeRequestItems.forEach(item => {
-    if (!map.has(item.request_item_id)) {
-      map.set(item.request_item_id, item);
-    }
-  });
-  return sortByNewest(Array.from(map.values()));
-});
-        
+            
+          setShopRequests(prev => sortByNewest([...prev, ...cakeRequestItems]));
+        }
 
         // Fetch 6: Baked Products
         const bakedRes = await fetch(`${baseUrl}/storekeeper/production`, { headers });
@@ -600,6 +582,23 @@ if (cakeOrderRes.ok) {
         sortDate: rawDate ? rawDate.getTime() : 0,
       };
     }),
+  // Baked products
+  ...bakedProducts
+    .map(b => {
+      const rawDate = b.created_at
+        ? new Date(b.created_at)
+        : b.date
+        ? new Date(b.date)
+        : null;
+      return {
+        type: 'BAKED',
+        item: b.item,
+        qty: b.qty ?? b.quantity ?? 0,
+        time: rawDate ? rawDate.toLocaleString() : (b.date || 'N/A'),
+        color: 'text-amber-600',
+        sortDate: rawDate ? rawDate.getTime() : 0,
+      };
+    }),
 ]
   // Sort newest first (highest timestamp first)
   .sort((a, b) => b.sortDate - a.sortDate)
@@ -612,7 +611,8 @@ if (cakeOrderRes.ok) {
     setSelectedProductIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
   };
 
-const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.request_item_id));
+  const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
+
 // --- BULK DELIVERY (with branch validation & cleanup) ---
 const handleBulkDelivery = async () => {
   if (selectedProductIds.length === 0) return;
@@ -679,7 +679,8 @@ try {
       setDeliveryNote(noteData);
       setIssuedNotes(prev => [noteData, ...prev]);
       // Remove the fulfilled requests from the list
-setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.request_item_id)));      setSelectedProductIds([]);
+      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
+      setSelectedProductIds([]);
       
       await fetchAllDeliveryNotes();
     }
@@ -759,15 +760,39 @@ setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.requ
   // --- NEW: Fetch single cake order detail ---
   const fetchCakeOrderDetail = async (cakeId: number) => {
     const token = localStorage.getItem('token');
+    // FIX: Show the already-mapped row immediately (it has the correct
+    // imageUrl resolved via the multi-field fallback and the computed
+    // remaining payment) instead of waiting on / fully trusting the raw
+    // single-order endpoint, which may use different field names and was
+    // causing the modal to show "Sample Picture: No" even when the list
+    // thumbnail displayed the image correctly.
+    const listRow = cakeOrders.find((c: any) => String(c.id) === String(cakeId));
+    if (listRow) {
+      setSelectedCakeOrderDetail(listRow);
+      setShowCakeDetailModal(true);
+    }
     try {
       const response = await fetch(`${baseUrl}/storekeeper/cake-orders/${cakeId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
         const detail = await response.json();
-        setSelectedCakeOrderDetail(detail);
+        const img = detail.inspo_image_url || detail.sample_image || detail.image_url || detail.cake_image || detail.picture || detail.image || listRow?.imageUrl || null;
+        const paidAmt = Number(detail.total_paid || detail.advance_payment || detail.paid_amount || detail.paid || listRow?.paid || 0);
+        const totalAmt = Number(detail.price || detail.total_price || listRow?.totalPrice || 0);
+        const remainingAmt = detail.remaining_payment !== undefined ? Number(detail.remaining_payment) : (totalAmt - paidAmt);
+        // FIX: Merge fresh data on top of the mapped row rather than
+        // overwriting it outright, so nothing already-correct gets lost.
+        setSelectedCakeOrderDetail({
+          ...listRow,
+          ...detail,
+          imageUrl: img,
+          total_paid: paidAmt,
+          price: totalAmt,
+          remaining_payment: remainingAmt,
+        });
         setShowCakeDetailModal(true);
-      } else {
+      } else if (!listRow) {
         alert("Failed to load cake order details.");
       }
     } catch (err) {
@@ -890,6 +915,33 @@ const handleSubmitDamage = async () => {
       <style jsx global>{`
         @media print { body * { visibility: hidden; } #printable-note, #printable-note * { visibility: visible; } #printable-note { position: absolute; left: 0; top: 0; width: 100%; border: none !important; } .no-print { display: none !important; } }
       `}</style>
+
+      {/* --- IMAGE ZOOM MODAL (NEW) ---
+          FIX: This modal was missing entirely. setShowZoomModal(true) was
+          being called on image click, but nothing in the page ever
+          rendered when showZoomModal was true — so clicking to zoom the
+          cake sample image (both in the table row thumbnail and inside the
+          detail modal) silently did nothing. */}
+      {showZoomModal && zoomImageUrl && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-4 no-print"
+          onClick={() => setShowZoomModal(false)}
+        >
+          <div className="relative max-w-4xl max-h-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowZoomModal(false)}
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+            >
+              <X size={32} />
+            </button>
+            <img
+              src={zoomImageUrl}
+              alt="Zoomed cake"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
 
       {/* --- CAKE ORDER DETAIL MODAL (NEW) --- */}
       {showCakeDetailModal && selectedCakeOrderDetail && (
@@ -1061,7 +1113,7 @@ const handleSubmitDamage = async () => {
           <div id="printable-note" className="bg-white w-full max-w-md shadow-2xl overflow-y-auto text-black p-8 font-serif border border-gray-200 max-h-[90vh]">
             <div className="text-center mb-6">
                <div className="flex justify-center mb-2">
-                  <img src="/logo.png" alt="Ishingiro Logo" className="w-16 h-16 object-contain" />
+                  <img src="/logo.png" alt="Ishingiro Logo" className="w-16 h-16 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                </div>
                <h2 className="font-bold text-lg uppercase leading-tight">BINYA LTD</h2>
                <p className="text-[10px] font-bold uppercase">B.P:2558 KIGALI-RWANDA</p>
@@ -1206,11 +1258,7 @@ const handleSubmitDamage = async () => {
                   .filter(req => req.item.toLowerCase().includes(requestSearch.toLowerCase()))
                   .map((req) => (
                     <tr key={req.request_item_id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-8 py-6">
-                        <button onClick={() => toggleSelection(req.request_item_id)} className="text-[#F57C00]">
-  {selectedProductIds.includes(req.request_item_id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}
-</button>
-                      </td>
+                      <td className="px-8 py-6"><button onClick={() => toggleSelection(req.id)} className="text-[#F57C00]">{selectedProductIds.includes(req.id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}</button></td>
                       <td className="px-8 py-6"><div className="flex flex-col gap-1"><span className="font-black text-[#F57C00] uppercase text-sm">{req.item}</span>{req.isEdited && <span className="text-[9px] font-black text-rose-600 uppercase flex items-center gap-1"><AlertCircle size={10}/> Modified</span>}</div></td>
                       <td className="px-8 py-6 text-center"><span className="px-3 py-1 bg-[#FAF6F4] text-[#F57C00] rounded-lg text-[10px] font-black uppercase">{req.branch}</span></td>
                       <td className="px-8 py-6 text-center"><span className="font-black text-lg text-gray-900">{req.quantity}</span></td>
@@ -1514,6 +1562,7 @@ const handleSubmitDamage = async () => {
         <tr className="bg-gray-50/50 text-[10px] font-black uppercase text-gray-900 border-b border-gray-200">
           <th className="px-8 py-4">Customer / Item</th>
           <th className="px-8 py-4 text-center">Payment Status</th>
+          <th className="px-8 py-4 text-center">Branch</th>
           <th className="px-8 py-4 text-right">Pickup Location & Date</th>
           <th className="px-8 py-4 text-center">Image</th>
          </tr>
@@ -1538,6 +1587,13 @@ const handleSubmitDamage = async () => {
                   </span>
                 </div>
                </td>
+              <td className="px-8 py-6 text-center">
+                {/* FIX: Dedicated branch badge so the store keeper always
+                    knows which branch (Kabuga/Masaka) placed this order. */}
+                <span className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-[9px] font-black uppercase">
+                  {order.branch || order.pickupLocation || 'N/A'}
+                </span>
+               </td>
               <td className="px-8 py-6 text-right text-xs font-black text-gray-400">
                 {order.pickupLocation} – {order.pickupDate?.split('T')[0]}
                </td>
@@ -1560,7 +1616,7 @@ const handleSubmitDamage = async () => {
           ))}
         {cakeOrders.filter(o => o.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || o.details.toLowerCase().includes(cakeOrderSearch.toLowerCase())).length === 0 && (
           <tr>
-            <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
+            <td colSpan={5} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
           </tr>
         )}
       </tbody>

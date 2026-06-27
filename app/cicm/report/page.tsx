@@ -98,6 +98,25 @@ export default function CICMReportPage() {
     Masaka: 0
   });
 
+  // FIX: Resolve sold quantity, unit price, and end-of-day remaining stock
+  // for a revenue category item, trying every reasonable backend field name
+  // before falling back to the local FINANCE_PRODUCTS price list. Without
+  // this, the report only ever showed "Item" and "Total Revenue" — no
+  // quantity, unit price, or remaining stock, as requested.
+  const mapRevenueItem = (i: any) => {
+    const qty = i.qty ?? i.quantity ?? i.sold_qty ?? null;
+    const unitPrice = i.unit_price ?? i.price ?? (i.total && qty ? i.total / qty : getProductPrice(i.item || ''));
+    const remaining = i.remaining_quantity ?? i.remaining_qty ?? i.stock_remaining ?? i.end_of_day_remaining ?? i.remaining ?? null;
+    return {
+      item: i.item,
+      total: i.total,
+      qty,
+      unitPrice,
+      remaining,
+      unit: i.unit || 'pcs'
+    };
+  };
+
   // --- Helper: Fetch distribution value for a given branch ---
   const fetchDistributionsForBranch = async (branch: string): Promise<number> => {
     const token = localStorage.getItem('token');
@@ -162,18 +181,18 @@ export default function CICMReportPage() {
             
             setBranchData({
               Kabuga: {
-                bread: kabugaData.categories?.bread_sales?.map((i: any) => ({ item: i.item, total: i.total })) || [],
-                tiku: kabugaData.categories?.tiku_others?.map((i: any) => ({ item: i.item, total: i.total })) || []
+                bread: kabugaData.categories?.bread_sales?.map(mapRevenueItem) || [],
+                tiku: kabugaData.categories?.tiku_others?.map(mapRevenueItem) || []
               },
               Masaka: {
-                bread: masakaData.categories?.bread_sales?.map((i: any) => ({ item: i.item, total: i.total })) || [],
-                tiku: masakaData.categories?.tiku_others?.map((i: any) => ({ item: i.item, total: i.total })) || []
+                bread: masakaData.categories?.bread_sales?.map(mapRevenueItem) || [],
+                tiku: masakaData.categories?.tiku_others?.map(mapRevenueItem) || []
               }
             });
           } else {
             const mappedData = {
-              bread: revenueData.categories?.bread_sales?.map((i: any) => ({ item: i.item, total: i.total })) || [],
-              tiku: revenueData.categories?.tiku_others?.map((i: any) => ({ item: i.item, total: i.total })) || []
+              bread: revenueData.categories?.bread_sales?.map(mapRevenueItem) || [],
+              tiku: revenueData.categories?.tiku_others?.map(mapRevenueItem) || []
             };
             setBranchData((prev: any) => ({
               ...prev,
@@ -268,9 +287,16 @@ export default function CICMReportPage() {
     csv += `Note: Revenue excludes non‑sales distributions (events, clients, tiku giveaways) recorded by storekeeper.\n\n`;
     
     const formatSection = (title: string, data: any[]) => {
-      let content = `${title.toUpperCase()}\nItem,Total Revenue (RWF)\n`;
-      data.forEach(d => content += `${d.item},${d.total.toLocaleString()}\n`);
-      content += `TOTAL,${calculateTotal(data).toLocaleString()}\n\n`;
+      // FIX: Include Sold Qty, Unit Price, and Remaining (EOD) in the
+      // exported CSV too, so it matches the on-screen table.
+      let content = `${title.toUpperCase()}\nItem,Sold Qty,Unit Price (RWF),Total Revenue (RWF),Remaining (EOD)\n`;
+      data.forEach(d => {
+        const qtyStr = d.qty != null ? `${d.qty} ${d.unit || 'pcs'}` : '-';
+        const priceStr = d.unitPrice ? Math.round(d.unitPrice).toLocaleString() : '-';
+        const remainingStr = d.remaining != null ? `${d.remaining} ${d.unit || 'pcs'}` : '-';
+        content += `${d.item},${qtyStr},${priceStr},${d.total.toLocaleString()},${remainingStr}\n`;
+      });
+      content += `TOTAL,,,${calculateTotal(data).toLocaleString()},\n\n`;
       return content;
     };
 
@@ -307,21 +333,37 @@ export default function CICMReportPage() {
         <thead className="bg-gray-50 text-gray-400 font-bold uppercase">
           <tr>
             <th className="px-4 py-2">Item</th>
+            {/* FIX: Added Sold Qty, Unit Price, and Remaining (end-of-day
+                stock) columns, as requested — previously only Item and
+                Total Revenue were shown. */}
+            <th className="px-4 py-2 text-center">Sold Qty</th>
+            <th className="px-4 py-2 text-right">Unit Price (RWF)</th>
             <th className="px-4 py-2 text-right">Total Revenue (RWF)</th>
+            <th className="px-4 py-2 text-center">Remaining (EOD)</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
           {data?.map((row: any, i: number) => row.total > 0 && (
             <tr key={i} className="hover:bg-gray-50/50">
               <td className="px-4 py-3 font-bold text-[#5D4037] uppercase">{row.item}</td>
+              <td className="px-4 py-3 text-center font-bold text-gray-700">
+                {row.qty != null ? `${row.qty} ${row.unit || 'pcs'}` : '-'}
+              </td>
+              <td className="px-4 py-3 text-right font-bold text-gray-700">
+                {row.unitPrice ? Math.round(row.unitPrice).toLocaleString() : '-'}
+              </td>
               <td className="px-4 py-3 text-right font-black text-gray-700">{row.total.toLocaleString()}</td>
+              <td className="px-4 py-3 text-center font-bold text-gray-700">
+                {row.remaining != null ? `${row.remaining} ${row.unit || 'pcs'}` : '-'}
+              </td>
             </tr>
           ))}
           <tr className="bg-gray-50/80 font-black">
-            <td className="px-4 py-3 text-[#5D4037] text-right uppercase">Total:</td>
+            <td className="px-4 py-3 text-[#5D4037] text-right uppercase" colSpan={3}>Total:</td>
             <td className="px-4 py-3 text-right text-[#5D4037]">
               {calculateTotal(data).toLocaleString()}
             </td>
+            <td></td>
           </tr>
         </tbody>
       </table>
@@ -425,24 +467,7 @@ export default function CICMReportPage() {
         />
       </div>
 
-      {/* --- Grand Total Summary --- */}
-      <div className="bg-[#F57C00] p-6 rounded-[32px] text-white shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 print:shadow-none print:border-2 print:border-[#F57C00] print:text-[#F57C00] print:bg-white">
-        <div className="flex items-center gap-4">
-          <div className="bg-white/20 p-4 rounded-2xl print:bg-[#F57C00]/10">
-            <Receipt size={32} />
-          </div>
-          <div>
-            <p className="text-xs font-bold opacity-80 uppercase tracking-widest">Grand Total Revenue (after distribution deduction)</p>
-            <h2 className="text-4xl font-black">
-              RWF {isLoading ? '...' : grandTotalAfterSubtraction.toLocaleString()}
-            </h2>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 bg-black/10 px-6 py-3 rounded-2xl print:border print:border-[#F57C00]">
-          <TrendingUp size={20} />
-          <span className="font-bold text-sm uppercase tracking-tighter">Verified Revenue</span>
-        </div>
-      </div>
+   
 
       {/* --- Print footer --- */}
       <div className="hidden print:block text-[8px] text-gray-400 text-center mt-8 border-t pt-2">

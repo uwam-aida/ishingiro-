@@ -39,6 +39,7 @@ export default function SalesCoordinatorDashboard() {
 
   // --- STATE FOR DETAILED LISTS ---
   const [detailedLists, setDetailedLists] = useState({
+    
     Requests: [] as any[],
     CakeOrders: [] as any[],
     Baked: [] as any[],
@@ -48,6 +49,7 @@ export default function SalesCoordinatorDashboard() {
     History: [] as any[],
     Targets: [] as any[]
   });
+  
 
   // --- BRANCH FILTER STATE (used for Requests, Cake Orders, Stock, Damaged) ---
   const [branchFilter, setBranchFilter] = useState<'all' | 'kabuga' | 'masaka'>('all');
@@ -179,19 +181,38 @@ if (summaryResponse.ok) {
               status: r.status || 'pending'
             }))
           ),
-          CakeOrders: cakeData.map((c: any) => ({
-            id: c.id,
-            item: c.cake_type,
-            qty: `Code: CK-${c.id}`,
-            stock: `Customer: ${c.customer_name}`,
-            location: c.location,
-            time: c.delivery_date || 'N/A',
-            status: c.status || 'pending',
-            // NEW FIELDS for image and pickup details
-            imageUrl: c.inspo_image_url || null,
-            payerName: c.payer_name || c.customer_name || '—',
-            pickupPerson: c.pickup_person || c.customer_name || '—'
-          })),
+          CakeOrders: cakeData.map((c: any) => {
+            // FIX: Hunt across every possible field name the backend might
+            // use for the sample picture, instead of trusting only one key.
+            // This mirrors the working fallback already used elsewhere
+            // (e.g. shop-manager dashboard) so the image actually shows up.
+            const img = c.inspo_image_url || c.sample_image || c.image_url || c.cake_image || c.picture || c.image || c.cakeFile || c.cake_file || null;
+            const paidAmt = Number(c.total_paid || c.advance_payment || c.paid_amount || c.paid || 0);
+            const totalAmt = Number(c.price || c.total_price || 0);
+            const remainingAmt = c.remaining_payment !== undefined ? Number(c.remaining_payment) : (totalAmt - paidAmt);
+
+            return {
+              ...c,
+              id: c.id,
+              item: c.cake_type,
+              qty: `Code: CK-${c.id}`,
+              stock: `Customer: ${c.customer_name}`,
+              location: c.location,
+              time: c.delivery_date || 'N/A',
+              status: c.status || 'pending',
+              // NEW FIELDS for image and pickup details
+              imageUrl: img,
+              // FIX: Derive "needs sample" from whether an image actually
+              // exists, rather than trusting a boolean flag that could have
+              // been saved incorrectly by the order form.
+              needs_sample: c.needs_sample || (img ? true : false),
+              price: totalAmt,
+              total_paid: paidAmt,
+              remaining_payment: remainingAmt,
+              payerName: c.payer_name || c.customer_name || '—',
+              pickupPerson: c.pickup_person || c.customer_name || '—'
+            };
+          }),
           Baked: bakedData.map((b: any) => ({
             id: b.id,
             item: b.product?.name || 'Baked Item',
@@ -267,7 +288,7 @@ if (summaryResponse.ok) {
     {
       label: 'Requests',
       fullLabel: 'Shop Requests',
-      value: apiData.shop_requests.toString(),
+      value: detailedLists.Requests.length.toString(),
       sub: 'Pending branch orders',
       icon: ClipboardList,
       color: 'text-orange-600',
@@ -276,7 +297,7 @@ if (summaryResponse.ok) {
     {
       label: 'Cake Orders',
       fullLabel: 'Customers Cake Orders',
-      value: apiData.cake_orders.toString(),
+      value: detailedLists.CakeOrders.length.toString(),
       sub: 'Pending cake orders',
       icon: Cake,
       color: 'text-orange-600',
@@ -285,7 +306,7 @@ if (summaryResponse.ok) {
     {
       label: 'Baked',
       fullLabel: 'Baked Products',
-      value: apiData.baked_products.toString(),
+      value: detailedLists.Baked.length.toString(),
       sub: 'Ready from production',
       icon: ChefHat,
       color: 'text-amber-600',
@@ -294,7 +315,7 @@ if (summaryResponse.ok) {
     {
       label: 'Delivered',
       fullLabel: 'Delivered Products',
-      value: apiData.delivered_products.toString(),
+      value: detailedLists.Delivered.length.toString(),
       sub: 'Sent to branches',
       icon: Truck,
       color: 'text-blue-600',
@@ -303,7 +324,7 @@ if (summaryResponse.ok) {
     {
       label: 'Stock',
       fullLabel: 'Shop Stock',
-      value: apiData.stock.toString(),
+      value: detailedLists.Stock.length.toString(),
       sub: 'Available in branches',
       icon: Store,
       color: 'text-green-600',
@@ -312,7 +333,7 @@ if (summaryResponse.ok) {
     {
       label: 'Damaged',
       fullLabel: 'Damaged Products',
-      value: apiData.damaged_products.toString(),
+      value: detailedLists.Damaged.length.toString(),
       sub: 'Recorded losses',
       icon: AlertTriangle,
       color: 'text-red-600',
@@ -321,7 +342,7 @@ if (summaryResponse.ok) {
     {
       label: 'History',
       fullLabel: 'Cake Orders History',
-      value: apiData.history.toString(),
+      value: detailedLists.History.length.toString(),
       sub: 'Coordinator cake orders',
       icon: History,
       color: 'text-purple-600',
@@ -330,7 +351,7 @@ if (summaryResponse.ok) {
     {
       label: 'Targets',
       fullLabel: 'Sales Targets',
-      value: apiData.targets.toString(),
+      value: detailedLists.Targets.length.toString(),
       sub: 'Monitored quotas',
       icon: Target,
       color: 'text-teal-600',
@@ -428,21 +449,42 @@ if (summaryResponse.ok) {
   // --- FETCH SINGLE CAKE ORDER DETAIL ---
   const fetchCakeOrderDetail = async (id: number | string) => {
     try {
+      // FIX: Start from the already-mapped row (it has the correct
+      // imageUrl found via the multi-field fallback, the corrected
+      // needs_sample, and the computed remaining_payment). Previously this
+      // function replaced everything with the raw, unmapped API response,
+      // which is why the modal showed "Sample Picture: No" even when the
+      // customer had uploaded one and the list thumbnail showed it fine.
+      const listRow = detailedLists.CakeOrders.find(c => String(c.id) === String(id));
+      if (listRow) {
+        setSelectedCakeOrderDetail(listRow);
+        setShowCakeDetailModal(true);
+      }
+
       const token = localStorage.getItem('token');
       if (!token) return;
       const headers = { 'Authorization': `Bearer ${token}` };
       const res = await fetchWithRetry(`/api/sales/cake-orders/${id}`, { headers, retries: 3, timeout: 15000 });
       if (res.ok) {
         const data = await res.json();
-        setSelectedCakeOrderDetail(data);
+        // FIX: Merge the fresh backend data on top of the mapped row instead
+        // of replacing it outright, so fields the backend might name
+        // differently (or omit) still fall back to the mapped values.
+        const img = data.inspo_image_url || data.sample_image || data.image_url || data.cake_image || data.picture || data.image || listRow?.imageUrl || null;
+        const paidAmt = Number(data.total_paid || data.advance_payment || data.paid_amount || data.paid || listRow?.total_paid || 0);
+        const totalAmt = Number(data.price || data.total_price || listRow?.price || 0);
+        const remainingAmt = data.remaining_payment !== undefined ? Number(data.remaining_payment) : (totalAmt - paidAmt);
+
+        setSelectedCakeOrderDetail({
+          ...listRow,
+          ...data,
+          imageUrl: img,
+          needs_sample: data.needs_sample || (img ? true : false),
+          price: totalAmt,
+          total_paid: paidAmt,
+          remaining_payment: remainingAmt,
+        });
         setShowCakeDetailModal(true);
-      } else {
-        // fallback: try to locate in loaded list
-        const found = detailedLists.CakeOrders.find(c => String(c.id) === String(id));
-        if (found) {
-          setSelectedCakeOrderDetail(found);
-          setShowCakeDetailModal(true);
-        }
       }
     } catch (err) {
       console.error('Failed to fetch cake order detail', err);
@@ -466,10 +508,20 @@ if (summaryResponse.ok) {
         <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
         <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
         <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
-        <div><strong>Price:</strong> {selectedCakeOrderDetail.price} RWF</div>
-        <div><strong>Advance Payment:</strong> {selectedCakeOrderDetail.advance_payment} RWF</div>
-        <div><strong>Remaining:</strong> {selectedCakeOrderDetail.remaining_payment} RWF</div>
-        <div><strong>Total Paid:</strong> {selectedCakeOrderDetail.total_paid} RWF</div>
+        {(() => {
+           // FIX: Recompute defensively in case any field is missing/zero
+           // from the backend, same safeguard used elsewhere in the app.
+           const modalPaid = Number(selectedCakeOrderDetail.total_paid || selectedCakeOrderDetail.advance_payment || selectedCakeOrderDetail.paid_amount || selectedCakeOrderDetail.paid || 0);
+           const modalTotal = Number(selectedCakeOrderDetail.price || selectedCakeOrderDetail.total_price || 0);
+           const modalRem = selectedCakeOrderDetail.remaining_payment !== undefined ? Number(selectedCakeOrderDetail.remaining_payment) : (modalTotal - modalPaid);
+           return (
+             <>
+               <div><strong>Price:</strong> {modalTotal.toLocaleString()} RWF</div>
+               <div><strong>Advance Payment:</strong> {modalPaid.toLocaleString()} RWF</div>
+               <div><strong>Remaining:</strong> {modalRem.toLocaleString()} RWF</div>
+             </>
+           );
+        })()}
         <div><strong>Location:</strong> {selectedCakeOrderDetail.location}</div>
         <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
         <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
@@ -479,13 +531,34 @@ if (summaryResponse.ok) {
         <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
         <div><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
         <div><strong>Reception Location:</strong> {selectedCakeOrderDetail.reception_location}</div>
-        <div><strong>Needs Sample:</strong> {selectedCakeOrderDetail.needs_sample ? 'Yes' : 'No'}</div>
-        {selectedCakeOrderDetail.inspo_image_url && (
-          <div className="col-span-2">
-            <strong>Inspiration Image:</strong><br />
-            <img src={selectedCakeOrderDetail.inspo_image_url} alt="Cake inspo" className="max-h-48 rounded-xl mt-2" />
-          </div>
-        )}
+        {(() => {
+           // FIX: Use the mapped imageUrl (already resolved through the
+           // multi-field fallback) instead of only checking
+           // inspo_image_url. Also derive "Needs Sample" from whether an
+           // image actually exists rather than trusting the raw flag,
+           // since that flag could have been saved incorrectly by an
+           // older version of the order form.
+           const modalImg = selectedCakeOrderDetail.imageUrl || selectedCakeOrderDetail.inspo_image_url || selectedCakeOrderDetail.sample_image || selectedCakeOrderDetail.image_url || selectedCakeOrderDetail.cake_image || selectedCakeOrderDetail.picture || selectedCakeOrderDetail.image;
+           return (
+             <>
+               <div><strong>Needs Sample:</strong> {(selectedCakeOrderDetail.needs_sample || modalImg) ? 'Yes' : 'No'}</div>
+               {modalImg && (
+                 <div className="col-span-2">
+                   <strong>Sample Picture:</strong><br />
+                   <img
+                     src={modalImg}
+                     alt="Cake inspo"
+                     className="max-h-48 rounded-xl mt-2 cursor-zoom-in hover:opacity-80 transition-opacity shadow-md border border-gray-100"
+                     onClick={() => {
+                       setZoomImageUrl(modalImg);
+                       setShowZoomModal(true);
+                     }}
+                   />
+                 </div>
+               )}
+             </>
+           );
+        })()}
       </div>
       <div className="flex justify-end gap-3 p-4">
         <button onClick={() => setShowCakeDetailModal(false)} className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs">Close</button>

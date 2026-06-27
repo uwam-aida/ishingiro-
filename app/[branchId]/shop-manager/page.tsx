@@ -113,6 +113,7 @@ export default function DynamicShopDashboard() {
   const [requestQty, setRequestQty] = useState('');
   // restQty removed
 
+  
   const [myRequests, setMyRequests] = useState<any[]>([]);
   const [receivedStock, setReceivedStock] = useState<any[]>([]);
   const [bakedProductsLog, setBakedProductsLog] = useState<any[]>([]);
@@ -139,11 +140,20 @@ export default function DynamicShopDashboard() {
 
   const [showRequestSuccess, setShowRequestSuccess] = useState(false);
 
-  // --- Close Day state ---
-
+ // --- Close Day state ---
   const [closeDayEntries, setCloseDayEntries] = useState<any[]>([]);
   const [isCloseDaySubmitting, setIsCloseDaySubmitting] = useState(false);
   const [closedTodayProductIds, setClosedTodayProductIds] = useState<number[]>([]);
+
+  // --- Damaged state ---
+  const [damagedItems, setDamagedItems] = useState<any[]>([]);
+  const [isDamageSubmitting, setIsDamageSubmitting] = useState(false);
+  const [damageSearch, setDamageSearch] = useState('');
+  const [damageProductSearch, setDamageProductSearch] = useState('');
+  const [damageQty, setDamageQty] = useState('');
+  const [damageUnit, setDamageUnit] = useState('Pieces');
+  const [showDamageSuggestions, setShowDamageSuggestions] = useState(false);
+  const [selectedDamageProduct, setSelectedDamageProduct] = useState<any>(null);
 
   // Search states
   const [orderSearch, setOrderSearch] = useState('');
@@ -261,11 +271,29 @@ export default function DynamicShopDashboard() {
                 setReceivedStock(dispatchedOrders); // Now holds only received items
             }
         }
+// 4c. Damaged items
+        const baseUrl2 = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+        const damagedRes = await fetch(`${baseUrl2}/shop/damages/${branchIdString}`, { headers });
+        if (damagedRes.ok) {
+          const rawDamaged = await damagedRes.json();
+          const damagedArray = Array.isArray(rawDamaged) ? rawDamaged : (rawDamaged.data || []);
+          setDamagedItems(damagedArray.map((d: any) => ({
+            id: d.id,
+            item: d.product?.name || d.product_name || d.name || 'Unknown',
+            quantity: d.quantity,
+            unit: d.unit || 'Pieces',
+            date: d.date || (d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A'),
+            created_at: d.created_at || null,
+          })));
+        }
 
+        
         // 5. Cake orders
-        const cakeRes = await fetch(`${baseUrl}/shop/cake-orders/${branchIdString}`, { headers });
+        
+        const cakeRes = await fetch(`${baseUrl}/shop/cake-orders`, { headers });
         if (cakeRes.ok) {
-            const cakeData = await cakeRes.json();
+            const cakeRes_json = await cakeRes.json();
+            const cakeData = Array.isArray(cakeRes_json) ? cakeRes_json : (cakeRes_json.data || []);
             if (cakeData.length > 0) {
                 const mappedCakes = cakeData.map((c: any) => {
                    // 👉 FIX: Matches the exact names from your Cake Form components!
@@ -285,7 +313,12 @@ export default function DynamicShopDashboard() {
                      price: totalAmt,
                      total_paid: paidAmt,
                      remaining_payment: remainingAmt,
-                     needs_sample: c.needsSample || c.needs_sample || (img ? 'Yes' : 'No')
+                     needs_sample: c.needsSample || c.needs_sample || (img ? 'Yes' : 'No'),
+                     // FIX: Capture pickup location/time so it can be shown
+                     // as its own column in the cake order grid.
+                     pickupLocation: c.reception_location || c.location || 'N/A',
+                     pickupTime: c.delivery_date || c.pickupDate || 'Pending',
+                     branchLocation: c.location || 'N/A'
                    };
                 });
                 mappedCakes.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
@@ -393,11 +426,9 @@ export default function DynamicShopDashboard() {
 
     const payload = {
       closing_date: new Date().toISOString().split('T')[0],
-      products: entriesToSubmit.map(entry => ({
+     products: entriesToSubmit.map(entry => ({
         product_id: entry.product_id,
         remaining: parseInt(entry.remaining) || 0,
-        damaged: parseInt(entry.damaged) || 0,
-        expired: parseInt(entry.expired) || 0
       }))
     };
 
@@ -434,6 +465,72 @@ export default function DynamicShopDashboard() {
     ));
   };
 
+  const handleDamageSubmit = async () => {
+  // 1. Validate that a valid product is selected
+  if (!selectedDamageProduct || !selectedDamageProduct.product_id) {
+    alert('Please select a valid product from the list.');
+    return;
+  }
+  if (!damageQty || parseFloat(damageQty) <= 0) {
+    alert('Please enter a valid quantity.');
+    return;
+  }
+
+  setIsDamageSubmitting(true);
+  const token = localStorage.getItem('token');
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
+
+  const payload = {
+    product_id: selectedDamageProduct.product_id,
+    quantity: parseFloat(damageQty),
+    reason: 'Not specified', // You can add a reason input if needed
+    location: branchIdString,
+  };
+
+  try {
+    const res = await fetch(`${baseUrl}/shop/damages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      // Refresh the list with the correct branch endpoint
+      const refreshRes = await fetch(`${baseUrl}/shop/damages/${branchIdString}`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+      });
+      if (refreshRes.ok) {
+        const rawDamaged = await refreshRes.json();
+        const damagedArray = Array.isArray(rawDamaged) ? rawDamaged : (rawDamaged.data || []);
+        setDamagedItems(damagedArray.map((d: any) => ({
+          id: d.id,
+          item: d.product?.name || d.product_name || d.name || 'Unknown',
+          quantity: d.quantity,
+          unit: d.unit || 'Pieces',
+          date: d.date || (d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A'),
+          created_at: d.created_at || null,
+        })));
+      }
+      // Clear form
+      setDamageProductSearch('');
+      setDamageQty('');
+      setDamageUnit('Pieces');
+      setSelectedDamageProduct(null);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      alert(err.message || 'Failed to submit damage.');
+    }
+  } catch (e) {
+    alert('Network error. Please try again.');
+  } finally {
+    setIsDamageSubmitting(false);
+  }
+};
+
   const saveReceivedEdit = (id: number) => {
     setReceivedStock(prev => prev.map(item => item.id === id ? { ...item, quantity: parseInt(editReceivedQty) || item.quantity } : item));
     setEditingReceivedId(null);
@@ -442,7 +539,7 @@ export default function DynamicShopDashboard() {
   const branchName = branchIdString === 'kabuga' ? 'KABUGA SHOP' : branchIdString === 'masaka' ? 'MASAKA SHOP' : 'BRANCH';
 
   // Active filter: removed 'damaged', added 'close_day'
-  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'close_day' | 'history'>('orders');
+  const [activeFilter, setActiveFilter] = useState<'baked' | 'orders' | 'cake_orders' | 'received' | 'stock' | 'close_day' | 'damaged' | 'history'>('orders');
 
   const fullHistory = [
     ...myRequests.map(r => ({ category: 'Order', item: r.item, qty: r.quantity, time: r.time, color: 'text-blue-600' })),
@@ -456,6 +553,7 @@ export default function DynamicShopDashboard() {
     { id: 'received', label: 'Received', icon: Archive, count: receivedStock.length },
     { id: 'stock', label: 'My Stock', icon: Store, count: myStock.length },
     { id: 'close_day', label: 'Close Day', icon: ClipboardCheck, count: closeDayEntries.length },
+    { id: 'damaged', label: 'Damaged', icon: ShieldAlert, count: damagedItems.length },
     { id: 'history', label: 'Full History', icon: History, count: fullHistory.length },
   ];
 
@@ -509,6 +607,8 @@ export default function DynamicShopDashboard() {
 
               <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
               <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
+              <div><strong>Pickup Location:</strong> {selectedCakeOrderDetail.pickupLocation || selectedCakeOrderDetail.reception_location || selectedCakeOrderDetail.location || 'N/A'}</div>
+              <div><strong>Pickup Time:</strong> {selectedCakeOrderDetail.pickupTime || selectedCakeOrderDetail.delivery_date || 'Pending'}</div>
               <div className="col-span-2"><strong>Size / Stages:</strong> {selectedCakeOrderDetail.cake_size}</div>
               <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
               <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
@@ -660,7 +760,7 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
-          {/* NEW CLOSE DAY TAB – now uses updated API */}
+          {/* CLOSE DAY TAB */}
           {activeFilter === 'close_day' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
               <div className="flex justify-between items-center mb-4">
@@ -673,54 +773,31 @@ export default function DynamicShopDashboard() {
                   className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-[#F57C00] w-64"
                 />
               </div>
-              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
-                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
-                  <tr>
-                    <th className="px-8 py-4">Product</th>
-                    <th className="px-8 py-4 text-center">Opening Stock</th>
-                    <th className="px-8 py-4 text-center">Remaining</th>
-                    <th className="px-8 py-4 text-center">Damaged</th>
-                    <th className="px-8 py-4 text-center">Expired</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {closeDayEntries
-                    .filter(entry => entry.product_name.toLowerCase().includes(closeDaySearch.toLowerCase()))
-                    .map((entry, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-8 py-6 font-black text-[#F57C00] uppercase text-sm">{entry.product_name}</td>
-                        <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{entry.opening_stock}</td>
-                        <td className="px-8 py-6 text-center">
-                          <input
-                            type="number"
-                            value={entry.remaining}
-                            onChange={(e) => updateCloseDayEntry(idx, 'remaining', e.target.value)}
-                            className="w-24 border-2 border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#F57C00] font-black text-center"
-                            min="0"
-                          />
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <input
-                            type="number"
-                            value={entry.damaged}
-                            onChange={(e) => updateCloseDayEntry(idx, 'damaged', e.target.value)}
-                            className="w-24 border-2 border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#F57C00] font-black text-center"
-                            min="0"
-                          />
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <input
-                            type="number"
-                            value={entry.expired}
-                            onChange={(e) => updateCloseDayEntry(idx, 'expired', e.target.value)}
-                            className="w-24 border-2 border-gray-200 rounded-lg px-2 py-1 outline-none focus:border-[#F57C00] font-black text-center"
-                            min="0"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+              
+             <div className="space-y-3">
+                {closeDayEntries
+                  .filter(entry => entry.product_name.toLowerCase().includes(closeDaySearch.toLowerCase()))
+                  .map((entry, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 bg-gray-50 rounded-2xl px-5 py-4 border border-gray-100">
+                      <span className="font-black text-[#F57C00] uppercase text-sm flex-1">{entry.product_name}</span>
+                      <span className="text-xs font-black text-gray-400 uppercase">Opening: <span className="text-gray-900">{entry.opening_stock}</span></span>
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase">Remaining:</label>
+                        <input
+                          type="number"
+                          value={entry.remaining}
+                          onChange={(e) => updateCloseDayEntry(idx, 'remaining', e.target.value)}
+                          className="w-24 border-2 border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-[#F57C00] font-black text-center text-sm"
+                          min="0"
+                        />
+                      </div>
+                      <span className="text-[10px] font-black text-gray-500 uppercase bg-white border border-gray-200 px-3 py-2 rounded-xl">{entry.unit || 'Pieces'}</span>
+                    </div>
+                  ))}
+                {closeDayEntries.filter(entry => entry.product_name.toLowerCase().includes(closeDaySearch.toLowerCase())).length === 0 && (
+                  <div className="py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No products found</div>
+                )}
+              </div>
               <div className="flex justify-end mt-6">
                 <button
                   onClick={handleCloseDaySubmit}
@@ -733,6 +810,131 @@ export default function DynamicShopDashboard() {
             </div>
           )}
 
+          {/* DAMAGED TAB */}
+          {activeFilter === 'damaged' && (
+            <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xs font-black text-red-600 uppercase tracking-widest">Damaged Items</h2>
+                <input
+                  type="text"
+                  placeholder="Search damaged..."
+                  value={damageSearch}
+                  onChange={(e) => setDamageSearch(e.target.value)}
+                  className="border-2 border-gray-200 p-2 rounded-xl text-sm outline-none focus:border-red-500 w-64"
+                />
+              </div>
+
+              {/* Report form */}
+              <div className="bg-red-50/40 border border-red-100 rounded-3xl p-6 mb-8">
+                <h3 className="text-[10px] font-black uppercase text-red-600 tracking-widest mb-4">Report New Damage</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search product..."
+                      value={damageProductSearch}
+                      onChange={(e) => {
+                        setDamageProductSearch(e.target.value);
+                        setShowDamageSuggestions(true);
+                        // Allow free typing — only clear the locked product if user changes text
+                        if (selectedDamageProduct && e.target.value !== selectedDamageProduct.item) {
+                          setSelectedDamageProduct({ 
+                            ...selectedDamageProduct, 
+                            item: e.target.value 
+                          });
+                        }
+                      }}
+                      onFocus={() => setShowDamageSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowDamageSuggestions(false), 200)}
+                      className="w-full border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500"
+                    />
+                    {showDamageSuggestions && (
+                      <div className="absolute z-50 w-full bg-white border border-gray-100 rounded-2xl shadow-xl max-h-48 overflow-y-auto mt-1">
+{(() => {
+                          const stockMatches = damageProductSearch
+                            ? myStock.filter(s => s.item.toLowerCase().includes(damageProductSearch.toLowerCase()))
+                            : myStock;
+
+                          const marketingMatches = MARKETING_PRODUCTS.filter(p =>
+                            damageProductSearch
+                              ? p.name.toLowerCase().includes(damageProductSearch.toLowerCase())
+                              : true
+                          ).filter(p => !stockMatches.some(s => s.item.toLowerCase() === p.name.toLowerCase()));
+
+                          const combined = [
+                            ...stockMatches.map(s => ({ label: s.item, source: s })),
+                            ...marketingMatches.map(p => ({ label: p.name, source: { item: p.name, product_id: null, id: null } }))
+                          ];
+
+                          return combined.map((entry, i) => (
+                            <div
+                              key={i}
+                              onMouseDown={() => { setSelectedDamageProduct(entry.source); setDamageProductSearch(entry.label); setShowDamageSuggestions(false); }}
+                              className="p-4 hover:bg-red-50 cursor-pointer font-bold text-sm border-b border-gray-50 last:border-0"
+                            >{entry.label}</div>
+                          ));
+                        })()}
+                        {damageProductSearch && myStock.filter(s => s.item.toLowerCase().includes(damageProductSearch.toLowerCase())).length === 0 && MARKETING_PRODUCTS.filter(p => p.name.toLowerCase().includes(damageProductSearch.toLowerCase())).length === 0 && (
+                          <div className="p-4 text-gray-400 font-bold text-sm">You can still submit with this name</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    placeholder="Quantity"
+                    value={damageQty}
+                    onChange={(e) => setDamageQty(e.target.value)}
+                    className="border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500"
+                    min="0"
+                  />
+                  <select
+                    value={damageUnit}
+                    onChange={(e) => setDamageUnit(e.target.value)}
+                    className="border-2 border-gray-200 p-4 rounded-2xl font-bold text-sm outline-none focus:border-red-500 bg-white"
+                  >
+                    <option value="Pieces">Pieces</option>
+                    <option value="Kg">Kg</option>
+                  </select>
+                  <button
+                    onClick={handleDamageSubmit}
+                    disabled={isDamageSubmitting}
+                    className="bg-red-600 text-white px-6 py-4 rounded-2xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all disabled:opacity-50"
+                  >
+                    {isDamageSubmitting ? 'Submitting...' : 'Submit Damage'}
+                  </button>
+                </div>
+              </div>
+
+              <table className="w-full min-w-[800px] whitespace-nowrap text-left font-bold border-collapse">
+                <thead className="bg-gray-50/50 font-black uppercase text-[10px] text-gray-400 border-b border-gray-200">
+                  <tr>
+                    <th className="px-8 py-4">Product</th>
+                    <th className="px-8 py-4 text-center">Quantity</th>
+                    <th className="px-8 py-4 text-center">Unit</th>
+                    <th className="px-8 py-4 text-right">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {damagedItems
+                    .filter(d => d.item.toLowerCase().includes(damageSearch.toLowerCase()))
+                    .map((d) => (
+                      <tr key={d.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-8 py-6 font-black text-red-600 uppercase text-sm">{d.item}</td>
+                        <td className="px-8 py-6 text-center font-black text-gray-900 text-lg">{d.quantity}</td>
+                        <td className="px-8 py-6 text-center font-black text-gray-500 text-xs uppercase">{d.unit}</td>
+                        <td className="px-8 py-6 text-right font-black text-gray-400 text-xs">{d.date}</td>
+                      </tr>
+                    ))}
+                  {damagedItems.filter(d => d.item.toLowerCase().includes(damageSearch.toLowerCase())).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No damaged items recorded</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
           {/* CAKE ORDERS TAB (unchanged) */}
           {activeFilter === 'cake_orders' && (
             <div className="w-full max-w-full overflow-x-auto animate-in fade-in p-8 scrollbar-hide">
@@ -753,14 +955,15 @@ export default function DynamicShopDashboard() {
                     <th className="px-8 py-4">Customer / Item</th>
                     <th className="px-8 py-4 text-center">Payment Status</th>
                     <th className="px-8 py-4 text-center">Image</th>
+                    <th className="px-8 py-4 text-center">Pickup Location / Time</th>
                     <th className="px-8 py-4 text-right">Date & Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {cakeOrders
-                   .filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
-                   .map((cake, index) => (
-                   <tr key={`cake-${cake.id}-${index}`} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedCakeOrderDetail(cake); setShowCakeDetailModal(true); }}>
+                    .filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase()))
+                    .map((cake) => (
+                      <tr key={cake.id} className="hover:bg-gray-50/50 transition-colors cursor-pointer" onClick={() => { setSelectedCakeOrderDetail(cake); setShowCakeDetailModal(true); }}>
                         <td className="px-8 py-6">
                           <div className="flex flex-col">
                             <span className="font-black text-[#F57C00] uppercase text-sm">{cake.customer}</span>
@@ -791,6 +994,12 @@ export default function DynamicShopDashboard() {
                             <div className="w-12 h-12 bg-gray-100 rounded-lg mx-auto" />
                           )}
                         </td>
+                        <td className="px-8 py-6 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="text-xs font-black text-gray-700 uppercase">{cake.pickupLocation}</span>
+                            <span className="text-[10px] text-gray-400">{cake.pickupTime ? String(cake.pickupTime).split('T')[0] : 'Pending'}</span>
+                          </div>
+                        </td>
                         <td className="px-8 py-6 text-right">
                           <div className="flex flex-col items-end gap-1">
                             {/* Formats the date cleanly to remove the long timestamp string */}
@@ -802,7 +1011,7 @@ export default function DynamicShopDashboard() {
                     ))}
                   {cakeOrders.filter(cake => cake.item.toLowerCase().includes(cakeOrderSearch.toLowerCase()) || cake.customer.toLowerCase().includes(cakeOrderSearch.toLowerCase())).length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
+                      <td colSpan={5} className="px-8 py-32 text-center font-black text-gray-200 uppercase tracking-[0.5em]">No matching cake orders</td>
                     </tr>
                   )}
                 </tbody>
