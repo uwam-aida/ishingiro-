@@ -285,11 +285,9 @@ export default function CICMReportPage() {
     csv += `REVENUE REPORT (after subtracting storekeeper distributions): ${selectedBranch.toUpperCase()} BRANCHES\n`;
     csv += `DATE: ${reportDate}\n`;
     csv += `Note: Revenue excludes non‑sales distributions (events, clients, tiku giveaways) recorded by storekeeper.\n\n`;
-    
+
     const formatSection = (title: string, data: any[]) => {
-      // FIX: Include Sold Qty, Unit Price, and Remaining (EOD) in the
-      // exported CSV too, so it matches the on-screen table.
-      let content = `${title.toUpperCase()}\nItem,Sold Qty,Unit Price (RWF),Total Revenue (RWF),Remaining (EOD)\n`;
+      let content = ``;
       data.forEach(d => {
         const qtyStr = d.qty != null ? `${d.qty} ${d.unit || 'pcs'}` : '-';
         const priceStr = d.unitPrice ? Math.round(d.unitPrice).toLocaleString() : '-';
@@ -302,15 +300,17 @@ export default function CICMReportPage() {
 
     csv += formatSection("Bread Section", adjustedData.bread);
     csv += formatSection("Tiku / Others (Paid Only)", adjustedData.tiku);
-    csv += `GRAND TOTAL (after distribution deduction), ${grandTotalAfterSubtraction.toLocaleString()}`;
+  csv += `GRAND TOTAL (after distribution deduction), ${grandTotalAfterSubtraction.toLocaleString()}`;
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `IshingiroShop_${selectedBranch}_${reportDate}.csv`;
-    a.click();
-  };
+  // ✅ Add UTF-8 BOM for Excel compatibility
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `IshingiroShop_${selectedBranch}_${reportDate}.csv`;
+  a.click();
+};
 
   // --- Table component ---
   const ReportTable = ({ title, data, colorClass = "bg-[#5D4037]", tooltip = "" }: any) => (

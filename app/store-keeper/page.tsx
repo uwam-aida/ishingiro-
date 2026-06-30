@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { 
+import {
   Package, Bell, ShoppingBag, AlertCircle, FileText, X, ArrowLeft, 
   CheckCheck, ClipboardList, Edit3, CheckSquare, Square, Printer, 
   ChefHat, ShieldAlert, PackageCheck, Download, Eye
@@ -83,7 +83,32 @@ const FINANCE_PRODUCTS: Product[] = [
     { name: 'cakes 6000', price: 6000, category: 'BIG CAKES', type: 'baked' },
     { name: 'cake 5000', price: 5000, category: 'BIG CAKES', type: 'baked' },
 ];
-
+// ADD THIS COMPONENT ABOVE StoreKeeperDashboard
+const PrintableCakeOrder = ({ order }: { order: any }) => (
+  <div id="printable-cake-order" className="hidden print:block p-8 font-sans text-black">
+    <h2 className="text-center font-black text-xl uppercase mb-6">Cake Order Detail</h2>
+    <div className="grid grid-cols-2 gap-4 text-sm border-b pb-6 mb-6">
+      <p><strong>Order ID:</strong> #{order.id}</p>
+      <p><strong>Customer:</strong> {order.customer_name}</p>
+      <p><strong>Order Created:</strong> {new Date(order.created_at).toLocaleString()}</p>
+      <p><strong>Pickup Date:</strong> {new Date(order.delivery_date).toLocaleString()}</p>
+      <p><strong>Total Price:</strong> {Number(order.price).toLocaleString()} RWF</p>
+    </div>
+    <div className="space-y-2 mb-6">
+      <p><strong>Cake Type:</strong> {order.cake_type}</p>
+      <p><strong>Size:</strong> {order.cake_size}</p>
+      <p><strong>Frosting:</strong> {order.frosting_cream} ({order.frosting_color})</p>
+      <p><strong>Message:</strong> {order.cake_message}</p>
+      <p><strong>Instructions:</strong> {order.special_instructions}</p>
+    </div>
+    {order.imageUrl && (
+      <div className="mt-6">
+        <h3 className="font-bold mb-2">Sample Reference</h3>
+        <img src={order.imageUrl} alt="Cake Sample" className="max-w-xs border rounded-lg" />
+      </div>
+    )}
+  </div>
+);
 export default function StoreKeeperDashboard() {
   const router = useRouter(); 
   const params = useParams();
@@ -98,7 +123,12 @@ export default function StoreKeeperDashboard() {
   const [deliveryNote, setDeliveryNote] = useState<any>(null);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editQty, setEditQty] = useState('');
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  // FIX: Track selections by the unique request_item_id (string) instead of
+  // the shared order id (number). Multiple product rows can come from the
+  // same order and therefore share the same `id` — selecting one row was
+  // selecting every row with that same order id. request_item_id is unique
+  // per row (it's the line-item id, or `cake-${id}` for cake orders).
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   // Live API States
   const [myStock, setMyStock] = useState<any[]>([]);
@@ -328,12 +358,19 @@ export default function StoreKeeperDashboard() {
             order.items?.forEach((item: any) => {
               flattenedRequests.push({
                 id: order.id,
-                request_item_id: item.id,
-                product_id: item.product_id,
+                request_item_id: `product-${item.id}`,
                 item: item.product?.name || item.product_name || 'Unknown',
                 quantity: item.quantity,
                 unit: 'pcs',
-                time: order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Pending',
+                time: order.created_at
+                  ? new Date(order.created_at).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: true,
+                    })
+                  : 'Pending',
                 branch: order.location,
                 isEdited: false,
                 type: 'request',
@@ -372,20 +409,32 @@ export default function StoreKeeperDashboard() {
 
              return {
                id: c.id,
+               customer_name: c.customer_name,
+               phone: c.phone,
+               cake_type: c.cake_type,
+               cake_message: c.cake_message,
+               special_instructions: c.special_instructions,
                customer: c.customer_name,
                details: c.cake_type,
                // FIX: branch is the location that placed the order
-               // (kabuga/masaka); pickupLocation is the customer-facing
-               // reception/pickup spot if one was specified, falling back
-               // to branch when it wasn't.
+               
                branch: c.location,
+               location: c.location,
                pickupLocation: c.reception_location || c.location,
+               reception_location: c.reception_location,
                pickupDate: c.delivery_date,
+               delivery_date: c.delivery_date,
                status: c.status,
                totalPrice: totalAmt,
+               price: totalAmt,
                paid: paidAmt,
+               total_paid: paidAmt,
                remaining: remainingAmt,
-               imageUrl: img,
+               remaining_payment: remainingAmt,
+               imageUrl: img && !img.startsWith('http') ? `https://ishingiro-m4th.onrender.com${img}` : img,
+               cake_size: c.cake_size,
+               frosting_cream: c.frosting_cream,
+               frosting_color: c.frosting_color,
                payerName: c.payer_name || c.customer_name,
                pickupPerson: c.pickup_contact_name || '—',
                created_at: c.created_at
@@ -397,12 +446,14 @@ export default function StoreKeeperDashboard() {
             .filter((c: any) => (c.status || 'pending').toLowerCase() !== 'delivered')
             .map((c: any) => ({
               id: c.id,
-              request_item_id: `cake-${c.id}`, 
-              product_id: null,
-              item: c.cake_type || 'Cake Order',
-              quantity: c.quantity || 1,
-              unit: 'pcs',
-              time: c.delivery_date || 'Pending',
+             // The new lines to replace with:
+request_item_id: `cake-order-${c.id}`, 
+product_id: null,
+item: c.cake_type || 'Cake Order',
+quantity: c.quantity || 1,
+unit: 'pcs',
+time: c.delivery_date
+? new Date(c.delivery_date).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Pending',
               branch: c.location || 'kabuga',
               isEdited: false,
               type: 'cake_order',
@@ -607,11 +658,25 @@ export default function StoreKeeperDashboard() {
 
   const handlePrint = () => { window.print(); };
 
-  const toggleSelection = (id: number) => {
-    setSelectedProductIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  // FIX: Print only the cake order detail section, then restore the page
+  // afterward. Used by the new "Download PDF" button in the cake order
+  // detail modal — the browser's print dialog lets the user "Save as PDF".
+  const handlePrintCakeOrder = () => { window.print(); };
+
+  // FIX: Select/deselect by the unique request_item_id, not the shared
+  // order id. Previously toggleSelection(id) toggled every row that shared
+  // the same order id, so clicking one product selected all of them.
+  const toggleSelection = (requestItemId: string) => {
+    setSelectedProductIds(prev =>
+      prev.includes(requestItemId)
+        ? prev.filter(item => item !== requestItemId)
+        : [...prev, requestItemId]
+    );
   };
 
-  const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.id));
+  // FIX: Resolve selected rows by request_item_id (unique per row) instead
+  // of by id (shared across rows from the same order).
+  const selectedItems = shopRequests.filter(req => selectedProductIds.includes(req.request_item_id));
 
 // --- BULK DELIVERY (with branch validation & cleanup) ---
 const handleBulkDelivery = async () => {
@@ -679,7 +744,8 @@ try {
       setDeliveryNote(noteData);
       setIssuedNotes(prev => [noteData, ...prev]);
       // Remove the fulfilled requests from the list
-      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.id)));
+      // FIX: Filter by request_item_id (unique) instead of id (shared).
+      setShopRequests(prev => prev.filter(req => !selectedProductIds.includes(req.request_item_id)));
       setSelectedProductIds([]);
       
       await fetchAllDeliveryNotes();
@@ -913,15 +979,24 @@ const handleSubmitDamage = async () => {
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10 relative px-4 font-sans text-gray-700">
       <style jsx global>{`
-        @media print { body * { visibility: hidden; } #printable-note, #printable-note * { visibility: visible; } #printable-note { position: absolute; left: 0; top: 0; width: 100%; border: none !important; } .no-print { display: none !important; } }
-      `}</style>
+  @media print { 
+    body * { visibility: hidden; } 
+    #printable-cake-order, #printable-cake-order * { visibility: visible; } 
+    #printable-cake-order { position: absolute; left: 0; top: 0; width: 100%; } 
+    .no-print { display: none !important; } 
+  }
+`}</style>
 
-      {/* --- IMAGE ZOOM MODAL (NEW) ---
-          FIX: This modal was missing entirely. setShowZoomModal(true) was
-          being called on image click, but nothing in the page ever
-          rendered when showZoomModal was true — so clicking to zoom the
-          cake sample image (both in the table row thumbnail and inside the
-          detail modal) silently did nothing. */}
+      {/* FIX: Render the PrintableCakeOrder component (it was defined at
+          the top of the file but never actually rendered anywhere, so
+          there was nothing for "Download PDF" / browser print to print).
+          It only becomes visible via the @media print rule above, so it
+          stays invisible in normal browsing. */}
+      {selectedCakeOrderDetail && (
+        <PrintableCakeOrder order={selectedCakeOrderDetail} />
+      )}
+
+      {/* --- IMAGE ZOOM MODAL (NEW) --- */}
       {showZoomModal && zoomImageUrl && (
         <div
           className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[250] p-4 no-print"
@@ -954,57 +1029,53 @@ const handleSubmitDamage = async () => {
               </button>
             </div>
             <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
-              <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
-              <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
-              <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
-              {(() => {
-                 // Calculate the correct math just in case the backend sends zeroes
-                 const modalPaid = Number(selectedCakeOrderDetail.total_paid || selectedCakeOrderDetail.advance_payment || selectedCakeOrderDetail.paid_amount || selectedCakeOrderDetail.paid || 0);
-                 const modalTotal = Number(selectedCakeOrderDetail.price || selectedCakeOrderDetail.total_price || 0);
-                 const modalRem = selectedCakeOrderDetail.remaining_payment !== undefined ? Number(selectedCakeOrderDetail.remaining_payment) : (modalTotal - modalPaid);
-                 return (
-                   <>
-                     <div><strong>Price:</strong> {modalTotal.toLocaleString()} RWF</div>
-                     <div><strong>Total Paid:</strong> {modalPaid.toLocaleString()} RWF</div>
-                     <div><strong>Remaining:</strong> {modalRem.toLocaleString()} RWF</div>
-                   </>
-                 );
-              })()}
-              <div><strong>Location:</strong> {selectedCakeOrderDetail.location}</div>
-              <div><strong>Delivery Date:</strong> {selectedCakeOrderDetail.delivery_date}</div>
-              <div><strong>Status:</strong> {selectedCakeOrderDetail.status}</div>
-              <div><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
-              <div><strong>Cake Size:</strong> {selectedCakeOrderDetail.cake_size}</div>
-              <div><strong>Frosting Cream:</strong> {selectedCakeOrderDetail.frosting_cream}</div>
-              <div><strong>Frosting Color:</strong> {selectedCakeOrderDetail.frosting_color}</div>
-              <div><strong>Special Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
-              <div><strong>Reception Location:</strong> {selectedCakeOrderDetail.reception_location}</div>
-              
-              {(() => {
-                 const modalImg = selectedCakeOrderDetail.inspo_image_url || selectedCakeOrderDetail.sample_image || selectedCakeOrderDetail.image_url || selectedCakeOrderDetail.cake_image || selectedCakeOrderDetail.picture || selectedCakeOrderDetail.image;
-                 return (
-                   <>
-                     <div><strong>Has Sample Picture:</strong> {modalImg ? 'Yes' : 'No'}</div>
-                     {modalImg && (
-                       <div className="col-span-2 mt-2">
-                         <strong>Sample Picture:</strong><br />
-                         <img 
-                           src={modalImg} 
-                           alt="Cake sample" 
-                           className="max-h-48 rounded-xl mt-2 cursor-zoom-in hover:opacity-80 transition-opacity shadow-md border border-gray-100" 
-                           onClick={() => {
-                             setZoomImageUrl(modalImg);
-                             setShowZoomModal(true);
-                           }}
-                         />
-                       </div>
-                     )}
-                   </>
-                 );
-              })()}
-            </div>
+  <div><strong>Customer:</strong> {selectedCakeOrderDetail.customer_name}</div>
+  <div><strong>Phone:</strong> {selectedCakeOrderDetail.phone}</div>
+  <div><strong>Cake Type:</strong> {selectedCakeOrderDetail.cake_type}</div>
+  <div><strong>Quantity:</strong> {selectedCakeOrderDetail.quantity}</div>
+  
+  {/* Date and Time Details */}
+  <div><strong>Order Date:</strong> {new Date(selectedCakeOrderDetail.created_at).toLocaleString()}</div>
+  <div><strong>Pickup Date:</strong> {new Date(selectedCakeOrderDetail.delivery_date).toLocaleString()}</div>
+  
+  <div><strong>Price:</strong> {Number(selectedCakeOrderDetail.price).toLocaleString()} RWF</div>
+  <div><strong>Total Paid:</strong> {Number(selectedCakeOrderDetail.total_paid).toLocaleString()} RWF</div>
+  <div><strong>Remaining:</strong> {Number(selectedCakeOrderDetail.remaining_payment).toLocaleString()} RWF</div>
+  
+  <div><strong>Cake Message:</strong> {selectedCakeOrderDetail.cake_message}</div>
+  <div><strong>Cake Size:</strong> {selectedCakeOrderDetail.cake_size}</div>
+  <div><strong>Frosting:</strong> {selectedCakeOrderDetail.frosting_cream} - {selectedCakeOrderDetail.frosting_color}</div>
+  <div className="col-span-2"><strong>Instructions:</strong> {selectedCakeOrderDetail.special_instructions}</div>
+  <div className="col-span-2"><strong>Reception Location:</strong> {selectedCakeOrderDetail.reception_location}</div>
+  
+  {/* Image Section */}
+  {selectedCakeOrderDetail.imageUrl && (
+    <div className="col-span-2 mt-2">
+      <strong>Sample Picture:</strong><br />
+      <img 
+        src={selectedCakeOrderDetail.imageUrl} 
+        alt="Cake sample" 
+        className="max-h-48 rounded-xl mt-2 cursor-zoom-in hover:opacity-80 transition-opacity shadow-md border border-gray-100" 
+        onClick={() => {
+          setZoomImageUrl(selectedCakeOrderDetail.imageUrl);
+          setShowZoomModal(true);
+        }}
+      />
+    </div>
+  )}
+</div>
+
             <div className="flex justify-end gap-3 p-4">
+              {/* FIX: New "Download PDF" button — triggers the browser's
+                  print dialog (Save as PDF) on the hidden PrintableCakeOrder
+                  section, which now includes the resolved sample image when
+                  one was uploaded. */}
+              <button 
+                onClick={handlePrintCakeOrder}
+                className="px-6 py-2 bg-[#F57C00] text-white rounded-xl font-black uppercase text-xs flex items-center gap-2"
+              >
+                <Download size={14} /> Download PDF
+              </button>
               <button 
                 onClick={() => setShowCakeDetailModal(false)}
                 className="px-6 py-2 border border-gray-300 rounded-xl font-black uppercase text-xs"
@@ -1258,7 +1329,12 @@ const handleSubmitDamage = async () => {
                   .filter(req => req.item.toLowerCase().includes(requestSearch.toLowerCase()))
                   .map((req) => (
                     <tr key={req.request_item_id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-8 py-6"><button onClick={() => toggleSelection(req.id)} className="text-[#F57C00]">{selectedProductIds.includes(req.id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}</button></td>
+                      {/* FIX: toggleSelection now takes request_item_id
+                          (unique per row) instead of req.id (shared across
+                          every line item in the same order) — this is what
+                          was causing every product to get selected when you
+                          clicked just one. */}
+                      <td className="px-8 py-6"><button onClick={() => toggleSelection(req.request_item_id)} className="text-[#F57C00]">{selectedProductIds.includes(req.request_item_id) ? <CheckSquare size={20} /> : <Square size={20} className="text-gray-300" />}</button></td>
                       <td className="px-8 py-6"><div className="flex flex-col gap-1"><span className="font-black text-[#F57C00] uppercase text-sm">{req.item}</span>{req.isEdited && <span className="text-[9px] font-black text-rose-600 uppercase flex items-center gap-1"><AlertCircle size={10}/> Modified</span>}</div></td>
                       <td className="px-8 py-6 text-center"><span className="px-3 py-1 bg-[#FAF6F4] text-[#F57C00] rounded-lg text-[10px] font-black uppercase">{req.branch}</span></td>
                       <td className="px-8 py-6 text-center"><span className="font-black text-lg text-gray-900">{req.quantity}</span></td>
@@ -1595,7 +1671,7 @@ const handleSubmitDamage = async () => {
                 </span>
                </td>
               <td className="px-8 py-6 text-right text-xs font-black text-gray-400">
-                {order.pickupLocation} – {order.pickupDate?.split('T')[0]}
+                {order.pickupLocation} – {order.pickupDate ? new Date(order.pickupDate).toLocaleString('en-US', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'N/A'}
                </td>
               <td className="px-8 py-6 text-center" onClick={(e) => e.stopPropagation()}>
                 {order.imageUrl ? (
