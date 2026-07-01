@@ -129,7 +129,7 @@ export default function FinancePricingPage() {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
     
     try {
-        const response = await fetch(`${baseUrl}/finance/products`, {
+const response = await fetch(`/api/finance/products`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -167,7 +167,8 @@ export default function FinancePricingPage() {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
 
     try {
-        const response = await fetch(`${baseUrl}/finance/products/${itemToEdit.id}`, {
+        const response = await fetch(`/api/finance/products/${itemToEdit.id}`, {
+
             method: 'PUT',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ price: Number(editForm.price), name: editForm.name, type: editForm.type })
@@ -187,7 +188,8 @@ export default function FinancePricingPage() {
       if (itemToDelete && itemToDelete.id) {
           const token = localStorage.getItem('token');
           const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://ishingiro-m4th.onrender.com/api';
-          await fetch(`${baseUrl}/finance/products/${itemToDelete.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+                  await fetch(`/api/finance/products/${itemToDelete.id}`, {
+                method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
       }
       setProducts(products.filter(p => p.name !== name));
     }
